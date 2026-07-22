@@ -1,0 +1,20 @@
+[project]
+name = "nudgely-backend"
+version = "0.1.0"
+description = "Nudgely (스터디 페르소나) 백엔드 + AI 서버"
+requires-python = ">=3.11"
+
+# 실제 의존성은 requirements.txt / requirements-dev.txt 로 관리합니다.
+# 이 파일은 도구(ruff, pytest) 설정 용도입니다.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# E,F: pyflakes/pycodestyle, I: import 정렬, UP: pyupgrade, B: bugbear
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
