@@ -75,7 +75,7 @@ ruff check .      # 린트
 ruff format .     # 포맷
 ```
 
-## MVP 로드맵 (내일 회의 후 구체화)
+## MVP 로드맵 (구체화 예정)
 
 `app/ai/service.py` 에 자리를 잡아둔 4대 기능:
 
