@@ -31,12 +31,7 @@ interface ChatAvatarProps {
 }
 
 /** 채팅 목록·말풍선에서 함께 쓰는 프로필 아바타 */
-export default function ChatAvatar({
-  name,
-  imageUrl,
-  size = 'md',
-  className,
-}: ChatAvatarProps) {
+export default function ChatAvatar({ name, imageUrl, size = 'md', className }: ChatAvatarProps) {
   if (imageUrl) {
     return (
       <img

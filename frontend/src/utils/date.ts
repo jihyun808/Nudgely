@@ -46,3 +46,53 @@ export function formatChatTime(isoDate: string, now: Date = new Date()) {
   if (dayDiff <= 6) return WEEKDAY_LABELS[date.getDay()];
   return '지난주';
 }
+
+/** API 파라미터로 쓰는 날짜 키. 예: '2026-07-26' (사용자 기준 로컬 날짜) */
+export function formatDateKey(date: Date) {
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/** 말풍선 옆에 붙는 시각. 예: '오전 9:00' */
+export function formatMessageTime(isoDate: string) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const meridiem = hours < 12 ? '오전' : '오후';
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${meridiem} ${hour12}:${minutes}`;
+}
+
+/** 채팅 중간의 날짜 구분선 라벨. 예: '오늘', '어제', '2026년 7월 20일 월요일' */
+export function formatDateDivider(isoDate: string, now: Date = new Date()) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const dayDiff = diffInDays(date, now);
+  if (dayDiff === 0) return '오늘';
+  if (dayDiff === 1) return '어제';
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${WEEKDAY_LABELS[date.getDay()]}`;
+}
+
+/** 두 시각이 같은 날인지 (날짜 구분선을 넣을 위치 판단용) */
+export function isSameDay(isoA: string, isoB: string) {
+  const a = new Date(isoA);
+  const b = new Date(isoB);
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+/** 두 시각이 같은 분(分)인지 (연속 메시지의 시각 표시를 한 번만 하기 위함) */
+export function isSameMinute(isoA: string, isoB: string) {
+  const a = new Date(isoA);
+  const b = new Date(isoB);
+  return (
+    isSameDay(isoA, isoB) && a.getHours() === b.getHours() && a.getMinutes() === b.getMinutes()
+  );
+}

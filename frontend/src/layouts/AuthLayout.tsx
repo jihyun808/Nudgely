@@ -18,9 +18,7 @@ const AuthLayout = ({ title, subtitle, children }: AuthLayoutProps) => {
 
       <div className="mt-8">
         <h1 className="text-2xl font-bold">{title}</h1>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          {subtitle}
-        </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{subtitle}</p>
       </div>
 
       {children}

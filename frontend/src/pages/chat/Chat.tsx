@@ -1,6 +1,8 @@
 // pages/chat/Chat.tsx
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createChatRoom, fetchChatRooms } from '@/api/chat';
+import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import ChatRoomCard from '@/pages/chat/components/ChatRoomCard';
 import ChatRoomCardSkeleton from '@/pages/chat/components/ChatRoomCardSkeleton';
@@ -15,6 +17,7 @@ import type { ChatRoom, CreateChatRoomInput } from '@/types/chat';
  * + 버튼을 누르면 채팅방 개설 팝업이 중앙에 뜬다.
  */
 export default function Chat() {
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -65,36 +68,37 @@ export default function Chat() {
   const handleCreate = async (input: CreateChatRoomInput) => {
     const created = await createChatRoom(input);
     setRooms((prev) => [created, ...prev]);
-    // TODO: 개설 직후 채팅방 상세로 이동
+    navigate(`/chat/${created.id}`);
   };
 
-  // TODO: 채팅방 상세 화면으로 이동
   const handleOpenRoom = (room: ChatRoom) => {
-    console.log('open room', room.id);
+    navigate(`/chat/${room.id}`);
   };
 
   return (
     <div>
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">채팅</h1>
-        <button
-          type="button"
-          onClick={() => setIsCreateOpen(true)}
-          aria-label="새 채팅방 만들기"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-muted-foreground/10 text-muted-foreground transition-colors active:bg-muted-foreground/20"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            className="h-5 w-5"
+      <PageHeader
+        title="채팅"
+        action={
+          <button
+            type="button"
+            onClick={() => setIsCreateOpen(true)}
+            aria-label="새 채팅방 만들기"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-muted-foreground/10 text-muted-foreground transition-colors active:bg-muted-foreground/20"
           >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-      </header>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              className="h-5 w-5"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+        }
+      />
 
       {/* 검색 */}
       <div className="relative mt-4">

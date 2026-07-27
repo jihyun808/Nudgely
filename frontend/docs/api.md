@@ -1,4 +1,4 @@
-# API 연동 문서 (채팅)
+# API 연동 문서 (채팅 · 기록)
 
 프론트에서 아직 mock으로 동작하는 지점과, 백엔드에 필요한 API 스펙을 정리한 문서.
 메시지 전송은 **SSE 스트리밍**으로 확정했다 (4.2 참고).
@@ -22,16 +22,21 @@
 
 ## 2. 지금 mock으로 돌아가는 지점
 
-| 위치                              | 함수                  | 현재 동작                            | 교체할 것                    |
-| --------------------------------- | --------------------- | ------------------------------------ | ---------------------------- |
-| `src/api/chat.ts`                 | `fetchChatRooms()`    | 600ms 지연 후 `MOCK_CHAT_ROOMS` 반환 | `GET /chat-rooms`            |
-| `src/api/chat.ts`                 | `createChatRoom()`    | 300ms 지연 후 로컬 객체 생성         | `POST /chat-rooms`           |
-| `src/pages/chat/mockChatRooms.ts` | —                     | 임시 데이터                          | 연동 후 **파일 삭제**        |
-| `src/pages/chat/Chat.tsx`         | `handleOpenRoom()`    | `console.log`만                      | 상세 화면 라우팅             |
-| `CreateChatRoomModal` 사진        | `FileReader` data URL | 브라우저 안에만 존재                 | 서버 업로드 후 받은 URL 사용 |
+| 위치                              | 함수                   | 현재 동작                            | 교체할 것                    |
+| --------------------------------- | ---------------------- | ------------------------------------ | ---------------------------- |
+| `src/api/chat.ts`                 | `fetchChatRooms()`     | 600ms 지연 후 `MOCK_CHAT_ROOMS` 반환 | `GET /chat-rooms`            |
+| `src/api/chat.ts`                 | `createChatRoom()`     | 300ms 지연 후 로컬 객체 생성         | `POST /chat-rooms`           |
+| `src/api/chat.ts`                 | `fetchChatRoom()`      | 300ms 지연 후 mock 목록에서 찾기     | `GET /chat-rooms/{id}`       |
+| `src/api/chat.ts`                 | `fetchMessages()`      | 첫 번째 방만 mock 대화 반환          | `GET .../messages`           |
+| `src/api/chat.ts`                 | `sendMessage()`        | 900ms 후 고정 문구 응답              | `POST .../messages` (SSE)    |
+| `src/api/chat.ts`                 | `markChatRoomAsRead()` | 아무것도 안 함                       | `POST .../read`              |
+| `src/pages/chat/mockChatRooms.ts` | —                      | 임시 데이터                          | 연동 후 **파일 삭제**        |
+| `src/pages/chat/mockMessages.ts`  | —                      | 임시 데이터                          | 연동 후 **파일 삭제**        |
+| `CreateChatRoomModal` 사진        | `FileReader` data URL  | 브라우저 안에만 존재                 | 서버 업로드 후 받은 URL 사용 |
+| `ChatDetail` 메뉴 버튼            | `console.log`만        | 미구현                               | 채팅방 메뉴 화면 연결        |
 
-교체 시 `src/api/chat.ts` 두 함수의 내부만 바꾸면 되고, 화면 코드(`Chat.tsx`)는 손댈 필요 없다.
-반환 타입은 `src/types/chat.ts`의 `ChatRoom`으로 고정되어 있다.
+교체 시 `src/api/chat.ts` 각 함수의 내부만 바꾸면 되고, 화면 코드(`Chat.tsx`, `ChatDetail.tsx`)는 손댈 필요 없다.
+반환 타입이 `src/types/chat.ts`의 `ChatRoom` / `ChatRoomDetail` / `ChatMessage`로 고정되어 있기 때문이다.
 
 ---
 
@@ -106,7 +111,10 @@ Content-Type: multipart/form-data
 
 ---
 
-## 4. 채팅 상세 화면에 필요한 API (다음 작업)
+## 4. 채팅 상세 화면에 필요한 API
+
+화면은 구현 완료(`src/pages/chat/ChatDetail.tsx`, 라우트 `/chat/:roomId`)이고 mock으로 동작한다.
+프론트 타입: `ChatMessage`, `ChatRoomDetail` (`src/types/chat.ts`)
 
 ### 4.1 메시지 목록 (커서 페이지네이션)
 
@@ -130,6 +138,9 @@ GET /chat-rooms/{roomId}/messages?cursor={messageId}&limit=30
 
 - `role`: `"user" | "assistant"`
 - 위로 스크롤하며 과거를 불러오므로 **최신 → 과거 순**으로 주고, `nextCursor`가 `null`이면 끝.
+  (프론트는 화면에 오래된 것 → 최신 순으로 그리므로 받은 배열을 뒤집어 쓴다.)
+- 파일 첨부 메시지는 `file: { name, caption?, url? }`를 함께 준다.
+- 무한 스크롤(과거 불러오기)은 아직 미구현. 현재는 첫 페이지만 그린다.
 
 ### 4.2 메시지 전송 — SSE 스트리밍 (확정)
 
@@ -167,6 +178,17 @@ data: {"messageId":"m_02...","createdAt":"2026-07-26T04:13:00Z"}
 | 폴링                          | 주기적으로 재조회                    | 서버·배터리 낭비. 쓰지 않는다                                                                          |
 
 사용자가 보낸 메시지는 프론트가 먼저 화면에 그려두고(낙관적 업데이트), 스트림이 끝나면 서버 id로 교체한다.
+현재 프론트는 `status: 'sending' | 'failed'`로 이 상태를 관리하고, 실패 시 말풍선 아래에 "다시 시도"를 띄운다.
+
+**파일 첨부 전송**은 별도 요청이다:
+
+```
+POST /chat-rooms/{roomId}/messages
+Content-Type: multipart/form-data   # content(text, 선택) + file
+```
+
+- 첨부 파일 제한: 10MB (`ChatInputBar`의 `MAX_ATTACHMENT_SIZE`)
+- 이미지 외 확장자(pdf 등)도 허용하므로 서버에서 **확장자 화이트리스트 + 실행 권한 없는 스토리지 저장**이 필요하다.
 
 > SSE는 `EventSource`로 GET만 가능하므로, POST 스트리밍은 `fetch` + `ReadableStream`으로 읽는다. 이 경우 axios 인터셉터를 타지 않으니 `Authorization` 헤더를 직접 넣어야 한다.
 
@@ -195,11 +217,58 @@ DELETE /chat-rooms/{roomId}
 GET /chat-rooms/{roomId}
 ```
 
-응답: `ChatRoom` + `description`, `prompt` (설정 화면에서 기존 값을 채우기 위해 필요)
+응답: `ChatRoomDetail` = `ChatRoom` + `description`, `prompt`
+
+- `description`은 상세 헤더의 부제(세션 이름)로도 쓴다.
+- `prompt`는 설정 화면에서 기존 값을 채우는 데 필요하다.
 
 ---
 
-## 5. 백엔드에 확인해야 할 것
+## 5. 기록 탭 (캘린더 · 투두)
+
+화면: `src/pages/record/Record.tsx` (라우트 `/record`). mock은 `src/api/record.ts` → `fetchTodoLists()`.
+
+### 5.1 투두 리스트 목록 조회
+
+```
+GET /todo-lists?date=2026-07-26
+```
+
+`date`는 **사용자 로컬 기준 YYYY-MM-DD** (프론트 `formatDateKey()`가 만든다). 캘린더에서 날짜를 고를 때마다 재요청한다.
+
+```json
+{
+  "todoLists": [
+    {
+      "id": "tl_01H...",
+      "title": "이지현의 UIUX 유튜브 강의",
+      "date": "2026-07-26",
+      "items": [{ "id": "ti_01H...", "content": "UI/UX 21강 수강", "isDone": true, "tag": "강의" }]
+    }
+  ]
+}
+```
+
+프론트 타입: `TodoList`, `TodoItem` (`src/types/record.ts`)
+
+- 투두는 **날짜별로 할당**된다. 요청한 `date`에 해당하는 것만 내려준다.
+- `title`과 `items`는 **AI와의 대화로 자동 생성·갱신**된다. 화면에는 체크를 바꾸는 UI가 없다(읽기 전용).
+- `tag`는 선택값. 없으면 칩을 표시하지 않는다.
+- 여러 개를 좌우 슬라이드로 넘겨보므로, 순서가 의미 있다면 서버가 정렬해서 준다.
+- 해당 날짜에 투두가 없으면 빈 배열. 프론트는 "이 날짜에는 투두 리스트가 없어요"를 표시한다.
+- 실패 시 프론트는 "다시 시도" 버튼을 띄우고 같은 날짜로 재요청한다.
+
+### 5.2 아직 미구현 (스펙만 필요할 때 참고)
+
+| 항목                   | 필요한 것                                              |
+| ---------------------- | ------------------------------------------------------ |
+| 캘린더 날짜별 기록 점  | `GET /records?year=&month=` → 기록이 있는 날짜 목록    |
+| 오늘 총 집중 시간 카드 | `GET /focus-sessions/summary?date=` → 총 집중 시간(초) |
+| 텐미닛 플래너          | 스펙 미정                                              |
+
+---
+
+## 6. 백엔드에 확인해야 할 것
 
 1. 에러 응답 포맷 통일 (`code` / `message`)
 2. 사진 업로드 방식: multipart 직접 업로드 vs S3 presigned URL

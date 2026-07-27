@@ -30,21 +30,9 @@ export default function Signin() {
       }
     >
       <div className="mt-10 rounded-2xl bg-background p-6 shadow-lg">
-        <InputField
-          label="이메일"
-          type="email"
-          value={email}
-          onChange={setEmail}
-        />
-        <InputField
-          label="비밀번호"
-          type="password"
-          value={password}
-          onChange={setPassword}
-        />
-        <div className="text-right text-sm text-muted-foreground">
-          비밀번호 찾기
-        </div>
+        <InputField label="이메일" type="email" value={email} onChange={setEmail} />
+        <InputField label="비밀번호" type="password" value={password} onChange={setPassword} />
+        <div className="text-right text-sm text-muted-foreground">비밀번호 찾기</div>
       </div>
 
       <Button className="mt-8 w-full" size="lg" onClick={handleSubmit}>

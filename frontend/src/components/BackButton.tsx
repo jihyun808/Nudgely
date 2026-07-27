@@ -4,11 +4,7 @@ const BackButton = () => {
   const navigate = useNavigate();
 
   return (
-    <button
-      onClick={() => navigate(-1)}
-      aria-label="뒤로 가기"
-      className="text-2xl"
-    >
+    <button onClick={() => navigate(-1)} aria-label="뒤로 가기" className="text-2xl">
       &lt;
     </button>
   );

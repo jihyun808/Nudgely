@@ -25,9 +25,7 @@ const buttonVariants = cva(
   },
 );
 
-interface ButtonProps
-  extends React.ComponentProps<'button'>,
-    VariantProps<typeof buttonVariants> {}
+interface ButtonProps extends React.ComponentProps<'button'>, VariantProps<typeof buttonVariants> {}
 
 function Button({ className, variant, size, ...props }: ButtonProps) {
   return (
