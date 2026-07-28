@@ -37,4 +37,5 @@ function Button({ className, variant, size, ...props }: ButtonProps) {
   );
 }
 
-export { Button, buttonVariants };
+// 컴포넌트만 내보낸다 (다른 값을 함께 내보내면 Fast Refresh가 동작하지 않는다)
+export { Button };
