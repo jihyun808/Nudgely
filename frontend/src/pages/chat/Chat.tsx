@@ -1,6 +1,6 @@
 // pages/chat/Chat.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { createChatRoom, fetchChatRooms } from '@/api/chat';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -18,11 +18,16 @@ import type { ChatRoom, CreateChatRoomInput } from '@/types/chat';
  */
 export default function Chat() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // 홈의 '목표 추가하기'로 들어오면 개설 팝업을 띄운 상태로 시작한다
+  const openedFromHome = Boolean(
+    (location.state as { openCreateChatRoom?: boolean } | null)?.openCreateChatRoom,
+  );
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [keyword, setKeyword] = useState('');
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(openedFromHome);
 
   // 값을 늘려 목록 조회를 다시 트리거한다 (다시 시도 버튼용)
   const [reloadKey, setReloadKey] = useState(0);
@@ -47,6 +52,11 @@ export default function Chat() {
       isStale = true;
     };
   }, [reloadKey]);
+
+  // 팝업을 띄우라는 신호는 한 번만 쓰고 지운다 (뒤로가기로 돌아왔을 때 다시 열리지 않도록)
+  useEffect(() => {
+    if (openedFromHome) navigate('/chat', { replace: true, state: null });
+  }, [openedFromHome, navigate]);
 
   const handleRetry = () => {
     setIsLoading(true);

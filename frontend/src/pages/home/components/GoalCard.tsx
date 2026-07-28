@@ -1,0 +1,58 @@
+// pages/home/components/GoalCard.tsx
+import { cn } from '@/lib/utils';
+import { GOAL_CARD_HEIGHT } from '@/pages/home/components/homeCardHeight';
+import type { Goal } from '@/types/home';
+
+interface GoalCardProps {
+  goal: Goal;
+}
+
+/**
+ * 진행 중인 목표 카드.
+ * 목표 이름이 가장 굵고, 기한이 있을 때만 D-day 배지를 붙인다.
+ */
+export default function GoalCard({ goal }: GoalCardProps) {
+  const { title, remainingDays, current, total, unit } = goal;
+  // TODO: 진도(current/total)를 무엇으로 셀지는 AI가 받는 정보 스펙 확정 후 다시 맞춘다
+  const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+
+  return (
+    <div
+      className={cn(
+        'flex flex-col justify-center rounded-2xl border border-border bg-background px-4',
+        GOAL_CARD_HEIGHT,
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="min-w-0 text-base font-bold">{title}</h3>
+        {remainingDays !== undefined && (
+          <span className="shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+            D-{remainingDays}
+          </span>
+        )}
+      </div>
+
+      <div
+        role="progressbar"
+        aria-valuenow={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${title} 진행률`}
+        className="mt-3 h-2 overflow-hidden rounded-full bg-muted-foreground/10"
+      >
+        <div
+          className="h-full rounded-full bg-primary transition-[width] duration-500"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+
+      <div className="mt-2 flex items-baseline justify-between">
+        <span className="text-xs text-muted-foreground">
+          {current} / {total}
+          {unit} 완료
+        </span>
+        <span className="text-sm font-bold text-primary">{percent}%</span>
+      </div>
+    </div>
+  );
+}

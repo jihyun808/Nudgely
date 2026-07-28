@@ -47,6 +47,18 @@ export function formatChatTime(isoDate: string, now: Date = new Date()) {
   return '지난주';
 }
 
+/** 알림 목록에 붙는 시각. '방금' → 'n분 전' → 'n시간 전' → 'n일 전' */
+export function formatNotificationTime(isoDate: string, now: Date = new Date()) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const elapsed = now.getTime() - date.getTime();
+  if (elapsed < 5 * MINUTE) return '방금';
+  if (elapsed < HOUR) return `${Math.floor(elapsed / MINUTE)}분 전`;
+  if (elapsed < 24 * HOUR) return `${Math.floor(elapsed / HOUR)}시간 전`;
+  return `${Math.floor(elapsed / (24 * HOUR))}일 전`;
+}
+
 /** API 파라미터로 쓰는 날짜 키. 예: '2026-07-26' (사용자 기준 로컬 날짜) */
 export function formatDateKey(date: Date) {
   const month = `${date.getMonth() + 1}`.padStart(2, '0');

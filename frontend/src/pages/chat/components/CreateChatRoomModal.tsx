@@ -1,11 +1,12 @@
 // pages/chat/components/CreateChatRoomModal.tsx
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
+import ImagePicker from '@/components/ImagePicker';
+import Modal from '@/components/Modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { CHAT_ROOM_LIMITS, type CreateChatRoomInput } from '@/types/chat';
-import { validateImageFile } from '@/utils/image';
 
 interface CreateChatRoomModalProps {
   onClose: () => void;
@@ -14,58 +15,19 @@ interface CreateChatRoomModalProps {
 
 /**
  * 채팅방 개설 팝업.
- * 화면 중앙에 네모난 카드로 떠서 이름/사진/설명/프롬프트를 받는다.
- * 배경 클릭 또는 ESC로 닫힌다.
- * 열림/닫힘은 부모가 조건부 렌더링으로 제어한다(닫으면 언마운트되어 입력값이 초기화된다).
+ * 이름/사진/설명/프롬프트를 받고, 필수값은 이름 하나뿐이다.
  */
 export default function CreateChatRoomModal({ onClose, onCreate }: CreateChatRoomModalProps) {
   const [name, setName] = useState('');
   const [imageUrl, setImageUrl] = useState<string>();
   const [description, setDescription] = useState('');
   const [prompt, setPrompt] = useState('');
-  const [imageError, setImageError] = useState<string>();
   const [submitError, setSubmitError] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // 열려 있는 동안 ESC로 닫고, 뒤 화면 스크롤을 막는다
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [onClose]);
-
-  const handlePickImage = async (file: File | undefined) => {
-    // 같은 파일을 다시 선택해도 onChange가 뜨도록 input 값을 비워둔다
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (!file) return;
-
-    const error = await validateImageFile(file);
-    setImageError(error ?? undefined);
-    if (error) {
-      setImageUrl(undefined);
-      return;
-    }
-
-    // 서버 연동 전이므로 미리보기용 data URL로만 들고 있는다
-    const reader = new FileReader();
-    reader.onload = () => setImageUrl(reader.result as string);
-    reader.onerror = () => setImageError('사진을 읽지 못했어요. 다시 시도해주세요.');
-    reader.readAsDataURL(file);
-  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    // 필수값은 이름 하나뿐. 사진·설명·프롬프트는 비워도 되고 나중에 설정에서 수정한다
+    // 사진·설명·프롬프트는 비워도 되고 나중에 설정에서 수정한다
     if (!name.trim() || isSubmitting) return;
 
     setIsSubmitting(true);
@@ -86,50 +48,10 @@ export default function CreateChatRoomModal({ onClose, onCreate }: CreateChatRoo
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-6"
-      onClick={onClose}
-    >
-      <form
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="create-chat-room-title"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={(e) => void handleSubmit(e)}
-        className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-background p-5 shadow-xl"
-      >
-        <h2 id="create-chat-room-title" className="text-lg font-bold">
-          새 채팅방 만들기
-        </h2>
-
-        {/* 대표 사진 */}
-        <div className="mt-4 flex flex-col items-center gap-2">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="relative h-20 w-20 overflow-hidden rounded-full border border-input bg-muted-foreground/5"
-            aria-label="채팅방 사진 선택"
-          >
-            {imageUrl ? (
-              <img src={imageUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="flex h-full w-full items-center justify-center text-2xl text-muted-foreground">
-                +
-              </span>
-            )}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            className="hidden"
-            onChange={(e) => void handlePickImage(e.target.files?.[0])}
-          />
-          {imageError && (
-            <p role="alert" className="text-center text-xs text-destructive">
-              {imageError}
-            </p>
-          )}
+    <Modal title="새 채팅방 만들기" onClose={onClose}>
+      <form onSubmit={(e) => void handleSubmit(e)}>
+        <div className="mt-4">
+          <ImagePicker imageUrl={imageUrl} onChange={setImageUrl} label="채팅방 사진 선택" />
         </div>
 
         {/* 채팅방 이름 (필수) */}
@@ -208,6 +130,6 @@ export default function CreateChatRoomModal({ onClose, onCreate }: CreateChatRoo
           </Button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

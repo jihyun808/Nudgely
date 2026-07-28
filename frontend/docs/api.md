@@ -1,4 +1,4 @@
-# API 연동 문서 (채팅 · 기록)
+# API 연동 문서 (홈 · 채팅 · 기록)
 
 프론트에서 아직 mock으로 동작하는 지점과, 백엔드에 필요한 API 스펙을 정리한 문서.
 메시지 전송은 **SSE 스트리밍**으로 확정했다 (4.2 참고).
@@ -22,18 +22,24 @@
 
 ## 2. 지금 mock으로 돌아가는 지점
 
-| 위치                              | 함수                   | 현재 동작                            | 교체할 것                    |
-| --------------------------------- | ---------------------- | ------------------------------------ | ---------------------------- |
-| `src/api/chat.ts`                 | `fetchChatRooms()`     | 600ms 지연 후 `MOCK_CHAT_ROOMS` 반환 | `GET /chat-rooms`            |
-| `src/api/chat.ts`                 | `createChatRoom()`     | 300ms 지연 후 로컬 객체 생성         | `POST /chat-rooms`           |
-| `src/api/chat.ts`                 | `fetchChatRoom()`      | 300ms 지연 후 mock 목록에서 찾기     | `GET /chat-rooms/{id}`       |
-| `src/api/chat.ts`                 | `fetchMessages()`      | 첫 번째 방만 mock 대화 반환          | `GET .../messages`           |
-| `src/api/chat.ts`                 | `sendMessage()`        | 900ms 후 고정 문구 응답              | `POST .../messages` (SSE)    |
-| `src/api/chat.ts`                 | `markChatRoomAsRead()` | 아무것도 안 함                       | `POST .../read`              |
-| `src/pages/chat/mockChatRooms.ts` | —                      | 임시 데이터                          | 연동 후 **파일 삭제**        |
-| `src/pages/chat/mockMessages.ts`  | —                      | 임시 데이터                          | 연동 후 **파일 삭제**        |
-| `CreateChatRoomModal` 사진        | `FileReader` data URL  | 브라우저 안에만 존재                 | 서버 업로드 후 받은 URL 사용 |
-| `ChatDetail` 메뉴 버튼            | `console.log`만        | 미구현                               | 채팅방 메뉴 화면 연결        |
+| 위치                              | 함수                   | 현재 동작                            | 교체할 것                     |
+| --------------------------------- | ---------------------- | ------------------------------------ | ----------------------------- |
+| `src/api/chat.ts`                 | `fetchChatRooms()`     | 600ms 지연 후 `MOCK_CHAT_ROOMS` 반환 | `GET /chat-rooms`             |
+| `src/api/chat.ts`                 | `createChatRoom()`     | 300ms 지연 후 로컬 객체 생성         | `POST /chat-rooms`            |
+| `src/api/chat.ts`                 | `fetchChatRoom()`      | 300ms 지연 후 mock 목록에서 찾기     | `GET /chat-rooms/{id}`        |
+| `src/api/chat.ts`                 | `fetchMessages()`      | 첫 번째 방만 mock 대화 반환          | `GET .../messages`            |
+| `src/api/chat.ts`                 | `sendMessage()`        | 900ms 후 고정 문구 응답              | `POST .../messages` (SSE)     |
+| `src/api/chat.ts`                 | `markChatRoomAsRead()` | 아무것도 안 함                       | `POST .../read`               |
+| `src/pages/chat/mockChatRooms.ts` | —                      | 임시 데이터                          | 연동 후 **파일 삭제**         |
+| `src/pages/chat/mockMessages.ts`  | —                      | 임시 데이터                          | 연동 후 **파일 삭제**         |
+| `CreateChatRoomModal` 사진        | `FileReader` data URL  | 브라우저 안에만 존재                 | 서버 업로드 후 받은 URL 사용  |
+| `ChatDetail` 메뉴 버튼            | `console.log`만        | 미구현                               | 채팅방 메뉴 화면 연결         |
+| `src/api/record.ts`               | `fetchTodoLists()`     | 날짜로 mock 필터링                   | `GET /todo-lists?date=`       |
+| `src/api/home.ts`                 | `fetchHomeSummary()`   | 500ms 지연 후 mock 반환              | `GET /home`                   |
+| `src/api/home.ts`                 | `fetchNotifications()` | 500ms 지연 후 mock 반환              | `GET /notifications`          |
+| `Home` 집중 시작하기 버튼         | 동작 없음              | 미구현                               | 집중 세션 화면 연결           |
+| `Home` 목표 추가하기 카드         | 채팅 탭 개설 팝업 열기 | —                                    | 목표/채팅방 모델 확정 시 조정 |
+| `FocusSummary`                    | 값 하드코딩            | 미구현                               | 집중 탭 · 연속 달성일 API     |
 
 교체 시 `src/api/chat.ts` 각 함수의 내부만 바꾸면 되고, 화면 코드(`Chat.tsx`, `ChatDetail.tsx`)는 손댈 필요 없다.
 반환 타입이 `src/types/chat.ts`의 `ChatRoom` / `ChatRoomDetail` / `ChatMessage`로 고정되어 있기 때문이다.
@@ -268,7 +274,139 @@ GET /todo-lists?date=2026-07-26
 
 ---
 
-## 6. 백엔드에 확인해야 할 것
+## 6. 홈 탭 (요약 · 알림)
+
+화면: `src/pages/home/Home.tsx` (라우트 `/home`). mock은 `src/api/home.ts`.
+
+### 6.1 홈 요약 조회
+
+```
+GET /home
+```
+
+```json
+{
+  "previews": [
+    {
+      "id": "p_01H...",
+      "kind": "message",
+      "title": "Buddy",
+      "subtitle": "AI 스터디 메이트",
+      "content": "오늘 UI/UX 5강 완료 예정이야! 집중 시작해볼까? 💪",
+      "receivedAt": "2026-07-28T09:00:00Z",
+      "linkTo": "/chat/c_01H..."
+    }
+  ],
+  "goals": [
+    {
+      "id": "g_01H...",
+      "title": "UI/UX 디자인 강의 완주",
+      "remainingDays": 22,
+      "current": 21,
+      "total": 50,
+      "unit": "강"
+    }
+  ]
+}
+```
+
+프론트 타입: `HomeSummary` (`src/types/home.ts`)
+
+**previews** — 홈 최상단에서 세로로 넘겨보는 미리보기 카드. **안 읽은** 항목만 내려준다.
+
+- `kind`: `"message"`(안 읽은 채팅·선톡) / `"notice"`(공지사항) / `"ad"`(광고·이벤트)
+- 정렬은 프론트가 `receivedAt` 최신순으로 다시 한다. 최신이 첫 장.
+- `kind: "message"`는 아이콘 💌 고정 + 본문 **2줄 말줄임**. 공지·광고는 각각 📢 / 🎁이고 줄 수를 제한하지 않는다.
+- 안 읽은 항목이 없으면 빈 배열 → "모든 메시지를 확인했어요." 안내 카드를 대신 그린다.
+- 여러 장일 때 2초마다 자동으로 다음 장으로 넘어간다(사용자가 직접 넘기면 6초간 멈춤).
+- 홈 화면은 **창 포커스/탭 복귀 시 자동으로 재조회**한다. 채팅방에 다녀오면 읽은 카드가 사라진다.
+
+**goals** — 진행 중인 목표. 여러 개를 좌우 캐러셀로 넘겨본다.
+
+- `remainingDays`는 **기한이 있을 때만** 준다. 없으면 D-day 배지를 그리지 않는다.
+- `current`/`total`/`unit`(진도율)은 **아직 확정 스펙이 아니다.** AI가 사용자에게서 무엇을 받아 진도를 세는지(강의 수·페이지·회차 등) 정한 뒤 스키마를 다시 맞춰야 한다. 프론트에는 같은 내용의 TODO를 `src/types/home.ts`와 `GoalCard`에 달아뒀다.
+- 진행률(%)은 프론트가 `current/total`로 계산한다.
+
+**previews의 읽음 처리** — 메시지 카드를 누르면 프론트가 그 카드를 목록에서 즉시 제거하고 채팅방으로 이동한다(낙관적 처리). 서버 쪽 읽음 확정은 채팅방 진입 시의 `POST /chat-rooms/{roomId}/read`이고, 다음 홈 조회에서 최종 반영된다. 미리보기는 **방당 1장**(그 방의 가장 최근 안 읽은 메시지)이다.
+
+### 6.2 오늘의 집중 (미구현 — 스펙 제안)
+
+화면은 **값이 전부 하드코딩**이고 아무 API도 호출하지 않는다. 연결할 때 아래 형태를 제안한다.
+
+```
+GET /focus/summary?date=2026-07-28
+```
+
+```json
+{
+  "todayMinutes": 84,
+  "targetMinutes": 180,
+  "streakDays": 7,
+  "bestStreakDays": 7,
+  "isBestStreak": true
+}
+```
+
+| 필드             | 설명                                                                 |
+| ---------------- | -------------------------------------------------------------------- |
+| `todayMinutes`   | 오늘 누적 집중 시간(분). **집중 탭** 구현 후 그쪽 세션 기록에서 집계 |
+| `targetMinutes`  | 하루 목표 시간(분)                                                   |
+| `streakDays`     | **투두가 체크된 날**이 연속으로 이어진 일수                          |
+| `bestStreakDays` | 역대 최고 연속 일수                                                  |
+| `isBestStreak`   | 현재 연속이 최고 기록인지                                            |
+
+> **연속 달성일과 최고 기록은 서버가 계산해서 내려줘야 한다.** 판정에 과거 전체 체크 이력이 필요한데, 프론트는 오늘 화면에 필요한 데이터만 받으므로 계산할 수 없다(전체 이력을 다 내려받는 건 낭비이기도 하다).
+> `1h 24m` 같은 표기와 목표 대비 표시는 프론트가 분 단위 원값으로 만든다.
+
+### 6.3 알림 목록 조회
+
+```
+GET /notifications
+```
+
+```json
+{
+  "notifications": [
+    {
+      "id": "n_01H...",
+      "type": "nudge",
+      "title": "Buddy",
+      "body": "💌 21강 들을 시간이야! 30분만 같이 달려볼까?",
+      "createdAt": "2026-07-28T09:00:00Z",
+      "isRead": false,
+      "linkTo": "/chat/c_01H..."
+    }
+  ]
+}
+```
+
+프론트 타입: `AppNotification` (`src/types/notification.ts`)
+
+| `type`              | 언제                                       | 예시 문구                                      |
+| ------------------- | ------------------------------------------ | ---------------------------------------------- |
+| `nudge`             | AI가 **독촉 목적으로** 먼저 말을 걸었을 때 | `💌 21강 들을 시간이야! 30분만 같이 달려볼까?` |
+| `todoAdded`         | 투두가 새로 추가됐을 때                    | `7월 28일 목표에 "..."가 새로 추가됐어요.`     |
+| `todoDone`          | 투두가 완료 체크됐을 때                    | `"..."을 완료했어요. 좋아요! 🎉`               |
+| `todoIncomplete`    | 밤 11시까지 미완료 투두가 남아 있을 때     | `아직 완료하지 않은 항목이 2개 있어요.`        |
+| `plannerIncomplete` | 밤 11시까지 텐미닛 플래너가 비어 있을 때   | `오늘이 가기 전에 텐미닛 플래너를 채워주세요!` |
+
+- **일반 채팅 메시지는 알림을 만들지 않는다.** `nudge`(독촉)만 알림 대상이다. 어떤 메시지가 독촉인지는 서버(또는 AI)가 판단해 플래그를 남겨야 한다.
+- 최신순 정렬. 프론트는 **최대 5개만 유지**하고 넘치면 오래된 것부터 버린다(`MAX_NOTIFICATIONS`). 서버도 5개만 줘도 된다.
+- `linkTo`는 프론트 라우트 경로. 서버가 `roomId` 같은 원본 id를 주고 프론트가 경로를 만드는 방식으로 바꿔도 된다.
+
+### 6.4 알림 읽음 처리
+
+```
+POST /notifications/read
+```
+
+응답: `204`. 프론트는 **알림 목록을 닫는 순간** 호출하고, 실패해도 화면을 되돌리지 않는다(다음 조회 때 맞춰짐).
+
+> 실시간 수신(푸시/SSE)은 미구현. 지금은 홈 진입 시 조회만 한다. `useNotificationStore.addNotification()`이 준비되어 있어 수신 채널이 생기면 그대로 연결하면 된다.
+
+---
+
+## 7. 백엔드에 확인해야 할 것
 
 1. 에러 응답 포맷 통일 (`code` / `message`)
 2. 사진 업로드 방식: multipart 직접 업로드 vs S3 presigned URL
