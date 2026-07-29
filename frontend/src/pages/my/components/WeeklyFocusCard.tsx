@@ -1,6 +1,6 @@
 // pages/my/components/WeeklyFocusCard.tsx
 import { cn } from '@/lib/utils';
-import { MOCK_WEEKLY_FOCUS_HOURS } from '@/pages/my/mockMy';
+import { MOCK_WEEKLY_FOCUS_HOURS } from '@/mocks/my';
 
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const;
 /** y축 최대치(시간). 이보다 크면 '7+' 구간으로 본다 */

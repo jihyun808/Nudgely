@@ -1,13 +1,14 @@
 // pages/chat/ChatDetail.tsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchChatRoom, fetchMessages, markChatRoomAsRead, sendMessage } from '@/api/chat';
+import { fetchGoal, fetchMessages, markGoalAsRead, sendMessage } from '@/api/goal';
 import { Button } from '@/components/ui/button';
 import ChatDateDivider from '@/pages/chat/components/ChatDateDivider';
 import ChatDetailHeader from '@/pages/chat/components/ChatDetailHeader';
 import ChatInputBar from '@/pages/chat/components/ChatInputBar';
 import ChatMessageBubble from '@/pages/chat/components/ChatMessageBubble';
-import type { ChatMessage, ChatRoomDetail } from '@/types/chat';
+import type { ChatMessage } from '@/types/chat';
+import type { GoalDetail } from '@/types/goal';
 import { isSameDay, isSameMinute } from '@/utils/date';
 
 /**
@@ -16,10 +17,10 @@ import { isSameDay, isSameMinute } from '@/utils/date';
  * 내 메시지는 먼저 화면에 그려두고(낙관적 업데이트) 응답이 오면 확정한다.
  */
 export default function ChatDetail() {
-  const { roomId = '' } = useParams();
+  const { goalId = '' } = useParams();
   const navigate = useNavigate();
 
-  const [room, setRoom] = useState<ChatRoomDetail>();
+  const [goal, setGoal] = useState<GoalDetail>();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -37,16 +38,16 @@ export default function ChatDetail() {
 
   useEffect(() => {
     let isStale = false;
-    Promise.all([fetchChatRoom(roomId), fetchMessages(roomId)])
-      .then(([roomData, page]) => {
+    Promise.all([fetchGoal(goalId), fetchMessages(goalId)])
+      .then(([goalData, page]) => {
         if (isStale) return;
-        setRoom(roomData);
+        setGoal(goalData);
         // 응답은 최신 → 과거 순이므로 뒤집어 오래된 것부터 그린다
         setMessages([...page.messages].reverse());
         setNextCursor(page.nextCursor);
         setHasError(false);
         // 방에 들어오면 읽음 처리. 실패해도 화면에는 영향이 없다
-        void markChatRoomAsRead(roomId).catch(() => {});
+        void markGoalAsRead(goalId).catch(() => {});
       })
       .catch(() => {
         if (!isStale) setHasError(true);
@@ -57,7 +58,7 @@ export default function ChatDetail() {
     return () => {
       isStale = true;
     };
-  }, [roomId, reloadKey]);
+  }, [goalId, reloadKey]);
 
   /**
    * 목록이 바뀔 때의 스크롤 처리.
@@ -86,7 +87,7 @@ export default function ChatDetail() {
     // 붙이기 전 높이를 기억해 두었다가 렌더 후 스크롤을 보정한다
     heightBeforePrependRef.current = list.scrollHeight;
 
-    fetchMessages(roomId, nextCursor)
+    fetchMessages(goalId, nextCursor)
       .then((page) => {
         setMessages((prev) => [...[...page.messages].reverse(), ...prev]);
         setNextCursor(page.nextCursor);
@@ -136,7 +137,7 @@ export default function ChatDetail() {
     setIsReplying(true);
 
     try {
-      const reply = await sendMessage(roomId, payload);
+      const reply = await sendMessage(goalId, payload);
       setMessages((prev) => [
         // 전송 성공한 내 메시지는 status를 지워 확정 상태로 만든다
         ...prev.map((m) => (m.id === localId ? { ...m, status: undefined } : m)),
@@ -165,7 +166,7 @@ export default function ChatDetail() {
     );
   }
 
-  if (hasError || !room) {
+  if (hasError || !goal) {
     return (
       <div className="flex h-dvh flex-col items-center justify-center gap-3">
         <p className="text-sm text-muted-foreground">채팅방을 불러오지 못했어요</p>
@@ -191,11 +192,11 @@ export default function ChatDetail() {
   return (
     <div className="mx-auto flex h-dvh max-w-md flex-col bg-background">
       <ChatDetailHeader
-        title={room.name}
-        subtitle={room.description}
+        title={goal.name}
+        subtitle={goal.title}
         onBack={() => navigate('/chat')}
         // TODO: 채팅방 메뉴 화면 연결
-        onOpenMenu={() => console.log('open menu', room.id)}
+        onOpenMenu={() => console.log('open menu', goal.id)}
       />
 
       <div
@@ -220,8 +221,8 @@ export default function ChatDetail() {
             {showDateDivider && <ChatDateDivider date={message.createdAt} />}
             <ChatMessageBubble
               message={message}
-              senderName={room.name}
-              senderImageUrl={room.imageUrl}
+              senderName={goal.name}
+              senderImageUrl={goal.imageUrl}
               showSender={showSender}
               showTime={showTime}
               onRetry={handleRetry}
@@ -231,7 +232,7 @@ export default function ChatDetail() {
 
         {isReplying && (
           <p className="pl-10 text-xs text-muted-foreground" aria-live="polite">
-            {room.name}님이 입력 중...
+            {goal.name}님이 입력 중...
           </p>
         )}
 

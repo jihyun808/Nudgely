@@ -1,5 +1,5 @@
-// pages/my/mockMy.ts
-// API 연동 전 화면 확인용 임시 데이터. 서버 붙이면 이 파일은 삭제한다.
+// mocks/my.ts
+// API 연동 전 화면 확인용 임시 데이터. 서버 붙이면 src/mocks 폴더째 삭제한다.
 import type { User } from '@/types/auth';
 
 export const MOCK_PROFILE: User = {

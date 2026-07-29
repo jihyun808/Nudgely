@@ -10,14 +10,16 @@ export interface TodoItem {
 }
 
 /**
- * 투두 리스트 한 묶음.
- * 채팅방에서 정한 습관·공부 단위로 만들어지고, 여러 개가 동시에 존재할 수 있다.
+ * 어떤 목표의 하루치 투두.
+ * 항목은 날짜마다 새로 만들어지므로, 할 일이 없는 날은 그 목표의 카드를 그리지 않는다.
  */
-export interface TodoList {
+export interface DailyTodo {
   id: string;
-  /** 습관/공부 이름. AI와 대화하면서 자동 생성된다 (예: '이지현의 UIUX 유튜브 강의') */
-  title: string;
-  /** 이 투두가 할당된 날짜 (YYYY-MM-DD) */
+  /** 어느 목표(=채팅방)의 투두인지 */
+  goalId: string;
+  /** 카드 제목으로 쓰는 목표 이름 (Goal.title과 같은 값) */
+  goalTitle: string;
+  /** 날짜 (YYYY-MM-DD) */
   date: string;
   items: TodoItem[];
 }

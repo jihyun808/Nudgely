@@ -1,29 +1,29 @@
 // pages/chat/Chat.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { createChatRoom, fetchChatRooms } from '@/api/chat';
+import { createGoal, fetchGoals } from '@/api/goal';
+import CreateGoalModal from '@/components/CreateGoalModal';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
-import ChatRoomCard from '@/pages/chat/components/ChatRoomCard';
-import ChatRoomCardSkeleton from '@/pages/chat/components/ChatRoomCardSkeleton';
-import CreateChatRoomModal from '@/pages/chat/components/CreateChatRoomModal';
-import { sortChatRooms } from '@/pages/chat/sortChatRooms';
-import type { ChatRoom, CreateChatRoomInput } from '@/types/chat';
+import ChatListItem from '@/pages/chat/components/ChatListItem';
+import ChatListItemSkeleton from '@/pages/chat/components/ChatListItemSkeleton';
+import { sortGoals } from '@/pages/chat/sortGoals';
+import type { CreateGoalInput, Goal } from '@/types/goal';
 
 /**
  * 채팅 탭.
- * 상단 헤더(+ 버튼) / 검색창 / 채팅방 목록으로 구성된다.
+ * 목표 하나가 채팅방 하나다. 상단 헤더(+ 버튼) / 검색창 / 목록으로 구성된다.
  * 목록은 로딩(스켈레톤) → 성공 / 실패(다시 시도) 세 상태를 가진다.
- * + 버튼을 누르면 채팅방 개설 팝업이 중앙에 뜬다.
  */
 export default function Chat() {
   const navigate = useNavigate();
   const location = useLocation();
   // 홈의 '목표 추가하기'로 들어오면 개설 팝업을 띄운 상태로 시작한다
   const openedFromHome = Boolean(
-    (location.state as { openCreateChatRoom?: boolean } | null)?.openCreateChatRoom,
+    (location.state as { openCreateGoal?: boolean } | null)?.openCreateGoal,
   );
-  const [rooms, setRooms] = useState<ChatRoom[]>([]);
+
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [keyword, setKeyword] = useState('');
@@ -35,10 +35,10 @@ export default function Chat() {
   // 첫 진입은 isLoading=true로 시작하므로 여기서는 응답 결과만 반영한다
   useEffect(() => {
     let isStale = false;
-    fetchChatRooms()
+    fetchGoals()
       .then((data) => {
         if (isStale) return;
-        setRooms(data);
+        setGoals(data);
         setHasError(false);
       })
       .catch(() => {
@@ -65,24 +65,24 @@ export default function Chat() {
   };
 
   // 최신순으로 정렬한 뒤, 이름/최근 메시지로 검색한다
-  const visibleRooms = useMemo(() => {
-    const sorted = sortChatRooms(rooms);
+  const visibleGoals = useMemo(() => {
+    const sorted = sortGoals(goals);
     const query = keyword.trim().toLowerCase();
     if (!query) return sorted;
     return sorted.filter(
       ({ name, lastMessage }) =>
         name.toLowerCase().includes(query) || lastMessage.toLowerCase().includes(query),
     );
-  }, [rooms, keyword]);
+  }, [goals, keyword]);
 
-  const handleCreate = async (input: CreateChatRoomInput) => {
-    const created = await createChatRoom(input);
-    setRooms((prev) => [created, ...prev]);
+  const handleCreate = async (input: CreateGoalInput) => {
+    const created = await createGoal(input);
+    setGoals((prev) => [created, ...prev]);
     navigate(`/chat/${created.id}`);
   };
 
-  const handleOpenRoom = (room: ChatRoom) => {
-    navigate(`/chat/${room.id}`);
+  const handleOpenGoal = (goal: Goal) => {
+    navigate(`/chat/${goal.id}`);
   };
 
   return (
@@ -93,7 +93,7 @@ export default function Chat() {
           <button
             type="button"
             onClick={() => setIsCreateOpen(true)}
-            aria-label="새 채팅방 만들기"
+            aria-label="새 목표 만들기"
             className="flex h-9 w-9 items-center justify-center rounded-full bg-muted-foreground/10 text-muted-foreground transition-colors active:bg-muted-foreground/20"
           >
             <svg
@@ -134,15 +134,15 @@ export default function Chat() {
         />
       </div>
 
-      {/* 채팅방 목록: Layout의 좌우 여백을 -mx-6로 상쇄해 구분선을 화면 끝까지 잇는다 */}
+      {/* 목록: Layout의 좌우 여백을 -mx-6로 상쇄해 구분선을 화면 끝까지 잇는다 */}
       {isLoading ? (
         <div
           className="-mx-6 mt-4 divide-y divide-border border-t border-border"
           aria-busy="true"
-          aria-label="채팅방 목록을 불러오는 중"
+          aria-label="채팅 목록을 불러오는 중"
         >
           {Array.from({ length: 6 }, (_, i) => (
-            <ChatRoomCardSkeleton key={i} />
+            <ChatListItemSkeleton key={i} />
           ))}
         </div>
       ) : hasError ? (
@@ -152,22 +152,22 @@ export default function Chat() {
             다시 시도
           </Button>
         </div>
-      ) : visibleRooms.length > 0 ? (
+      ) : visibleGoals.length > 0 ? (
         <ul className="-mx-6 mt-4 divide-y divide-border border-t border-border">
-          {visibleRooms.map((room) => (
-            <li key={room.id}>
-              <ChatRoomCard room={room} onClick={handleOpenRoom} />
+          {visibleGoals.map((goal) => (
+            <li key={goal.id}>
+              <ChatListItem goal={goal} onClick={handleOpenGoal} />
             </li>
           ))}
         </ul>
       ) : (
         <p className="mt-20 text-center text-sm text-muted-foreground">
-          {keyword.trim() ? '검색 결과가 없어요' : '아직 채팅방이 없어요'}
+          {keyword.trim() ? '검색 결과가 없어요' : '아직 목표가 없어요'}
         </p>
       )}
 
       {isCreateOpen && (
-        <CreateChatRoomModal onClose={() => setIsCreateOpen(false)} onCreate={handleCreate} />
+        <CreateGoalModal onClose={() => setIsCreateOpen(false)} onCreate={handleCreate} />
       )}
     </div>
   );

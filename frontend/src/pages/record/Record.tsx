@@ -1,13 +1,13 @@
 // pages/record/Record.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { fetchTodoLists } from '@/api/record';
+import { fetchDailyTodos } from '@/api/record';
 import PageHeader from '@/components/PageHeader';
 import SegmentedTabs from '@/components/SegmentedTabs';
 import { Button } from '@/components/ui/button';
 import Calendar from '@/pages/record/components/Calendar';
 import TenMinutePlanner from '@/pages/record/components/TenMinutePlanner';
-import TodoListCarousel from '@/pages/record/components/TodoListCarousel';
-import type { TodoList } from '@/types/record';
+import TodoCarousel from '@/pages/record/components/TodoCarousel';
+import type { DailyTodo } from '@/types/record';
 import { formatDateKey } from '@/utils/date';
 
 type RecordTab = 'calendar' | 'planner';
@@ -27,7 +27,7 @@ export default function Record() {
   /** 탭이 오른쪽으로 이동했는지 (내용 애니메이션 방향 결정용) */
   const [isMovingRight, setIsMovingRight] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [todoLists, setTodoLists] = useState<TodoList[]>([]);
+  const [todos, setTodos] = useState<DailyTodo[]>([]);
   const [isLoadingTodos, setIsLoadingTodos] = useState(true);
   const [hasTodoError, setHasTodoError] = useState(false);
   /** 값을 늘려 같은 날짜로 다시 조회를 트리거한다 (다시 시도 버튼용) */
@@ -38,10 +38,10 @@ export default function Record() {
   // 선택한 날짜가 바뀌면 그 날짜에 할당된 투두를 다시 불러온다
   useEffect(() => {
     let isStale = false;
-    fetchTodoLists(dateKey)
+    fetchDailyTodos(dateKey)
       .then((data) => {
         if (isStale) return;
-        setTodoLists(data);
+        setTodos(data);
         setHasTodoError(false);
       })
       .catch(() => {
@@ -108,7 +108,7 @@ export default function Record() {
                 </div>
               ) : (
                 // key: 날짜가 바뀌면 캐러셀을 첫 장으로 되돌린다
-                <TodoListCarousel key={dateKey} todoLists={todoLists} />
+                <TodoCarousel key={dateKey} todos={todos} />
               )}
             </div>
           </>

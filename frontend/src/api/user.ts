@@ -1,5 +1,5 @@
 // api/user.ts
-import { MOCK_PROFILE } from '@/pages/my/mockMy';
+import { MOCK_PROFILE } from '@/mocks/my';
 import type { User } from '@/types/auth';
 import type { UpdateProfileInput } from '@/types/user';
 

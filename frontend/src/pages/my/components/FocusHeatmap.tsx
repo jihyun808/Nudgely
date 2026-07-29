@@ -1,6 +1,6 @@
 // pages/my/components/FocusHeatmap.tsx
 import { useEffect, useMemo, useRef } from 'react';
-import { MOCK_HEATMAP_PATTERN, MOCK_JOINED_AT } from '@/pages/my/mockMy';
+import { MOCK_HEATMAP_PATTERN, MOCK_JOINED_AT } from '@/mocks/my';
 
 /** 집중량 5단계 색. 0단계는 기록 없음 */
 const LEVEL_COLORS = [

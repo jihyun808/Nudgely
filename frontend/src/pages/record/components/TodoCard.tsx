@@ -1,24 +1,24 @@
-// pages/record/components/TodoListCard.tsx
+// pages/record/components/TodoCard.tsx
 import { cn } from '@/lib/utils';
-import type { TodoList } from '@/types/record';
+import type { DailyTodo } from '@/types/record';
 
-interface TodoListCardProps {
-  todoList: TodoList;
+interface TodoCardProps {
+  todo: DailyTodo;
 }
 
 /**
- * 투두 리스트 한 묶음 카드.
- * 제목(습관·공부 이름)과 항목들을 보여준다.
- * 항목의 체크 상태는 AI와의 대화로 갱신되므로 화면에서는 읽기 전용이다.
+ * 목표 하나의 하루치 투두 카드.
+ * 제목은 목표 이름(Goal.title)이고, 항목은 그날 AI가 만든 할 일이다.
+ * 체크 상태는 AI와의 대화로 갱신되므로 화면에서는 읽기 전용이다.
  */
-export default function TodoListCard({ todoList }: TodoListCardProps) {
-  const { title, items } = todoList;
+export default function TodoCard({ todo }: TodoCardProps) {
+  const { goalTitle, items } = todo;
   const doneCount = items.filter(({ isDone }) => isDone).length;
 
   return (
     <div className="rounded-2xl bg-muted-foreground/5 p-4">
       <div className="flex items-baseline justify-between gap-2">
-        <h3 className="min-w-0 truncate text-sm font-bold">{title}</h3>
+        <h3 className="min-w-0 truncate text-sm font-bold">{goalTitle}</h3>
         <span className="shrink-0 text-xs text-muted-foreground">
           {doneCount}/{items.length}
         </span>

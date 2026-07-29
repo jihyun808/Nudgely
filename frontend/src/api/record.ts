@@ -1,20 +1,21 @@
 // api/record.ts
-import { createMockPlanner } from '@/pages/record/mockPlanner';
-import { MOCK_TODO_LISTS } from '@/pages/record/mockTodoLists';
+import { createMockPlanner } from '@/mocks/planner';
+import { MOCK_DAILY_TODOS } from '@/mocks/todos';
 import type { DailyPlanner } from '@/types/planner';
-import type { TodoList } from '@/types/record';
+import type { DailyTodo } from '@/types/record';
 
 /** mock 지연 (연동 시 삭제) */
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * 특정 날짜에 할당된 투두 리스트 조회.
+ * 특정 날짜의 투두 조회 (목표별로 한 묶음).
+ * 투두는 날짜마다 새로 만들어지므로, 그날 할 일이 없는 목표는 아예 내려오지 않는다.
  * @param date 'YYYY-MM-DD' (사용자 기준 로컬 날짜)
- * TODO: `api.get<TodoList[]>('/todo-lists', { params: { date } })`로 교체.
+ * TODO: `api.get<DailyTodo[]>('/todos', { params: { date } })`로 교체.
  */
-export async function fetchTodoLists(date: string): Promise<TodoList[]> {
+export async function fetchDailyTodos(date: string): Promise<DailyTodo[]> {
   await delay(400);
-  return MOCK_TODO_LISTS.filter((todoList) => todoList.date === date);
+  return MOCK_DAILY_TODOS.filter((todo) => todo.date === date);
 }
 
 /**

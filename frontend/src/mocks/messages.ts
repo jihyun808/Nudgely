@@ -1,5 +1,5 @@
-// pages/chat/mockMessages.ts
-// API 연동 전 화면 확인용 임시 데이터. 서버 붙이면 이 파일은 삭제한다.
+// mocks/messages.ts
+// API 연동 전 화면 확인용 임시 데이터. 서버 붙이면 src/mocks 폴더째 삭제한다.
 // 과거 메시지 불러오기(커서 페이지네이션)를 확인할 수 있도록 여러 날에 걸쳐 넉넉히 넣어뒀다.
 import type { ChatMessage, ChatMessageRole } from '@/types/chat';
 

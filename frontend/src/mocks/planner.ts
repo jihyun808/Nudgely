@@ -1,5 +1,5 @@
-// pages/record/mockPlanner.ts
-// API 연동 전 화면 확인용 임시 데이터. 서버 붙이면 이 파일은 삭제한다.
+// mocks/planner.ts
+// API 연동 전 화면 확인용 임시 데이터. 서버 붙이면 src/mocks 폴더째 삭제한다.
 import type { DailyPlanner } from '@/types/planner';
 
 /** 'HH:MM' → 자정 기준 분 */

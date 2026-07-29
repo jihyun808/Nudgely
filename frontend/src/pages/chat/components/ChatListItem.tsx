@@ -1,25 +1,25 @@
-// pages/chat/components/ChatRoomCard.tsx
+// pages/chat/components/ChatListItem.tsx
 import ChatAvatar from '@/components/ChatAvatar';
-import type { ChatRoom } from '@/types/chat';
+import type { Goal } from '@/types/goal';
 import { formatChatTime } from '@/utils/date';
 
-interface ChatRoomCardProps {
-  room: ChatRoom;
-  onClick?: (room: ChatRoom) => void;
+interface ChatListItemProps {
+  goal: Goal;
+  onClick?: (goal: Goal) => void;
 }
 
 /**
- * 채팅 목록의 한 줄.
- * 왼쪽 이미지(없으면 이름 첫 글자 아바타) + 방 이름/최근 메시지 + 최근 시각/안 읽은 개수.
+ * 채팅 목록의 한 줄 (목표 하나 = 채팅방 하나).
+ * 왼쪽 이미지(없으면 이름 첫 글자 아바타) + 이름/최근 메시지 + 최근 시각/안 읽은 개수.
  */
-export default function ChatRoomCard({ room, onClick }: ChatRoomCardProps) {
-  const { name, imageUrl, lastMessage, lastMessageAt, unreadCount } = room;
+export default function ChatListItem({ goal, onClick }: ChatListItemProps) {
+  const { name, imageUrl, lastMessage, lastMessageAt, unreadCount } = goal;
   const hasUnread = unreadCount > 0;
 
   return (
     <button
       type="button"
-      onClick={() => onClick?.(room)}
+      onClick={() => onClick?.(goal)}
       className="flex w-full items-center gap-3 px-6 py-3.5 text-left transition-colors active:bg-muted-foreground/5"
     >
       <ChatAvatar name={name} imageUrl={imageUrl} />

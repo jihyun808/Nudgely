@@ -2,7 +2,7 @@
 import { useRef, useState, type UIEvent } from 'react';
 import AddGoalCard from '@/pages/home/components/AddGoalCard';
 import GoalCard from '@/pages/home/components/GoalCard';
-import type { Goal } from '@/types/home';
+import type { Goal } from '@/types/goal';
 
 /** 한 페이지에 보여줄 카드 개수. '목표 추가하기' 카드도 한 칸으로 센다 */
 const CARDS_PER_PAGE = 3;

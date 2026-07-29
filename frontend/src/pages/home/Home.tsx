@@ -1,7 +1,8 @@
 // pages/home/Home.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchHomeSummary, fetchNotifications } from '@/api/home';
+import { fetchHomePreviews, fetchNotifications } from '@/api/home';
+import { fetchGoals } from '@/api/goal';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import FocusSummary from '@/pages/home/components/FocusSummary';
@@ -9,14 +10,16 @@ import GoalList from '@/pages/home/components/GoalList';
 import NotificationBell from '@/pages/home/components/NotificationBell';
 import PreviewSwiper from '@/pages/home/components/PreviewSwiper';
 import { useNotificationStore } from '@/stores/notificationStore';
-import type { HomePreview, HomeSummary } from '@/types/home';
+import type { Goal } from '@/types/goal';
+import type { HomePreview } from '@/types/home';
 
 /**
  * 홈 화면.
  * 헤더(+알림) / 안 읽은 메시지 미리보기 / 오늘의 집중 / 집중 시작 CTA / 진행 중인 목표.
  */
 export default function Home() {
-  const [summary, setSummary] = useState<HomeSummary>();
+  const [previews, setPreviews] = useState<HomePreview[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -25,10 +28,11 @@ export default function Home() {
 
   useEffect(() => {
     let isStale = false;
-    Promise.all([fetchHomeSummary(), fetchNotifications()])
-      .then(([summaryData, notificationData]) => {
+    Promise.all([fetchHomePreviews(), fetchGoals(), fetchNotifications()])
+      .then(([previewData, goalData, notificationData]) => {
         if (isStale) return;
-        setSummary(summaryData);
+        setPreviews(previewData);
+        setGoals(goalData);
         setNotifications(notificationData);
         setHasError(false);
       })
@@ -69,16 +73,14 @@ export default function Home() {
    */
   const handleOpenPreview = (preview: HomePreview) => {
     if (preview.kind === 'message') {
-      setSummary((prev) =>
-        prev ? { ...prev, previews: prev.previews.filter(({ id }) => id !== preview.id) } : prev,
-      );
+      setPreviews((prev) => prev.filter(({ id }) => id !== preview.id));
     }
     if (preview.linkTo) navigate(preview.linkTo);
   };
 
   /** 목표 추가 = 채팅 탭으로 이동한 뒤 그곳의 채팅방 개설 팝업을 연다 */
   const handleAddGoal = () => {
-    navigate('/chat', { state: { openCreateChatRoom: true } });
+    navigate('/chat', { state: { openCreateGoal: true } });
   };
 
   return (
@@ -91,7 +93,7 @@ export default function Home() {
           <div className="h-30 animate-pulse rounded-2xl bg-muted-foreground/8" />
           <div className="h-12 animate-pulse rounded-2xl bg-muted-foreground/8" />
         </div>
-      ) : hasError || !summary ? (
+      ) : hasError ? (
         <div className="mt-20 flex flex-col items-center gap-3">
           <p className="text-sm text-muted-foreground">홈 정보를 불러오지 못했어요</p>
           <Button variant="outline" size="sm" onClick={handleRetry}>
@@ -101,7 +103,7 @@ export default function Home() {
       ) : (
         <>
           <div className="mt-4">
-            <PreviewSwiper previews={summary.previews} onOpen={handleOpenPreview} />
+            <PreviewSwiper previews={previews} onOpen={handleOpenPreview} />
           </div>
 
           <section className="mt-6">
@@ -124,7 +126,7 @@ export default function Home() {
 
           <section className="mt-6">
             <h2 className="mb-2.5 text-sm font-bold">진행 중인 목표</h2>
-            <GoalList goals={summary.goals} onAddGoal={handleAddGoal} />
+            <GoalList goals={goals} onAddGoal={handleAddGoal} />
           </section>
         </>
       )}

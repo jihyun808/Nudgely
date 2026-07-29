@@ -1,4 +1,4 @@
-// pages/chat/components/CreateChatRoomModal.tsx
+// components/CreateGoalModal.tsx
 import { useState, type FormEvent } from 'react';
 import ImagePicker from '@/components/ImagePicker';
 import Modal from '@/components/Modal';
@@ -6,28 +6,29 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CHAT_ROOM_LIMITS, type CreateChatRoomInput } from '@/types/chat';
+import { GOAL_LIMITS, type CreateGoalInput } from '@/types/goal';
 
-interface CreateChatRoomModalProps {
+interface CreateGoalModalProps {
   onClose: () => void;
-  onCreate: (input: CreateChatRoomInput) => Promise<void> | void;
+  onCreate: (input: CreateGoalInput) => Promise<void> | void;
 }
 
 /**
- * 채팅방 개설 팝업.
- * 이름/사진/설명/프롬프트를 받고, 필수값은 이름 하나뿐이다.
+ * 목표(=채팅방) 개설 팝업.
+ * 채팅 탭의 + 버튼과 홈의 '목표 추가하기'가 같은 팝업을 쓴다.
+ * 채팅방 이름(별명) / 사진 / 목표 이름 / 프롬프트를 받고, 필수값은 채팅방 이름 하나뿐이다.
  */
-export default function CreateChatRoomModal({ onClose, onCreate }: CreateChatRoomModalProps) {
+export default function CreateGoalModal({ onClose, onCreate }: CreateGoalModalProps) {
   const [name, setName] = useState('');
   const [imageUrl, setImageUrl] = useState<string>();
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
   const [submitError, setSubmitError] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    // 사진·설명·프롬프트는 비워도 되고 나중에 설정에서 수정한다
+    // 사진·목표 이름·프롬프트는 비워도 되고 나중에 설정에서 수정한다
     if (!name.trim() || isSubmitting) return;
 
     setIsSubmitting(true);
@@ -36,73 +37,73 @@ export default function CreateChatRoomModal({ onClose, onCreate }: CreateChatRoo
       await onCreate({
         name: name.trim(),
         imageUrl,
-        description: description.trim(),
+        title: title.trim(),
         prompt: prompt.trim(),
       });
       onClose();
     } catch {
-      setSubmitError('채팅방을 만들지 못했어요. 다시 시도해주세요.');
+      setSubmitError('목표를 만들지 못했어요. 다시 시도해주세요.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <Modal title="새 채팅방 만들기" onClose={onClose}>
+    <Modal title="새 목표 만들기" onClose={onClose}>
       <form onSubmit={(e) => void handleSubmit(e)}>
         <div className="mt-4">
-          <ImagePicker imageUrl={imageUrl} onChange={setImageUrl} label="채팅방 사진 선택" />
+          <ImagePicker imageUrl={imageUrl} onChange={setImageUrl} label="목표 사진 선택" />
         </div>
 
-        {/* 채팅방 이름 (필수) */}
+        {/* 목표 이름 (필수) */}
         <div className="mt-5 flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between">
-            <Label htmlFor="chat-room-name">
+            <Label htmlFor="goal-name">
               채팅방 이름 <span className="text-destructive">*</span>
             </Label>
             <span className="text-xs text-muted-foreground">
-              {name.length}/{CHAT_ROOM_LIMITS.name}
+              {name.length}/{GOAL_LIMITS.name}
             </span>
           </div>
           <Input
-            id="chat-room-name"
+            id="goal-name"
             value={name}
-            maxLength={CHAT_ROOM_LIMITS.name}
+            maxLength={GOAL_LIMITS.name}
             onChange={(e) => setName(e.target.value)}
             placeholder="예) 스터디 메이트"
             autoFocus
           />
         </div>
 
-        {/* 설명 */}
+        {/* 목표 이름 (홈·기록 카드 제목으로도 쓰인다) */}
         <div className="mt-4 flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between">
-            <Label htmlFor="chat-room-description">설명</Label>
+            <Label htmlFor="goal-title">목표</Label>
             <span className="text-xs text-muted-foreground">
-              {description.length}/{CHAT_ROOM_LIMITS.description}
+              {title.length}/{GOAL_LIMITS.title}
             </span>
           </div>
           <Input
-            id="chat-room-description"
-            value={description}
-            maxLength={CHAT_ROOM_LIMITS.description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="어떤 채팅방인지 짧게 적어주세요"
+            id="goal-title"
+            value={title}
+            maxLength={GOAL_LIMITS.title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="예) UI/UX 디자인 강의 완주"
           />
         </div>
 
         {/* 프롬프트 */}
         <div className="mt-4 flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between">
-            <Label htmlFor="chat-room-prompt">프롬프트</Label>
+            <Label htmlFor="goal-prompt">프롬프트</Label>
             <span className="text-xs text-muted-foreground">
-              {prompt.length}/{CHAT_ROOM_LIMITS.prompt}
+              {prompt.length}/{GOAL_LIMITS.prompt}
             </span>
           </div>
           <Textarea
-            id="chat-room-prompt"
+            id="goal-prompt"
             value={prompt}
-            maxLength={CHAT_ROOM_LIMITS.prompt}
+            maxLength={GOAL_LIMITS.prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="AI가 어떤 말투와 역할로 대화하면 좋을지 적어주세요"
             className="h-28 resize-none"

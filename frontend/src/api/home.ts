@@ -1,18 +1,19 @@
 // api/home.ts
-import { MOCK_HOME_SUMMARY, MOCK_NOTIFICATIONS } from '@/pages/home/mockHome';
-import type { HomeSummary } from '@/types/home';
+import { MOCK_NOTIFICATIONS, MOCK_PREVIEWS } from '@/mocks/home';
+import type { HomePreview } from '@/types/home';
 import type { AppNotification } from '@/types/notification';
 
 /** mock 지연 (연동 시 삭제) */
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * 홈 화면 요약 조회 (안 읽은 메시지 미리보기 + 진행 중인 목표).
- * TODO: `api.get<HomeSummary>('/home')`로 교체.
+ * 홈 상단 미리보기 조회 (안 읽은 메시지 · 공지 · 광고).
+ * 목표 목록은 `api/goal.ts`의 `fetchGoals()`를 함께 쓴다.
+ * TODO: `api.get<HomePreview[]>('/home/previews')`로 교체.
  */
-export async function fetchHomeSummary(): Promise<HomeSummary> {
+export async function fetchHomePreviews(): Promise<HomePreview[]> {
   await delay(500);
-  return MOCK_HOME_SUMMARY;
+  return MOCK_PREVIEWS;
 }
 
 /**

@@ -23,7 +23,7 @@ export const router = createBrowserRouter([
   { path: '/signup', element: <Signup /> },
 
   // 채팅방 상세는 하단 탭바 없이 전체 화면을 쓴다
-  { path: '/chat/:roomId', element: <ChatDetail /> },
+  { path: '/chat/:goalId', element: <ChatDetail /> },
 
   // 로그인 이후 메인: 하단 탭바로 4개 화면을 오간다
   {
