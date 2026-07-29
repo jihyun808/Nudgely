@@ -43,14 +43,38 @@ export async function fetchChatRoom(roomId: string): Promise<ChatRoomDetail> {
   return room;
 }
 
+/** 한 번에 불러오는 메시지 수 */
+export const MESSAGE_PAGE_SIZE = 10;
+
+/** 메시지 목록 조회 응답 */
+export interface MessagePage {
+  /** 최신 → 과거 순 (화면에서는 뒤집어 오래된 것부터 그린다) */
+  messages: ChatMessage[];
+  /** 다음(더 과거) 페이지를 부를 커서. 더 없으면 null */
+  nextCursor: string | null;
+}
+
 /**
- * 메시지 목록 조회 (오래된 것 → 최신 순으로 화면에 그린다).
- * TODO: `api.get(`/chat-rooms/${roomId}/messages`)` + 커서 페이지네이션으로 교체.
+ * 메시지 목록 조회 (커서 페이지네이션).
+ * 커서가 없으면 최신 페이지를, 있으면 그 메시지보다 더 과거를 돌려준다.
+ * TODO: `api.get<MessagePage>(`/chat-rooms/${roomId}/messages`, { params: { cursor, limit } })`로 교체.
  */
-export async function fetchMessages(roomId: string): Promise<ChatMessage[]> {
+export async function fetchMessages(roomId: string, cursor?: string): Promise<MessagePage> {
   await delay(600);
   // mock 단계에서는 첫 번째 방에만 대화 기록이 있다
-  return roomId === '1' ? MOCK_MESSAGES : [];
+  if (roomId !== '1') return { messages: [], nextCursor: null };
+
+  // MOCK_MESSAGES는 오래된 것 → 최신 순. 커서 위치 바로 앞에서 한 페이지를 떼어낸다
+  const cursorIndex = cursor ? MOCK_MESSAGES.findIndex(({ id }) => id === cursor) : -1;
+  const endIndex = cursorIndex >= 0 ? cursorIndex : MOCK_MESSAGES.length;
+  const startIndex = Math.max(0, endIndex - MESSAGE_PAGE_SIZE);
+  const page = MOCK_MESSAGES.slice(startIndex, endIndex);
+
+  return {
+    messages: [...page].reverse(),
+    // 이번 페이지에서 가장 오래된 메시지가 다음 커서가 된다
+    nextCursor: startIndex > 0 ? page[0].id : null,
+  };
 }
 
 /**

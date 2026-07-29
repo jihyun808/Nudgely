@@ -25,16 +25,25 @@ export default function ChatDetail() {
   const [hasError, setHasError] = useState(false);
   /** AI 응답 대기 중 (입력 잠금 + 타이핑 표시) */
   const [isReplying, setIsReplying] = useState(false);
+  /** 다음(더 과거) 페이지 커서. null이면 더 불러올 과거가 없다 */
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+
   const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  /** 과거 메시지를 붙이기 직전의 스크롤 높이. 위치 보정에 쓰고 비운다 */
+  const heightBeforePrependRef = useRef<number | null>(null);
 
   useEffect(() => {
     let isStale = false;
     Promise.all([fetchChatRoom(roomId), fetchMessages(roomId)])
-      .then(([roomData, messageData]) => {
+      .then(([roomData, page]) => {
         if (isStale) return;
         setRoom(roomData);
-        setMessages(messageData);
+        // 응답은 최신 → 과거 순이므로 뒤집어 오래된 것부터 그린다
+        setMessages([...page.messages].reverse());
+        setNextCursor(page.nextCursor);
         setHasError(false);
         // 방에 들어오면 읽음 처리. 실패해도 화면에는 영향이 없다
         void markChatRoomAsRead(roomId).catch(() => {});
@@ -50,10 +59,44 @@ export default function ChatDetail() {
     };
   }, [roomId, reloadKey]);
 
-  // 메시지가 늘어나거나 응답 대기 표시가 바뀌면 맨 아래로 스크롤
+  /**
+   * 목록이 바뀔 때의 스크롤 처리.
+   * 과거를 앞에 붙인 직후에는 늘어난 높이만큼 내려 보던 위치를 유지하고,
+   * 그 밖에는(새 메시지 등) 맨 아래로 내린다.
+   */
   useEffect(() => {
+    const list = listRef.current;
+    const heightBefore = heightBeforePrependRef.current;
+
+    if (list && heightBefore !== null) {
+      list.scrollTop = list.scrollHeight - heightBefore;
+      heightBeforePrependRef.current = null;
+      return;
+    }
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [messages, isReplying]);
+
+  /** 위로 스크롤해 맨 위에 닿으면 이전 대화를 이어 붙인다 */
+  const handleListScroll = () => {
+    const list = listRef.current;
+    if (!list || !nextCursor || isLoadingOlder) return;
+    if (list.scrollTop > 80) return;
+
+    setIsLoadingOlder(true);
+    // 붙이기 전 높이를 기억해 두었다가 렌더 후 스크롤을 보정한다
+    heightBeforePrependRef.current = list.scrollHeight;
+
+    fetchMessages(roomId, nextCursor)
+      .then((page) => {
+        setMessages((prev) => [...[...page.messages].reverse(), ...prev]);
+        setNextCursor(page.nextCursor);
+      })
+      .catch(() => {
+        // 실패하면 보정도 하지 않는다 (다음 스크롤에서 다시 시도)
+        heightBeforePrependRef.current = null;
+      })
+      .finally(() => setIsLoadingOlder(false));
+  };
 
   /**
    * 연속 메시지 묶음 계산.
@@ -155,7 +198,17 @@ export default function ChatDetail() {
         onOpenMenu={() => console.log('open menu', room.id)}
       />
 
-      <div className="flex-1 space-y-2 overflow-y-auto bg-muted-foreground/5 px-3 py-3">
+      <div
+        ref={listRef}
+        onScroll={handleListScroll}
+        className="flex-1 space-y-2 overflow-y-auto bg-muted-foreground/5 px-3 py-3"
+      >
+        {isLoadingOlder && (
+          <p className="py-2 text-center text-xs text-muted-foreground">
+            이전 대화를 불러오는 중...
+          </p>
+        )}
+
         {items.length === 0 && !isReplying && (
           <p className="mt-20 text-center text-sm text-muted-foreground">
             첫 메시지를 보내 대화를 시작해보세요

@@ -27,7 +27,7 @@
 | `src/api/chat.ts`                 | `fetchChatRooms()`     | 600ms 지연 후 `MOCK_CHAT_ROOMS` 반환 | `GET /chat-rooms`             |
 | `src/api/chat.ts`                 | `createChatRoom()`     | 300ms 지연 후 로컬 객체 생성         | `POST /chat-rooms`            |
 | `src/api/chat.ts`                 | `fetchChatRoom()`      | 300ms 지연 후 mock 목록에서 찾기     | `GET /chat-rooms/{id}`        |
-| `src/api/chat.ts`                 | `fetchMessages()`      | 첫 번째 방만 mock 대화 반환          | `GET .../messages`            |
+| `src/api/chat.ts`                 | `fetchMessages()`      | 1번 방 mock 대화를 10개씩 커서 분할  | `GET .../messages?cursor=`    |
 | `src/api/chat.ts`                 | `sendMessage()`        | 900ms 후 고정 문구 응답              | `POST .../messages` (SSE)     |
 | `src/api/chat.ts`                 | `markChatRoomAsRead()` | 아무것도 안 함                       | `POST .../read`               |
 | `src/pages/chat/mockChatRooms.ts` | —                      | 임시 데이터                          | 연동 후 **파일 삭제**         |
@@ -122,10 +122,11 @@ Content-Type: multipart/form-data
 화면은 구현 완료(`src/pages/chat/ChatDetail.tsx`, 라우트 `/chat/:roomId`)이고 mock으로 동작한다.
 프론트 타입: `ChatMessage`, `ChatRoomDetail` (`src/types/chat.ts`)
 
-### 4.1 메시지 목록 (커서 페이지네이션)
+### 4.1 메시지 목록 (커서 페이지네이션) — 프론트 구현 완료
 
 ```
-GET /chat-rooms/{roomId}/messages?cursor={messageId}&limit=30
+GET /chat-rooms/{roomId}/messages?limit=10            # 최신 페이지
+GET /chat-rooms/{roomId}/messages?cursor=m_01H&limit=10  # m_01H보다 더 과거
 ```
 
 ```json
@@ -142,11 +143,23 @@ GET /chat-rooms/{roomId}/messages?cursor={messageId}&limit=30
 }
 ```
 
+| 필드         | 설명                                                                 |
+| ------------ | -------------------------------------------------------------------- |
+| `messages`   | **최신 → 과거 순**. 프론트가 뒤집어 오래된 것부터 그린다             |
+| `nextCursor` | 이번 페이지에서 **가장 오래된 메시지의 id**. 더 과거가 없으면 `null` |
+
+- `cursor`는 **"이 메시지보다 더 과거"** 를 뜻한다. 커서 자신은 응답에 **포함하지 않는다**(중복 방지).
 - `role`: `"user" | "assistant"`
-- 위로 스크롤하며 과거를 불러오므로 **최신 → 과거 순**으로 주고, `nextCursor`가 `null`이면 끝.
-  (프론트는 화면에 오래된 것 → 최신 순으로 그리므로 받은 배열을 뒤집어 쓴다.)
 - 파일 첨부 메시지는 `file: { name, caption?, url? }`를 함께 준다.
-- 무한 스크롤(과거 불러오기)은 아직 미구현. 현재는 첫 페이지만 그린다.
+- 페이지 크기는 프론트 상수 `MESSAGE_PAGE_SIZE`(현재 10, 연동 시 30 정도 권장)로 관리하고 `limit`으로 넘긴다.
+- **번호 방식(`?page=2`)이 아니라 커서를 쓰는 이유**: 과거를 보는 도중 새 메시지가 오면 전체 순번이 밀려 이미 본 메시지가 다시 나오거나 건너뛰어진다. 기준점(메시지 id)을 쓰면 그런 어긋남이 없다.
+
+**프론트 동작** (`ChatDetail.tsx`)
+
+1. 진입 시 커서 없이 최신 페이지를 받아 뒤집어 그린다
+2. 목록을 위로 스크롤해 상단 80px 안에 들어오면 `nextCursor`로 다음 요청
+3. 받은 페이지를 목록 **앞쪽에 이어 붙이고**, 늘어난 높이만큼 `scrollTop`을 보정해 보던 위치를 유지한다
+4. 불러오는 동안 상단에 "이전 대화를 불러오는 중..." 표시, `nextCursor`가 `null`이면 더 요청하지 않는다
 
 ### 4.2 메시지 전송 — SSE 스트리밍 (확정)
 

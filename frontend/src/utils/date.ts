@@ -78,14 +78,14 @@ export function formatMessageTime(isoDate: string) {
   return `${meridiem} ${hour12}:${minutes}`;
 }
 
-/** 채팅 중간의 날짜 구분선 라벨. 예: '오늘', '어제', '2026년 7월 20일 월요일' */
-export function formatDateDivider(isoDate: string, now: Date = new Date()) {
+/**
+ * 채팅 중간의 날짜 구분선 라벨. 예: '2026년 7월 20일 월요일'
+ * 오늘·어제도 같은 형식으로 적어 구분선 표기를 통일한다.
+ */
+export function formatDateDivider(isoDate: string) {
   const date = new Date(isoDate);
   if (Number.isNaN(date.getTime())) return '';
 
-  const dayDiff = diffInDays(date, now);
-  if (dayDiff === 0) return '오늘';
-  if (dayDiff === 1) return '어제';
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${WEEKDAY_LABELS[date.getDay()]}`;
 }
 
