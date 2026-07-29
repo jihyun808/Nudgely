@@ -5,6 +5,7 @@ import PageHeader from '@/components/PageHeader';
 import SegmentedTabs from '@/components/SegmentedTabs';
 import { Button } from '@/components/ui/button';
 import Calendar from '@/pages/record/components/Calendar';
+import TenMinutePlanner from '@/pages/record/components/TenMinutePlanner';
 import TodoListCarousel from '@/pages/record/components/TodoListCarousel';
 import type { TodoList } from '@/types/record';
 import { formatDateKey } from '@/utils/date';
@@ -112,9 +113,7 @@ export default function Record() {
             </div>
           </>
         ) : (
-          <p className="mt-20 text-center text-sm text-muted-foreground">
-            텐미닛 플래너는 준비 중이에요
-          </p>
+          <TenMinutePlanner />
         )}
       </div>
     </div>
