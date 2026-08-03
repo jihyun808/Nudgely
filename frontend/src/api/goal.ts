@@ -1,12 +1,10 @@
 // api/goal.ts
 // 목표(=채팅방) 하나를 다루는 API. 채팅 탭과 홈의 '진행 중인 목표'가 함께 쓴다.
+import { delay } from '@/mocks/delay';
 import { MOCK_GOALS } from '@/mocks/goals';
 import { MOCK_MESSAGES } from '@/mocks/messages';
 import type { ChatMessage } from '@/types/chat';
 import type { CreateGoalInput, Goal, GoalDetail, UpdateGoalInput } from '@/types/goal';
-
-/** mock 지연 (연동 시 삭제) */
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * 목표 목록 조회 (채팅 목록 · 홈의 진행 중인 목표 공용).

@@ -1,10 +1,8 @@
 // api/auth.ts
+import { delay } from '@/mocks/delay';
 import { MOCK_PROFILE } from '@/mocks/my';
 import type { User } from '@/types/auth';
 import type { SigninInput, SignupInput, SocialLoginInput } from '@/types/auth';
-
-/** mock 지연 (연동 시 삭제) */
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** 로그인·회원가입 응답 */
 export interface AuthResult {

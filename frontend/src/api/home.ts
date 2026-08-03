@@ -1,10 +1,8 @@
 // api/home.ts
+import { delay } from '@/mocks/delay';
 import { MOCK_NOTIFICATIONS, MOCK_PREVIEWS } from '@/mocks/home';
 import type { HomePreview } from '@/types/home';
 import type { AppNotification } from '@/types/notification';
-
-/** mock 지연 (연동 시 삭제) */
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * 홈 상단 미리보기 조회 (안 읽은 메시지 · 공지 · 광고).

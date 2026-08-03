@@ -1,9 +1,7 @@
 // api/archive.ts
+import { delay } from '@/mocks/delay';
 import { MOCK_ATTACHMENTS, MOCK_COMPLETED_PROGRESS, MOCK_GOAL_PROGRESS } from '@/mocks/archive';
 import type { Attachment, AttachmentKind, GoalProgress } from '@/types/archive';
-
-/** mock 지연 (연동 시 삭제) */
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * 목표(채팅방)에서 주고받은 첨부 목록.

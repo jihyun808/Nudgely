@@ -1,10 +1,8 @@
 // api/user.ts
+import { delay } from '@/mocks/delay';
 import { MOCK_PROFILE } from '@/mocks/my';
 import type { User } from '@/types/auth';
 import type { UpdateProfileInput } from '@/types/user';
-
-/** mock 지연 (연동 시 삭제) */
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * 내 프로필 조회. 결과는 전역 상태(authStore.user)에 저장해 화면들이 함께 쓴다.

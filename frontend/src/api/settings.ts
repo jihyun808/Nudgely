@@ -1,9 +1,7 @@
 // api/settings.ts
+import { delay } from '@/mocks/delay';
 import { MOCK_SETTINGS } from '@/mocks/settings';
 import type { AppSettings } from '@/types/settings';
-
-/** mock 지연 (연동 시 삭제) */
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** mock 단계에서 화면이 바꾼 값을 들고 있는 사본 (새로고침하면 초기화된다) */
 let currentSettings: AppSettings = structuredClone(MOCK_SETTINGS);
