@@ -39,10 +39,26 @@ export interface Goal {
   };
 }
 
-/** 목표 상세. 설정 화면에서 쓰는 프롬프트까지 포함한다 */
+/** 목표 상세. 설정 화면에서 쓰는 값까지 포함한다 */
 export interface GoalDetail extends Goal {
   /** AI의 역할·말투를 정하는 시스템 프롬프트 */
   prompt?: string;
+  /** 목표 기한 (YYYY-MM-DD). 설정하면 D-day가 표시된다 */
+  dueDate?: string;
+  /** 이 목표의 알림만 꺼둔 상태 (전역 알림 설정과 별개) */
+  isNotificationMuted?: boolean;
+  /** 목표를 끝낸 날 (ISO 8601). 있으면 완료된 목표 */
+  completedAt?: string;
+}
+
+/** 목표 수정 입력값. 바뀐 항목만 보낸다 */
+export interface UpdateGoalInput {
+  name?: string;
+  title?: string;
+  imageUrl?: string;
+  prompt?: string;
+  dueDate?: string;
+  isNotificationMuted?: boolean;
 }
 
 /** 목표 생성 폼 입력값. 이름만 필수이고 나머지는 나중에 수정할 수 있다 */

@@ -7,16 +7,19 @@ import DetailHeader from '@/components/DetailHeader';
 import ErrorRetry from '@/components/ErrorRetry';
 import SegmentedTabs from '@/components/SegmentedTabs';
 import FileGrid from '@/pages/archive/components/FileGrid';
+import GoalSettings from '@/pages/archive/components/GoalSettings';
 import ImageGrid from '@/pages/archive/components/ImageGrid';
 import ProgressTimeline from '@/pages/archive/components/ProgressTimeline';
 import type { Attachment, GoalProgress } from '@/types/archive';
+import type { GoalDetail } from '@/types/goal';
 
-type ArchiveTab = 'file' | 'image' | 'progress';
+type ArchiveTab = 'file' | 'image' | 'progress' | 'settings';
 
 const TABS: { value: ArchiveTab; label: string }[] = [
   { value: 'file', label: '파일' },
   { value: 'image', label: '사진' },
   { value: 'progress', label: '진도' },
+  { value: 'settings', label: '설정' },
 ];
 
 /**
@@ -28,7 +31,7 @@ export default function Archive() {
   const { goalId = '' } = useParams();
 
   const [tab, setTab] = useState<ArchiveTab>('file');
-  const [goalName, setGoalName] = useState('');
+  const [goal, setGoal] = useState<GoalDetail>();
   const [files, setFiles] = useState<Attachment[]>([]);
   const [images, setImages] = useState<Attachment[]>([]);
   const [progress, setProgress] = useState<GoalProgress>();
@@ -44,9 +47,9 @@ export default function Archive() {
       fetchAttachments(goalId, 'image'),
       fetchGoalProgress(goalId),
     ])
-      .then(([goal, fileData, imageData, progressData]) => {
+      .then(([goalData, fileData, imageData, progressData]) => {
         if (isStale) return;
-        setGoalName(goal.name);
+        setGoal(goalData);
         setFiles(fileData);
         setImages(imageData);
         setProgress(progressData);
@@ -65,10 +68,7 @@ export default function Archive() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-md bg-background px-6 pt-6 pb-10">
-      <DetailHeader
-        title="모아보기"
-        subtitle={goalName ? `${goalName}와의 학습 기록` : undefined}
-      />
+      <DetailHeader title="모아보기" subtitle={goal ? `${goal.name}와의 학습 기록` : undefined} />
 
       <SegmentedTabs items={TABS} value={tab} onChange={setTab} className="mt-4" />
 
@@ -91,6 +91,7 @@ export default function Archive() {
           {tab === 'file' && <FileGrid files={files} />}
           {tab === 'image' && <ImageGrid images={images} />}
           {tab === 'progress' && progress && <ProgressTimeline progress={progress} />}
+          {tab === 'settings' && goal && <GoalSettings goal={goal} onUpdated={setGoal} />}
         </div>
       )}
     </div>

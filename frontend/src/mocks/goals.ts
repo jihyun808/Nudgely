@@ -19,6 +19,7 @@ export const MOCK_GOALS: GoalDetail[] = [
     lastMessageAt: ago(1 * MINUTE),
     unreadCount: 2,
     remainingDays: 22,
+    dueDate: new Date(Date.now() + 22 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     progress: { current: 21, total: 50, unit: '강' },
   },
   {

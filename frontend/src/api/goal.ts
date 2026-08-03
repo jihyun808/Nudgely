@@ -3,7 +3,7 @@
 import { MOCK_GOALS } from '@/mocks/goals';
 import { MOCK_MESSAGES } from '@/mocks/messages';
 import type { ChatMessage } from '@/types/chat';
-import type { CreateGoalInput, Goal, GoalDetail } from '@/types/goal';
+import type { CreateGoalInput, Goal, GoalDetail, UpdateGoalInput } from '@/types/goal';
 
 /** mock 지연 (연동 시 삭제) */
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -43,6 +43,43 @@ export async function createGoal(input: CreateGoalInput): Promise<Goal> {
     lastMessageAt: new Date().toISOString(),
     unreadCount: 0,
   };
+}
+
+/**
+ * 목표 수정 (이름·목표 이름·사진·프롬프트·기한·알림 끄기).
+ * TODO: `api.patch<GoalDetail>(`/goals/${goalId}`, input)`으로 교체. 사진은 FormData로 보낸다.
+ */
+export async function updateGoal(goalId: string, input: UpdateGoalInput): Promise<GoalDetail> {
+  const goal = await fetchGoal(goalId);
+  return { ...goal, ...input };
+}
+
+/**
+ * 목표 완료 처리. 진도가 100%가 되고 모아보기에 완주 표시가 뜬다.
+ * TODO: `api.post(`/goals/${goalId}/complete`)`로 교체.
+ */
+export async function completeGoal(goalId: string): Promise<void> {
+  if (!goalId) throw new Error('GOAL_NOT_FOUND');
+  await delay(400);
+}
+
+/**
+ * 대화 내용만 삭제. 목표와 기록은 남는다.
+ * TODO: `api.delete(`/goals/${goalId}/messages`)`로 교체.
+ */
+export async function clearGoalMessages(goalId: string): Promise<void> {
+  if (!goalId) throw new Error('GOAL_NOT_FOUND');
+  await delay(400);
+}
+
+/**
+ * 목표 삭제.
+ * TODO: `api.delete(`/goals/${goalId}`)`로 교체.
+ *       대화·투두·플래너 기록을 함께 지울지는 백엔드와 합의가 필요하다.
+ */
+export async function deleteGoal(goalId: string): Promise<void> {
+  if (!goalId) throw new Error('GOAL_NOT_FOUND');
+  await delay(500);
 }
 
 /** 한 번에 불러오는 메시지 수 */
