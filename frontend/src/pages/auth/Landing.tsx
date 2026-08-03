@@ -15,6 +15,7 @@ export default function Landing() {
           </p>
         </div>
 
+        {/* TODO: 각 제공자 SDK로 인가 코드를 받아 socialLogin({ provider, code })에 넘긴다 */}
         <div className="mt-20 flex flex-col gap-3">
           <Button variant="kakao" size="lg">
             카카오로 시작하기

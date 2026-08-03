@@ -1,6 +1,7 @@
 // pages/settings/Settings.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { signout } from '@/api/auth';
 import { deleteAccount, fetchSettings, updateSettings } from '@/api/settings';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import DetailHeader from '@/components/DetailHeader';
@@ -66,7 +67,9 @@ export default function Settings() {
     });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // 서버 세션 정리는 실패해도 기기에서는 로그아웃시킨다
+    await signout().catch(() => {});
     logout();
     navigate('/landing', { replace: true });
   };
