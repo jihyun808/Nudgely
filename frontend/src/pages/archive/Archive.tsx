@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { fetchAttachments, fetchGoalProgress } from '@/api/archive';
 import { fetchGoal } from '@/api/goal';
+import Skeleton from '@/components/Skeleton';
 import DetailHeader from '@/components/DetailHeader';
 import ErrorRetry from '@/components/ErrorRetry';
 import GearIcon from '@/components/GearIcon';
@@ -96,8 +97,8 @@ export default function Archive() {
 
       {isLoading ? (
         <div className="mt-6 space-y-3">
-          <div className="h-28 animate-pulse rounded-2xl bg-muted-foreground/8" />
-          <div className="h-28 animate-pulse rounded-2xl bg-muted-foreground/8" />
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
         </div>
       ) : hasError ? (
         <ErrorRetry

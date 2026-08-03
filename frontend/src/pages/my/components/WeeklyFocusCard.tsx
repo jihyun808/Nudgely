@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { fetchWeeklyFocus } from '@/api/focus';
 import { cn } from '@/lib/utils';
+import StepperButton from '@/components/StepperButton';
 import WeeklyFocusChart from '@/pages/my/components/WeeklyFocusChart';
 
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const;
@@ -27,39 +28,6 @@ function getWeekLabel(weekStart: Date) {
 
 /** 1.5 → '1.5h', 2 → '2h' */
 const formatHours = (hours: number) => `${Number(hours.toFixed(1))}h`;
-
-/** 이전·다음 주 버튼 */
-function WeekButton({
-  direction,
-  disabled,
-  onClick,
-}: {
-  direction: 'prev' | 'next';
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={direction === 'prev' ? '이전 주' : '다음 주'}
-      className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors active:bg-muted-foreground/10 disabled:opacity-30"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-4 w-4"
-      >
-        <path d={direction === 'prev' ? 'm15 18-6-6 6-6' : 'm9 6 6 6-6 6'} />
-      </svg>
-    </button>
-  );
-}
 
 /**
  * 주간 집중 카드.
@@ -107,11 +75,22 @@ export default function WeeklyFocusCard() {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold">{isThisWeek ? '이번 주 집중' : '주간 집중'}</h3>
         <div className="flex items-center gap-1">
-          <WeekButton direction="prev" onClick={() => moveWeek(-1)} />
+          <StepperButton
+            direction="prev"
+            label="이전 주"
+            className="h-7 w-7 bg-transparent"
+            onClick={() => moveWeek(-1)}
+          />
           <span aria-live="polite" className="text-xs text-muted-foreground">
             {getWeekLabel(getWeekStart(weekOffset))}
           </span>
-          <WeekButton direction="next" disabled={isThisWeek} onClick={() => moveWeek(1)} />
+          <StepperButton
+            direction="next"
+            label="다음 주"
+            disabled={isThisWeek}
+            className="h-7 w-7 bg-transparent"
+            onClick={() => moveWeek(1)}
+          />
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCompletedGoals } from '@/api/goal';
 import { fetchMyProfile, updateMyProfile } from '@/api/user';
+import Skeleton from '@/components/Skeleton';
 import ErrorRetry from '@/components/ErrorRetry';
 import GearIcon from '@/components/GearIcon';
 import PageHeader from '@/components/PageHeader';
@@ -94,8 +95,8 @@ export default function My() {
 
       {isLoading ? (
         <div className="mt-6 space-y-4">
-          <div className="h-20 animate-pulse rounded-2xl bg-muted-foreground/8" />
-          <div className="h-20 animate-pulse rounded-2xl bg-muted-foreground/8" />
+          <Skeleton className="h-20" />
+          <Skeleton className="h-20" />
         </div>
       ) : hasError || !profile ? (
         <ErrorRetry message="프로필을 불러오지 못했어요" onRetry={handleRetry} />

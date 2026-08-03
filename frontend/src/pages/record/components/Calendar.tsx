@@ -1,6 +1,7 @@
 // pages/record/components/Calendar.tsx
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
+import StepperButton from '@/components/StepperButton';
 import CalendarDay from '@/pages/record/components/CalendarDay';
 import type { TodoMark } from '@/types/record';
 import { formatDateKey } from '@/utils/date';
@@ -22,30 +23,6 @@ function isSameDate(a: Date, b: Date) {
     a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
-  );
-}
-
-/** 이전/다음 달 버튼 */
-function MonthButton({ direction, onClick }: { direction: 'prev' | 'next'; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={direction === 'prev' ? '이전 달' : '다음 달'}
-      className="flex h-9 w-9 items-center justify-center rounded-full bg-muted-foreground/8 text-muted-foreground transition-colors active:bg-muted-foreground/15"
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-4 w-4"
-      >
-        <path d={direction === 'prev' ? 'm15 18-6-6 6-6' : 'm9 6 6 6-6 6'} />
-      </svg>
-    </button>
   );
 }
 
@@ -92,11 +69,11 @@ export default function Calendar({ selected, onSelect, marks = [], onMonthChange
     <section>
       {/* 연월 + 이전/다음 달 */}
       <div className="flex items-center justify-between">
-        <MonthButton direction="prev" onClick={() => moveMonth(-1)} />
+        <StepperButton direction="prev" label="이전 달" onClick={() => moveMonth(-1)} />
         <h2 aria-live="polite" className="text-lg font-bold">
           {visibleMonth.getFullYear()}년 {visibleMonth.getMonth() + 1}월
         </h2>
-        <MonthButton direction="next" onClick={() => moveMonth(1)} />
+        <StepperButton direction="next" label="다음 달" onClick={() => moveMonth(1)} />
       </div>
 
       {/* 요일 헤더: 일요일은 빨강, 토요일은 파랑 */}

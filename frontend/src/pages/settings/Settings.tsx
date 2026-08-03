@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signout } from '@/api/auth';
 import { deleteAccount, fetchSettings, updateSettings } from '@/api/settings';
+import Skeleton from '@/components/Skeleton';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import DetailHeader from '@/components/DetailHeader';
 import ErrorRetry from '@/components/ErrorRetry';
@@ -86,8 +87,8 @@ export default function Settings() {
 
       {isLoading ? (
         <div className="mt-6 space-y-4">
-          <div className="h-40 animate-pulse rounded-2xl bg-muted-foreground/8" />
-          <div className="h-28 animate-pulse rounded-2xl bg-muted-foreground/8" />
+          <Skeleton className="h-40" />
+          <Skeleton className="h-28" />
         </div>
       ) : hasError || !settings ? (
         <ErrorRetry

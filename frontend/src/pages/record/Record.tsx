@@ -1,6 +1,7 @@
 // pages/record/Record.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { fetchDailyTodos, fetchTodoMarks } from '@/api/record';
+import Skeleton from '@/components/Skeleton';
 import PageHeader from '@/components/PageHeader';
 import SegmentedTabs from '@/components/SegmentedTabs';
 import { Button } from '@/components/ui/button';
@@ -118,7 +119,7 @@ export default function Record() {
                 {selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일 투두
               </h2>
               {isLoadingTodos ? (
-                <div className="h-44 animate-pulse rounded-2xl bg-muted-foreground/8" />
+                <Skeleton className="h-44" />
               ) : hasTodoError ? (
                 <div className="flex flex-col items-center gap-3 rounded-2xl bg-muted-foreground/5 py-8">
                   <p className="text-sm text-muted-foreground">투두를 불러오지 못했어요</p>

@@ -1,6 +1,7 @@
 // pages/settings/History.tsx
 import { useEffect, useState } from 'react';
 import { fetchHiddenGoals, updateGoal } from '@/api/goal';
+import Skeleton from '@/components/Skeleton';
 import DetailHeader from '@/components/DetailHeader';
 import ErrorRetry from '@/components/ErrorRetry';
 import HiddenGoalItem from '@/pages/settings/components/HiddenGoalItem';
@@ -55,8 +56,8 @@ export default function History() {
 
       {isLoading ? (
         <div className="mt-6 space-y-3">
-          <div className="h-16 animate-pulse rounded-2xl bg-muted-foreground/8" />
-          <div className="h-16 animate-pulse rounded-2xl bg-muted-foreground/8" />
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
         </div>
       ) : hasError ? (
         <ErrorRetry

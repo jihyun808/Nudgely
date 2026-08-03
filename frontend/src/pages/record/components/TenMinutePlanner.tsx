@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchDailyPlanner } from '@/api/record';
 import { fetchSettings } from '@/api/settings';
+import Skeleton from '@/components/Skeleton';
+import StepperButton from '@/components/StepperButton';
 import { Button } from '@/components/ui/button';
 import PlannerSummary from '@/pages/record/components/PlannerSummary';
 import PlannerTimeline from '@/pages/record/components/PlannerTimeline';
@@ -73,54 +75,24 @@ export default function TenMinutePlanner() {
     <div>
       {/* 날짜 이동 */}
       <div className="mt-5 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => moveDate(-1)}
-          aria-label="이전 날"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-muted-foreground/8 text-muted-foreground transition-colors active:bg-muted-foreground/15"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-4 w-4"
-          >
-            <path d="m15 18-6-6 6-6" />
-          </svg>
-        </button>
+        <StepperButton direction="prev" label="이전 날" onClick={() => moveDate(-1)} />
 
         <h2 aria-live="polite" className="text-lg font-bold">
           {formatPlannerDate(date)}
         </h2>
 
-        <button
-          type="button"
-          onClick={() => moveDate(1)}
+        <StepperButton
+          direction="next"
+          label="다음 날"
           disabled={isToday}
-          aria-label="다음 날"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-muted-foreground/8 text-muted-foreground transition-colors active:bg-muted-foreground/15 disabled:opacity-30"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-4 w-4"
-          >
-            <path d="m9 6 6 6-6 6" />
-          </svg>
-        </button>
+          onClick={() => moveDate(1)}
+        />
       </div>
 
       {/* key를 바꿔 날짜가 넘어갈 때마다 진입 애니메이션이 실행되게 한다 */}
       <div key={dateKey} className={isMovingForward ? 'panel-enter-right' : 'panel-enter-left'}>
         {isLoading ? (
-          <div className="mt-5 h-64 animate-pulse rounded-2xl bg-muted-foreground/8" />
+          <Skeleton className="mt-5 h-64" />
         ) : hasError || !planner || !summary ? (
           <div className="mt-20 flex flex-col items-center gap-3">
             <p className="text-sm text-muted-foreground">플래너를 불러오지 못했어요</p>

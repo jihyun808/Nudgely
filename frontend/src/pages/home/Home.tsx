@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchFocusSummary } from '@/api/focus';
 import { fetchHomePreviews, fetchNotifications } from '@/api/home';
 import { fetchGoals } from '@/api/goal';
+import Skeleton from '@/components/Skeleton';
 import ErrorRetry from '@/components/ErrorRetry';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -95,9 +96,9 @@ export default function Home() {
 
       {isLoading ? (
         <div className="mt-4 space-y-3">
-          <div className="h-30 animate-pulse rounded-2xl bg-muted-foreground/8" />
-          <div className="h-30 animate-pulse rounded-2xl bg-muted-foreground/8" />
-          <div className="h-12 animate-pulse rounded-2xl bg-muted-foreground/8" />
+          <Skeleton className="h-30" />
+          <Skeleton className="h-30" />
+          <Skeleton className="h-12" />
         </div>
       ) : hasError ? (
         <ErrorRetry message="홈 정보를 불러오지 못했어요" onRetry={handleRetry} />
