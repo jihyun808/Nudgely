@@ -1,10 +1,6 @@
 // pages/focus/components/CelebrationOverlay.tsx
+import ConfettiBurst from '@/components/ConfettiBurst';
 import { Button } from '@/components/ui/button';
-
-/** 컨페티 조각 색 */
-const CONFETTI_COLORS = ['#2563EB', '#1E9E5A', '#E2483D', '#F2B441', '#8B5CF6'];
-/** 조각 개수 */
-const PIECE_COUNT = 36;
 
 interface CelebrationOverlayProps {
   onClose: () => void;
@@ -12,7 +8,7 @@ interface CelebrationOverlayProps {
 
 /**
  * 오늘 목표 시간을 달성했을 때 뜨는 축하 화면.
- * 컨페티는 라이브러리 없이 CSS 애니메이션으로 떨어뜨린다.
+ * 확인을 누를 때까지 컨페티가 계속 떨어진다.
  */
 export default function CelebrationOverlay({ onClose }: CelebrationOverlayProps) {
   return (
@@ -23,20 +19,7 @@ export default function CelebrationOverlay({ onClose }: CelebrationOverlayProps)
       className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-6"
       onClick={onClose}
     >
-      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-        {Array.from({ length: PIECE_COUNT }, (_, i) => (
-          <span
-            key={i}
-            className="confetti-piece"
-            style={{
-              left: `${(i * 100) / PIECE_COUNT}%`,
-              backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-              animationDelay: `${(i % 12) * 0.15}s`,
-              animationDuration: `${2.4 + (i % 5) * 0.3}s`,
-            }}
-          />
-        ))}
-      </div>
+      <ConfettiBurst isLooping />
 
       <div
         onClick={(e) => e.stopPropagation()}

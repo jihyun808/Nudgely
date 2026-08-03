@@ -229,7 +229,88 @@ data: {"messageId":"m_02...","createdAt":"2026-07-30T04:13:00Z"}
 - SSE는 `EventSource`로 GET만 가능하므로 POST 스트리밍은 `fetch` + `ReadableStream`으로 읽는다. 이 경우 axios 인터셉터를 타지 않으니 `Authorization` 헤더를 직접 넣어야 한다.
 - 인프라 확인: 프록시 `proxy_buffering off`, 스트리밍 응답 압축 처리, 긴 응답 타임아웃.
 
-### 3.7 읽음 처리
+### 3.7 모아보기 — 첨부 · 진도
+
+화면: `src/pages/archive/Archive.tsx` (라우트 `/chat/:goalId/archive`, 채팅 상세 우측 상단 버튼에서 진입)
+
+```
+GET /goals/{goalId}/attachments?kind=file     # 파일
+GET /goals/{goalId}/attachments?kind=image    # 사진
+```
+
+```json
+{
+  "attachments": [
+    {
+      "id": "a_01H...",
+      "kind": "file",
+      "name": "20강_요약노트.pdf",
+      "sizeBytes": 1258291,
+      "uploadedAt": "2026-08-03T09:00:00Z",
+      "url": "https://cdn.../a_01H.pdf"
+    }
+  ]
+}
+```
+
+프론트 타입: `Attachment` (`src/types/archive.ts`)
+
+- `kind`: `"file"`(문서) / `"image"`(사진). 화면에서 탭이 나뉜다. **동영상은 받지 않는다**(용량이 커서 제외).
+- 프론트가 `uploadedAt` 기준으로 **연-월(`2026-08`)로 묶어** 최신 달부터 보여준다.
+- **유효기간 개념은 두지 않는다.** 채팅에 올린 파일은 계속 남는다.
+- 사진은 목록에 **썸네일 URL**이 필요하다(원본을 그대로 쓰면 목록이 무거워진다).
+
+```
+GET /goals/{goalId}/progress
+```
+
+```json
+{
+  "goalId": "g_01H...",
+  "goalTitle": "UI/UX 디자인 강의 완주",
+  "startedAt": "2026-06-04T00:00:00Z",
+  "completedAt": null,
+  "milestones": [
+    { "id": "p1", "title": "6월까지 기초 10강 완료", "status": "done" },
+    { "id": "p3", "title": "8월까지 실습 과제 3개 제출", "status": "current" }
+  ],
+  "focusedSeconds": 151200,
+  "completedTodoCount": 64,
+  "bestMonth": "2026-07"
+}
+```
+
+프론트 타입: `GoalProgress`, `ProgressMilestone`
+
+| 필드                  | 뜻                                        | 만드는 주체 |
+| --------------------- | ----------------------------------------- | ----------- |
+| `milestones[].title`  | 기간별 계획 문구. 예: '7월까지 20강 완료' | **AI**      |
+| `milestones[].status` | `done` / `current` / `upcoming`           | **AI**      |
+| `startedAt`           | 목표를 만든 날                            | 백엔드      |
+| `completedAt`         | 목표를 끝낸 날. 없으면 진행 중            | 백엔드      |
+| `focusedSeconds`      | 이 목표에 쓴 집중 시간                    | 백엔드 집계 |
+| `completedTodoCount`  | 이 목표에서 완료한 투두 개수              | 백엔드 집계 |
+| `bestMonth`           | 가장 많이 집중한 달 (`YYYY-MM`)           | 백엔드 집계 |
+
+- 진도율(%)은 프론트가 `done` 단계 수 ÷ 전체 단계 수로 계산한다.
+- `completedAt`이 있으면 완료된 목표로 보고 진행 기간·걸린 날수와 축하 연출을 보여준다.
+- 세 집계 값(`focusedSeconds`·`completedTodoCount`·`bestMonth`)은 **없으면 해당 칸을 그리지 않는다.** 연동 초기에는 빼고 시작해도 된다.
+
+**AI가 해야 할 일**
+
+1. 목표를 만들 때 대화로 **로드맵(마일스톤 목록)을 구성**해 저장한다. 기간 + 분량이 드러나는 짧은 문구가 좋다("7월까지 20강 완료").
+2. 대화·인증을 보고 마일스톤 `status`를 **`upcoming` → `current` → `done`으로 갱신**한다.
+3. 마지막 마일스톤이 끝나면 목표를 완료 처리하도록 백엔드에 알린다(`completedAt` 설정).
+4. 목표 이름(`Goal.title`)과 로드맵이 어긋나지 않게 함께 갱신한다.
+
+**백엔드가 해야 할 일**
+
+1. 마일스톤 저장·수정 API (AI가 쓸 쓰기 엔드포인트. 현재 문서에는 조회만 있다)
+2. `completedAt` 설정 규칙 — AI 판단으로만 할지, 진도율 100%면 자동으로 할지 정해야 한다
+3. **집중 세션에 목표 id 붙이기** — 지금 `POST /focus/sessions`에는 목표 정보가 없어서 `focusedSeconds`를 목표별로 집계할 수 없다. **스펙 변경이 필요하다.**
+4. 투두 완료 개수·월별 집중 시간 집계 (`completedTodoCount`, `bestMonth`)
+
+### 3.8 읽음 처리
 
 ```
 POST /goals/{goalId}/read
@@ -509,3 +590,5 @@ DELETE /me                                                        → 204
 9. 회원 탈퇴 시 데이터 처리 정책 (즉시 삭제 / 유예 / 익명화)
 10. 비밀번호 재설정 링크를 어디로 보낼지 (서버 웹페이지 / 앱 딥링크)
 11. 약관·개인정보 처리방침 페이지 URL
+12. **집중 세션에 목표 id 추가** — 목표별 집중 시간을 집계하려면 `POST /focus/sessions`에 `goalId`가 필요하다
+13. 마일스톤 쓰기 API 형태와 목표 완료(`completedAt`) 판정 주체 (AI / 자동)

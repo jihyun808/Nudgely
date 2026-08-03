@@ -47,6 +47,20 @@ export function formatChatTime(isoDate: string, now: Date = new Date()) {
   return '지난주';
 }
 
+/** 연-월 묶음 제목. 예: '2026-03' */
+export function formatYearMonth(isoDate: string) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** 날짜 표기. 예: '2026. 8. 3.' */
+export function formatDateDot(isoDate: string) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()}.`;
+}
+
 /** 알림 목록에 붙는 시각. '방금' → 'n분 전' → 'n시간 전' → 'n일 전' */
 export function formatNotificationTime(isoDate: string, now: Date = new Date()) {
   const date = new Date(isoDate);

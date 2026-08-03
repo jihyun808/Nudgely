@@ -19,3 +19,11 @@ export function formatMinutes(totalMinutes: number) {
   if (hours === 0) return `${rest}분`;
   return rest === 0 ? `${hours}시간` : `${hours}시간 ${rest}분`;
 }
+
+/** 바이트 → 'KB' / 'MB' 표기 */
+export function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes}B`;
+  const kilobytes = bytes / 1024;
+  if (kilobytes < 1024) return `${kilobytes.toFixed(1)}KB`;
+  return `${(kilobytes / 1024).toFixed(1)}MB`;
+}

@@ -198,8 +198,7 @@ export default function ChatDetail() {
         title={goal.name}
         subtitle={goal.title}
         onBack={() => navigate('/chat')}
-        // TODO: 채팅방 메뉴 화면 연결
-        onOpenMenu={() => console.log('open menu', goal.id)}
+        onOpenMenu={() => navigate(`/chat/${goal.id}/archive`)}
       />
 
       <div

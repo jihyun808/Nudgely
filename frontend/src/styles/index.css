@@ -72,6 +72,12 @@
     animation-iteration-count: infinite;
   }
 
+  /* 한 번만 터지고 사라지는 변형 */
+  .confetti-piece--once {
+    animation-iteration-count: 1;
+    animation-fill-mode: forwards;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .confetti-piece {
       display: none;
