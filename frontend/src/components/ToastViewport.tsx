@@ -6,7 +6,8 @@ import { useToastStore, type Toast } from '@/stores/toastStore';
 
 /** 종류별 배경·테두리·글씨 색 */
 const VARIANT_STYLES = {
-  info: 'bg-primary/8 border-primary/30 text-primary',
+  // 배경은 반투명이 아닌 색으로 둔다 (투명하면 뒤 글자가 비친다)
+  info: 'bg-[#EDF3FE] border-primary/30 text-[#1D4ED8]',
   success: 'bg-[#EAF7F0] border-[#1E9E5A]/30 text-[#177A46]',
   warning: 'bg-[#FDF2E9] border-[#D9622B]/30 text-[#B04E1F]',
 } as const;
