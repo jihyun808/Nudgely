@@ -1,0 +1,123 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-border: hsl(214.3 31.8% 91.4%);
+  --color-input: hsl(214.3 31.8% 91.4%);
+  --color-ring: hsl(221.2 83.2% 53.3%);
+  --color-background: hsl(0 0% 100%);
+  --color-foreground: hsl(222.2 84% 4.9%);
+  --color-primary: hsl(221.2 83.2% 53.3%);
+  --color-primary-foreground: hsl(210 40% 98%);
+  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
+  --color-destructive: hsl(0 84.2% 60.2%);
+  --radius: 0.5rem;
+}
+
+/* 세그먼트 탭 전환 시 내용이 이동 방향에서 미끄러져 들어오는 애니메이션 */
+@keyframes panel-in-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes panel-in-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 상단 토스트 진입 */
+@keyframes panel-in-from-top {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 캘린더 날짜를 눌렀을 때 꽃이 살짝 흔들리는 효과 */
+@keyframes flower-wiggle {
+  0% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(-6deg);
+  }
+  60% {
+    transform: rotate(5deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+/* 캘린더 꽃잎이 톡 하고 피어나는 효과 */
+@keyframes petal-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@layer components {
+  .petal-pop {
+    animation: petal-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  }
+
+  .flower-wiggle {
+    animation: flower-wiggle 0.35s ease-in-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .petal-pop,
+    .flower-wiggle {
+      animation: none;
+    }
+  }
+
+  .panel-enter-top {
+    animation: panel-in-from-top 200ms ease-out;
+  }
+  .panel-enter-right {
+    animation: panel-in-from-right 260ms ease-out;
+  }
+  .panel-enter-left {
+    animation: panel-in-from-left 260ms ease-out;
+  }
+
+  /* 모션을 줄이도록 설정한 사용자에게는 애니메이션을 끈다 */
+  @media (prefers-reduced-motion: reduce) {
+    .panel-enter-right,
+    .panel-enter-left {
+      animation: none;
+    }
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: -apple-system, 'Pretendard', sans-serif;
+  }
+}
