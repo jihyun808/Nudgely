@@ -80,7 +80,7 @@ export default function ProgressSummaryCard({ progress, spentDays }: ProgressSum
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border bg-background p-4">
-      {isCelebrating && <ConfettiBurst pieceCount={24} />}
+      {isCelebrating && <ConfettiBurst particleCount={60} />}
 
       <div className="relative flex items-center gap-4">
         {/* 원형 진도율 */}
