@@ -36,7 +36,51 @@
   }
 }
 
+/* 상단 토스트 진입 */
+@keyframes panel-in-from-top {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 목표 달성 축하 컨페티 */
+@keyframes confetti-fall {
+  from {
+    transform: translateY(-10vh) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(105vh) rotate(720deg);
+    opacity: 0.9;
+  }
+}
+
 @layer components {
+  .confetti-piece {
+    position: absolute;
+    top: 0;
+    width: 8px;
+    height: 14px;
+    border-radius: 2px;
+    animation-name: confetti-fall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .confetti-piece {
+      display: none;
+    }
+  }
+
+  .panel-enter-top {
+    animation: panel-in-from-top 200ms ease-out;
+  }
   .panel-enter-right {
     animation: panel-in-from-right 260ms ease-out;
   }

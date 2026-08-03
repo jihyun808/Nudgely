@@ -13,6 +13,7 @@ import PasswordChangeModal from '@/pages/settings/components/PasswordChangeModal
 import PlannerSection from '@/pages/settings/components/PlannerSection';
 import SettingsHeader from '@/pages/settings/components/SettingsHeader';
 import { useAuthStore } from '@/stores/authStore';
+import { showToast } from '@/stores/toastStore';
 import type { AppSettings } from '@/types/settings';
 
 /** 열려 있는 팝업 */
@@ -58,7 +59,10 @@ export default function Settings() {
     if (!settings) return;
     const previous = settings;
     setSettings({ ...settings, ...patch });
-    void updateSettings(patch).catch(() => setSettings(previous));
+    void updateSettings(patch).catch(() => {
+      setSettings(previous);
+      showToast('설정을 저장하지 못했어요', { variant: 'warning' });
+    });
   };
 
   const handleLogout = () => {

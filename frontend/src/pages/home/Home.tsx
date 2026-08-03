@@ -1,6 +1,7 @@
 // pages/home/Home.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { fetchFocusSummary } from '@/api/focus';
 import { fetchHomePreviews, fetchNotifications } from '@/api/home';
 import { fetchGoals } from '@/api/goal';
 import PageHeader from '@/components/PageHeader';
@@ -20,6 +21,8 @@ import type { HomePreview } from '@/types/home';
 export default function Home() {
   const [previews, setPreviews] = useState<HomePreview[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  /** 오늘 집중 요약 (집중 탭에서 쌓인 값) */
+  const [focus, setFocus] = useState({ focusedSeconds: 0, targetMinutes: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -28,12 +31,13 @@ export default function Home() {
 
   useEffect(() => {
     let isStale = false;
-    Promise.all([fetchHomePreviews(), fetchGoals(), fetchNotifications()])
-      .then(([previewData, goalData, notificationData]) => {
+    Promise.all([fetchHomePreviews(), fetchGoals(), fetchNotifications(), fetchFocusSummary()])
+      .then(([previewData, goalData, notificationData, focusData]) => {
         if (isStale) return;
         setPreviews(previewData);
         setGoals(goalData);
         setNotifications(notificationData);
+        setFocus(focusData);
         setHasError(false);
       })
       .catch(() => {
@@ -108,11 +112,19 @@ export default function Home() {
 
           <section className="mt-6">
             <h2 className="mb-2.5 text-sm font-bold">오늘의 집중</h2>
-            <FocusSummary />
+            <FocusSummary
+              focusedSeconds={focus.focusedSeconds}
+              targetMinutes={focus.targetMinutes}
+              streakDays={7}
+              isBestStreak
+            />
           </section>
 
-          {/* TODO: 집중 탭 구현 후 집중 세션 화면으로 연결 (지금은 아무 동작 없음) */}
-          <Button size="lg" className="mt-6 w-full gap-2 rounded-2xl text-base">
+          <Button
+            size="lg"
+            className="mt-6 w-full gap-2 rounded-2xl text-base"
+            onClick={() => navigate('/focus')}
+          >
             <span
               aria-hidden
               className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-foreground/20"

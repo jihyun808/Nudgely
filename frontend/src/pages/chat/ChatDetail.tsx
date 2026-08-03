@@ -7,6 +7,7 @@ import ChatDateDivider from '@/pages/chat/components/ChatDateDivider';
 import ChatDetailHeader from '@/pages/chat/components/ChatDetailHeader';
 import ChatInputBar from '@/pages/chat/components/ChatInputBar';
 import ChatMessageBubble from '@/pages/chat/components/ChatMessageBubble';
+import { showToast } from '@/stores/toastStore';
 import type { ChatMessage } from '@/types/chat';
 import type { GoalDetail } from '@/types/goal';
 import { isSameDay, isSameMinute } from '@/utils/date';
@@ -95,6 +96,7 @@ export default function ChatDetail() {
       .catch(() => {
         // 실패하면 보정도 하지 않는다 (다음 스크롤에서 다시 시도)
         heightBeforePrependRef.current = null;
+        showToast('이전 대화를 불러오지 못했어요', { variant: 'warning' });
       })
       .finally(() => setIsLoadingOlder(false));
   };
@@ -147,6 +149,7 @@ export default function ChatDetail() {
       setMessages((prev) =>
         prev.map((m) => (m.id === localId ? { ...m, status: 'failed' as const } : m)),
       );
+      showToast('메시지를 보내지 못했어요', { variant: 'warning' });
     } finally {
       setIsReplying(false);
     }

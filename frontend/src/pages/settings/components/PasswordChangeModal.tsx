@@ -5,6 +5,7 @@ import Modal from '@/components/Modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { showToast } from '@/stores/toastStore';
 
 /** 비밀번호 최소 길이 */
 const MIN_PASSWORD_LENGTH = 8;
@@ -39,6 +40,7 @@ export default function PasswordChangeModal({
     setError(undefined);
     try {
       await changePassword(current, next);
+      showToast('비밀번호를 변경했어요', { variant: 'success' });
       onClose();
     } catch {
       setError('비밀번호를 변경하지 못했어요. 현재 비밀번호를 확인해주세요.');

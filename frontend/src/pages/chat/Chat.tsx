@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import ChatListItem from '@/pages/chat/components/ChatListItem';
 import ChatListItemSkeleton from '@/pages/chat/components/ChatListItemSkeleton';
 import { sortGoals } from '@/pages/chat/sortGoals';
+import { showToast } from '@/stores/toastStore';
 import type { CreateGoalInput, Goal } from '@/types/goal';
 
 /**
@@ -78,6 +79,7 @@ export default function Chat() {
   const handleCreate = async (input: CreateGoalInput) => {
     const created = await createGoal(input);
     setGoals((prev) => [created, ...prev]);
+    showToast(`'${created.name}' 목표를 만들었어요`, { variant: 'success' });
     navigate(`/chat/${created.id}`);
   };
 

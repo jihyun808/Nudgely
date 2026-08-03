@@ -9,6 +9,7 @@ import ProfileEditModal from '@/pages/my/components/ProfileEditModal';
 import StatCards from '@/pages/my/components/StatCards';
 import WeeklyFocusCard from '@/pages/my/components/WeeklyFocusCard';
 import { useAuthStore } from '@/stores/authStore';
+import { showToast } from '@/stores/toastStore';
 import type { UpdateProfileInput } from '@/types/user';
 
 /**
@@ -52,6 +53,7 @@ export default function My() {
 
   const handleSaveProfile = async (input: UpdateProfileInput) => {
     setUser(await updateMyProfile(input));
+    showToast('프로필을 저장했어요', { variant: 'success' });
   };
 
   return (

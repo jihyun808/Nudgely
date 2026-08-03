@@ -1,5 +1,6 @@
 // components/ImagePicker.tsx
 import { useRef, useState } from 'react';
+import { showToast } from '@/stores/toastStore';
 import { validateImageFile } from '@/utils/image';
 
 interface ImagePickerProps {
@@ -33,7 +34,10 @@ export default function ImagePicker({ imageUrl, onChange, label }: ImagePickerPr
     // 서버 연동 전이므로 미리보기용 data URL로만 들고 있는다
     const reader = new FileReader();
     reader.onload = () => onChange(reader.result as string);
-    reader.onerror = () => setError('사진을 읽지 못했어요. 다시 시도해주세요.');
+    reader.onerror = () => {
+      setError('사진을 읽지 못했어요. 다시 시도해주세요.');
+      showToast('사진을 불러오지 못했어요', { variant: 'warning' });
+    };
     reader.readAsDataURL(file);
   };
 
