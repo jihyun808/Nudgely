@@ -5,8 +5,9 @@ import Modal from '@/components/Modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { GOAL_LIMITS, type CreateGoalInput } from '@/types/goal';
+import { GOAL_LIMITS, GOAL_PERSONAS, type CreateGoalInput, type GoalPersona } from '@/types/goal';
 
 interface CreateGoalModalProps {
   onClose: () => void;
@@ -16,13 +17,15 @@ interface CreateGoalModalProps {
 /**
  * 목표(=채팅방) 개설 팝업.
  * 채팅 탭의 + 버튼과 홈의 '목표 추가하기'가 같은 팝업을 쓴다.
- * 채팅방 이름(별명) / 사진 / 목표 이름 / 프롬프트를 받고, 필수값은 채팅방 이름 하나뿐이다.
+ * 채팅방 이름(별명) / 사진 / AI 성격 / 목표 이름 / 프롬프트를 받고, 필수값은 채팅방 이름 하나뿐이다.
  */
 export default function CreateGoalModal({ onClose, onCreate }: CreateGoalModalProps) {
   const [name, setName] = useState('');
   const [imageUrl, setImageUrl] = useState<string>();
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
+  /** 빈 문자열이면 '선택 안 함' */
+  const [persona, setPersona] = useState<GoalPersona | ''>('');
   const [submitError, setSubmitError] = useState<string>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -39,6 +42,7 @@ export default function CreateGoalModal({ onClose, onCreate }: CreateGoalModalPr
         imageUrl,
         title: title.trim(),
         prompt: prompt.trim(),
+        persona: persona || undefined,
       });
       onClose();
     } catch {
@@ -73,6 +77,23 @@ export default function CreateGoalModal({ onClose, onCreate }: CreateGoalModalPr
             placeholder="예) 스터디 메이트"
             autoFocus
           />
+        </div>
+
+        {/* AI 페르소나 (선택) */}
+        <div className="mt-4 flex flex-col gap-1.5">
+          <Label htmlFor="goal-persona">AI 성격</Label>
+          <Select
+            id="goal-persona"
+            value={persona}
+            onChange={(e) => setPersona(e.target.value as GoalPersona | '')}
+          >
+            <option value="">선택 안 함</option>
+            {GOAL_PERSONAS.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
         </div>
 
         {/* 목표 이름 (홈·기록 카드 제목으로도 쓰인다) */}

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import ImageViewer from '@/components/ImageViewer';
 import { Button } from '@/components/ui/button';
-import ChatDetailHeader from '@/pages/chat/components/ChatDetailHeader';
+import DetailHeader from '@/components/DetailHeader';
 import ChatInputBar from '@/pages/chat/components/ChatInputBar';
 import ChatMessageList from '@/pages/chat/components/ChatMessageList';
 import { useChatRoom } from '@/pages/chat/useChatRoom';
@@ -47,11 +47,26 @@ export default function ChatDetail() {
 
   return (
     <div className="mx-auto flex h-dvh max-w-md flex-col bg-background">
-      <ChatDetailHeader
+      <DetailHeader
         title={chat.goal.name}
         subtitle={chat.goal.title}
         onBack={() => navigate('/chat')}
-        onOpenMenu={() => navigate(`/chat/${goalId}/archive`)}
+        className="px-3"
+        action={
+          <button
+            type="button"
+            onClick={() => navigate(`/chat/${goalId}/archive`)}
+            aria-label="모아보기"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors active:bg-primary/20"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+              <rect x="4" y="4" width="7" height="7" rx="1.5" />
+              <rect x="13" y="4" width="7" height="7" rx="1.5" />
+              <rect x="4" y="13" width="7" height="7" rx="1.5" />
+              <rect x="13" y="13" width="7" height="7" rx="1.5" />
+            </svg>
+          </button>
+        }
       />
 
       <ChatMessageList

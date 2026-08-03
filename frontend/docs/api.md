@@ -114,7 +114,7 @@ GET /goals/{goalId}        # 단건 → GoalDetail
 ### 3.2 생성 · 수정 · 삭제
 
 ```
-POST   /goals                     # multipart: name, title, prompt, image
+POST   /goals                     # multipart: name, title, prompt, persona, image
 PATCH  /goals/{goalId}            # 보낸 필드만 갱신 → GoalDetail
 POST   /goals/{goalId}/complete   → 204
 DELETE /goals/{goalId}/messages   → 204   # 대화만 삭제

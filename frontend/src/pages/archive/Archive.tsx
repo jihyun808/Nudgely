@@ -79,6 +79,7 @@ export default function Archive() {
       <DetailHeader
         title="모아보기"
         subtitle={goal ? `${goal.name}와의 학습 기록` : undefined}
+        className="-mx-6 px-6"
         action={
           <button
             type="button"

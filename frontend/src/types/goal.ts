@@ -1,6 +1,19 @@
 // types/goal.ts
 
 /**
+ * AI 말투·역할 프리셋.
+ * 고르면 그에 맞는 기본 프롬프트가 적용된다. 고르지 않아도 된다.
+ */
+export type GoalPersona = 'teacher' | 'instructor' | 'friend';
+
+/** 드롭다운에 보여줄 페르소나 목록 */
+export const GOAL_PERSONAS: { value: GoalPersona; label: string }[] = [
+  { value: 'teacher', label: '학교/학원 선생님' },
+  { value: 'instructor', label: '1타 강사 정신교육' },
+  { value: 'friend', label: '친구' },
+];
+
+/**
  * 목표 하나. 채팅방·홈의 목표 카드·기록의 투두가 모두 이 하나를 가리킨다.
  * (사용자에게는 화면마다 '채팅방' / '진행 중인 목표'로 달리 보인다)
  */
@@ -47,6 +60,8 @@ export interface Goal {
 export interface GoalDetail extends Goal {
   /** AI의 역할·말투를 정하는 시스템 프롬프트 */
   prompt?: string;
+  /** 고른 페르소나. 고르지 않았으면 없다 */
+  persona?: GoalPersona;
   /** 목표 기한 (YYYY-MM-DD). 설정하면 D-day가 표시된다 */
   dueDate?: string;
   /** 이 목표의 알림만 꺼둔 상태 (전역 알림 설정과 별개) */
@@ -58,6 +73,7 @@ export interface GoalDetail extends Goal {
 /** 목표 수정 입력값. 바뀐 항목만 보낸다 */
 export interface UpdateGoalInput {
   name?: string;
+  persona?: GoalPersona;
   title?: string;
   imageUrl?: string;
   prompt?: string;
@@ -75,6 +91,8 @@ export interface CreateGoalInput {
   /** 목표 이름 */
   title: string;
   prompt: string;
+  /** 고른 페르소나 (선택 안 함 가능) */
+  persona?: GoalPersona;
 }
 
 /** 입력 글자수 제한 */

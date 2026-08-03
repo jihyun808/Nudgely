@@ -53,13 +53,14 @@ export async function fetchGoal(goalId: string): Promise<GoalDetail> {
  * 목표 생성 (= 채팅방 개설).
  * TODO: 사진은 FormData로 업로드하고 서버가 준 URL을 사용한다.
  */
-export async function createGoal(input: CreateGoalInput): Promise<Goal> {
+export async function createGoal(input: CreateGoalInput): Promise<GoalDetail> {
   await delay(300);
   return {
     id: crypto.randomUUID(),
     name: input.name,
     imageUrl: input.imageUrl,
     title: input.title || undefined,
+    persona: input.persona,
     lastMessage: '새로운 목표가 만들어졌어요',
     lastMessageAt: new Date().toISOString(),
     unreadCount: 0,
