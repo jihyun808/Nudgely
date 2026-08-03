@@ -1,6 +1,6 @@
 // pages/archive/Archive.tsx
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { fetchAttachments, fetchGoalProgress } from '@/api/archive';
 import { fetchGoal } from '@/api/goal';
 import DetailHeader from '@/components/DetailHeader';
@@ -15,6 +15,9 @@ import type { GoalDetail } from '@/types/goal';
 
 type ArchiveTab = 'file' | 'image' | 'progress';
 
+/** 주소로 바로 들어올 수 있는 탭 이름 (?tab=progress) */
+const TAB_VALUES: ArchiveTab[] = ['file', 'image', 'progress'];
+
 const TABS: { value: ArchiveTab; label: string }[] = [
   { value: 'file', label: '파일' },
   { value: 'image', label: '사진' },
@@ -24,13 +27,18 @@ const TABS: { value: ArchiveTab; label: string }[] = [
 /**
  * 모아보기.
  * 채팅방에서 주고받은 파일·사진과 목표의 진도 로드맵을 탭으로 나눠 본다.
+ * 보고 있는 탭은 주소(`?tab=`)에 남아 특정 탭으로 바로 들어올 수 있다.
  * 첨부는 카카오톡 서랍처럼 연-월로 묶는다.
  */
 export default function Archive() {
   const { goalId = '' } = useParams();
   const navigate = useNavigate();
+  // 어떤 탭을 볼지 주소에 담아둔다 (마이페이지에서 진도로 바로 들어올 수 있게)
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [tab, setTab] = useState<ArchiveTab>('file');
+  const tabParam = searchParams.get('tab') as ArchiveTab | null;
+  const tab = tabParam && TAB_VALUES.includes(tabParam) ? tabParam : 'file';
+  const setTab = (next: ArchiveTab) => setSearchParams({ tab: next }, { replace: true });
   const [goal, setGoal] = useState<GoalDetail>();
   const [files, setFiles] = useState<Attachment[]>([]);
   const [images, setImages] = useState<Attachment[]>([]);

@@ -28,6 +28,17 @@ export async function fetchHiddenGoals(): Promise<Goal[]> {
 }
 
 /**
+ * 완주한 목표 목록 (마이페이지).
+ * TODO: `api.get<Goal[]>('/goals', { params: { completed: true } })`로 교체.
+ */
+export async function fetchCompletedGoals(): Promise<Goal[]> {
+  await delay(400);
+  return MOCK_GOALS.filter(({ completedAt }) => completedAt).sort(
+    (a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime(),
+  );
+}
+
+/**
  * 목표 단건 조회 (채팅 상세 헤더 · 설정 화면).
  * TODO: `api.get<GoalDetail>(`/goals/${goalId}`)`로 교체.
  */

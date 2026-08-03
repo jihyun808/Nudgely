@@ -28,6 +28,8 @@ export interface Goal {
   startedAt?: string;
   /** 목표 기한까지 남은 일수. 기한이 없으면 D-day 배지를 표시하지 않는다 */
   remainingDays?: number;
+  /** 목표를 끝낸 날 (ISO 8601). 있으면 완주한 목표다 */
+  completedAt?: string;
   /**
    * 진도. 아직 없을 수도 있다(막 만든 목표 등).
    * TODO: 진도를 무엇으로 셀지(강의 수, 페이지, 회차 등)는 AI가 사용자에게서
@@ -51,8 +53,6 @@ export interface GoalDetail extends Goal {
   isNotificationMuted?: boolean;
   /** 숨긴 채팅방. 목록에서 빠지고 설정 > 히스토리에서만 보인다 */
   isHidden?: boolean;
-  /** 목표를 끝낸 날 (ISO 8601). 있으면 완료된 목표 */
-  completedAt?: string;
 }
 
 /** 목표 수정 입력값. 바뀐 항목만 보낸다 */

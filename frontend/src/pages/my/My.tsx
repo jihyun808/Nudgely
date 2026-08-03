@@ -1,16 +1,19 @@
 // pages/my/My.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { fetchCompletedGoals } from '@/api/goal';
 import { fetchMyProfile, updateMyProfile } from '@/api/user';
 import ErrorRetry from '@/components/ErrorRetry';
 import GearIcon from '@/components/GearIcon';
 import PageHeader from '@/components/PageHeader';
+import CompletedGoalList from '@/pages/my/components/CompletedGoalList';
 import FocusHeatmap from '@/pages/my/components/FocusHeatmap';
 import ProfileEditModal from '@/pages/my/components/ProfileEditModal';
 import StatCards from '@/pages/my/components/StatCards';
 import WeeklyFocusCard from '@/pages/my/components/WeeklyFocusCard';
 import { useAuthStore } from '@/stores/authStore';
 import { showToast } from '@/stores/toastStore';
+import type { Goal } from '@/types/goal';
 import type { UpdateProfileInput } from '@/types/user';
 
 /**
@@ -26,6 +29,22 @@ export default function My() {
   const [hasError, setHasError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  /** 완주한 목표. 없으면 화면에 섹션 자체가 생기지 않는다 */
+  const [completedGoals, setCompletedGoals] = useState<Goal[]>([]);
+
+  useEffect(() => {
+    let isStale = false;
+    fetchCompletedGoals()
+      .then((data) => {
+        if (!isStale) setCompletedGoals(data);
+      })
+      .catch(() => {
+        // 못 받아도 나머지 화면은 그대로 둔다
+      });
+    return () => {
+      isStale = true;
+    };
+  }, []);
 
   useEffect(() => {
     let isStale = false;
@@ -122,6 +141,8 @@ export default function My() {
           <div className="mt-4">
             <FocusHeatmap />
           </div>
+
+          <CompletedGoalList goals={completedGoals} />
         </>
       )}
 

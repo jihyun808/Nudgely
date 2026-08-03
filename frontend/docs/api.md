@@ -75,6 +75,7 @@ POST /auth/logout                                             → 204
 ```
 GET /goals                 # 목록 (채팅 탭 · 홈 목표 카드 공용)
 GET /goals?hidden=true     # 숨긴 목표 (설정 > 히스토리)
+GET /goals?completed=true  # 완주한 목표 (마이페이지). 숨긴 목표도 포함한다
 GET /goals/{goalId}        # 단건 → GoalDetail
 ```
 
@@ -125,6 +126,21 @@ DELETE /goals/{goalId}            → 204
 - **`isNotificationMuted`가 켜진 목표는 알림 발송에서 제외**해야 한다.
 - **`isHidden`은 삭제가 아니다.** 목록에서만 빼고 히스토리에서 되돌린다.
 - 완료 처리는 `completedAt`을 채운다. 마일스톤을 모두 `done`으로 바꿀지는 합의 필요.
+- **완주한 목표에는 알림·선톡·투두를 만들지 않는다.** 서버가 스케줄러·AI 대상에서 제외해야 한다.
+
+**완주 흐름 (미확정 — AI 설계와 함께 정한다)**
+
+대화로 완주하는 것이 자연스럽다. AI가 "완주로 바꿀까?"라고 묻고 사용자가 말로 답하면 **서버가 의도를 파악해 완료 처리**한다. 프론트에 별도 버튼을 두지 않는다.
+
+이때 프론트가 축하 연출을 띄우려면 **"방금 완주됐다"는 신호**가 필요하다. SSE 응답의 `done` 이벤트에 `goalCompleted: true`를 얹는 방식을 제안한다.
+
+```
+event: done
+data: {"messageId":"m_02","createdAt":"...","goalCompleted":true}
+```
+
+현재 프론트에서 완주는 **목표 설정의 '목표 완료 처리'** 로만 가능하다(`POST /goals/{id}/complete`).
+
 - ⚠️ **목표 삭제 시 대화·투두·플래너 처리 정책 미합의.**
 
 **사진 업로드 서버 검증** (프론트 검증은 우회 가능):

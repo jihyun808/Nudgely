@@ -19,7 +19,9 @@ export default function GoalOptionsSection({
   onChangeDueDate,
   onToggleMute,
 }: GoalOptionsSectionProps) {
-  const { progress, isNotificationMuted } = goal;
+  const { progress, isNotificationMuted, completedAt } = goal;
+  /** 완주한 목표에는 알림·선톡이 오지 않으므로 토글을 잠근다 */
+  const isCompleted = Boolean(completedAt);
 
   return (
     <>
@@ -52,10 +54,16 @@ export default function GoalOptionsSection({
       <SettingsSection title="알림">
         <SettingsRow
           label="이 목표 알림 끄기"
-          description="이 방의 선톡·독촉 알림만 받지 않아요"
+          description={
+            isCompleted
+              ? '완주한 목표라 알림과 선톡이 오지 않아요'
+              : '이 방의 선톡·독촉 알림만 받지 않아요'
+          }
+          disabled={isCompleted}
           control={
             <Switch
-              checked={Boolean(isNotificationMuted)}
+              checked={isCompleted || Boolean(isNotificationMuted)}
+              disabled={isCompleted}
               onChange={onToggleMute}
               aria-label="이 목표 알림 끄기"
             />

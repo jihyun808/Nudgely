@@ -36,7 +36,8 @@ export default function Home() {
       .then(([previewData, goalData, notificationData, focusData]) => {
         if (isStale) return;
         setPreviews(previewData);
-        setGoals(goalData);
+        // 완주한 목표는 '진행 중인 목표'에서 뺀다 (마이페이지에서 볼 수 있다)
+        setGoals(goalData.filter(({ completedAt }) => !completedAt));
         setNotifications(notificationData);
         setFocus(focusData);
         setHasError(false);
