@@ -6,6 +6,7 @@ import Chat from '@/pages/chat/Chat';
 import ChatDetail from '@/pages/chat/ChatDetail';
 import Record from '@/pages/record/Record';
 import My from '@/pages/my/My';
+import Settings from '@/pages/settings/Settings';
 import Landing from '@/pages/auth/Landing';
 import Signin from '@/pages/auth/Signin';
 import Signup from '@/pages/auth/Signup';
@@ -22,8 +23,9 @@ export const router = createBrowserRouter([
   { path: '/signin', element: <Signin /> },
   { path: '/signup', element: <Signup /> },
 
-  // 채팅방 상세는 하단 탭바 없이 전체 화면을 쓴다
+  // 채팅방 상세·설정은 하단 탭바 없이 전체 화면을 쓴다
   { path: '/chat/:goalId', element: <ChatDetail /> },
+  { path: '/settings', element: <Settings /> },
 
   // 로그인 이후 메인: 하단 탭바로 4개 화면을 오간다
   {

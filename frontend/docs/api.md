@@ -35,23 +35,27 @@
 
 mock 데이터는 전부 **`src/mocks/`** 폴더에 있다. 연동이 끝나면 **폴더째 삭제**한다.
 
-| 위치                                                                | 함수                   | 현재 동작                        | 교체할 것                    |
-| ------------------------------------------------------------------- | ---------------------- | -------------------------------- | ---------------------------- |
-| `src/api/goal.ts`                                                   | `fetchGoals()`         | 600ms 지연 후 `MOCK_GOALS` 반환  | `GET /goals`                 |
-| `src/api/goal.ts`                                                   | `fetchGoal()`          | mock 목록에서 id로 찾기          | `GET /goals/{id}`            |
-| `src/api/goal.ts`                                                   | `createGoal()`         | 300ms 지연 후 로컬 객체 생성     | `POST /goals`                |
-| `src/api/goal.ts`                                                   | `fetchMessages()`      | 1번 목표 대화를 10개씩 커서 분할 | `GET /goals/{id}/messages`   |
-| `src/api/goal.ts`                                                   | `sendMessage()`        | 900ms 후 고정 문구 응답          | `POST /goals/{id}/messages`  |
-| `src/api/goal.ts`                                                   | `markGoalAsRead()`     | 아무것도 안 함                   | `POST /goals/{id}/read`      |
-| `src/api/record.ts`                                                 | `fetchDailyTodos()`    | 날짜로 mock 필터링               | `GET /todos?date=`           |
-| `src/api/record.ts`                                                 | `fetchDailyPlanner()`  | 날짜와 무관하게 같은 하루 반환   | `GET /planners?date=`        |
-| `src/api/home.ts`                                                   | `fetchHomePreviews()`  | 500ms 지연 후 mock 반환          | `GET /home/previews`         |
-| `src/api/home.ts`                                                   | `fetchNotifications()` | 500ms 지연 후 mock 반환          | `GET /notifications`         |
-| `src/api/user.ts`                                                   | `fetchMyProfile()`     | 500ms 지연 후 mock 반환          | `GET /me`                    |
-| `CreateGoalModal` 사진                                              | `FileReader` data URL  | 브라우저 안에만 존재             | 서버 업로드 후 받은 URL 사용 |
-| `ChatDetail` 메뉴 버튼                                              | `console.log`만        | 미구현                           | 채팅방 메뉴 화면 연결        |
-| `Home` 집중 시작하기                                                | 동작 없음              | 미구현                           | 집중 세션 화면 연결          |
-| `FocusSummary`, `WeeklyFocusCard`, `FocusHeatmap`, `My`의 요약 카드 | 값 하드코딩            | 미구현                           | 집중 탭 · 집계 API           |
+| 위치                                                                | 함수                   | 현재 동작                            | 교체할 것                    |
+| ------------------------------------------------------------------- | ---------------------- | ------------------------------------ | ---------------------------- |
+| `src/api/goal.ts`                                                   | `fetchGoals()`         | 600ms 지연 후 `MOCK_GOALS` 반환      | `GET /goals`                 |
+| `src/api/goal.ts`                                                   | `fetchGoal()`          | mock 목록에서 id로 찾기              | `GET /goals/{id}`            |
+| `src/api/goal.ts`                                                   | `createGoal()`         | 300ms 지연 후 로컬 객체 생성         | `POST /goals`                |
+| `src/api/goal.ts`                                                   | `fetchMessages()`      | 1번 목표 대화를 10개씩 커서 분할     | `GET /goals/{id}/messages`   |
+| `src/api/goal.ts`                                                   | `sendMessage()`        | 900ms 후 고정 문구 응답              | `POST /goals/{id}/messages`  |
+| `src/api/goal.ts`                                                   | `markGoalAsRead()`     | 아무것도 안 함                       | `POST /goals/{id}/read`      |
+| `src/api/record.ts`                                                 | `fetchDailyTodos()`    | 날짜로 mock 필터링                   | `GET /todos?date=`           |
+| `src/api/record.ts`                                                 | `fetchDailyPlanner()`  | 날짜와 무관하게 같은 하루 반환       | `GET /planners?date=`        |
+| `src/api/home.ts`                                                   | `fetchHomePreviews()`  | 500ms 지연 후 mock 반환              | `GET /home/previews`         |
+| `src/api/home.ts`                                                   | `fetchNotifications()` | 500ms 지연 후 mock 반환              | `GET /notifications`         |
+| `src/api/user.ts`                                                   | `fetchMyProfile()`     | 500ms 지연 후 mock 반환              | `GET /me`                    |
+| `src/api/settings.ts`                                               | `fetchSettings()`      | 모듈 변수에 담아둔 값 반환           | `GET /settings`              |
+| `src/api/settings.ts`                                               | `updateSettings()`     | 모듈 변수만 갱신(새로고침 시 초기화) | `PATCH /settings`            |
+| `src/api/settings.ts`                                               | `changePassword()`     | 아무것도 안 함                       | `POST /auth/password`        |
+| `src/api/settings.ts`                                               | `deleteAccount()`      | 아무것도 안 함                       | `DELETE /me`                 |
+| `CreateGoalModal` 사진                                              | `FileReader` data URL  | 브라우저 안에만 존재                 | 서버 업로드 후 받은 URL 사용 |
+| `ChatDetail` 메뉴 버튼                                              | `console.log`만        | 미구현                               | 채팅방 메뉴 화면 연결        |
+| `Home` 집중 시작하기                                                | 동작 없음              | 미구현                               | 집중 세션 화면 연결          |
+| `FocusSummary`, `WeeklyFocusCard`, `FocusHeatmap`, `My`의 요약 카드 | 값 하드코딩            | 미구현                               | 집중 탭 · 집계 API           |
 
 각 함수 내부만 실제 호출로 바꾸면 화면 코드는 손댈 필요 없다. 반환 타입이 `src/types/`에 고정되어 있기 때문이다.
 
@@ -384,7 +388,7 @@ GET /focus/summary?date=2026-07-30
 
 ---
 
-## 6. 프로필
+## 6. 프로필 · 설정
 
 ```
 GET /me
@@ -397,6 +401,59 @@ PATCH /me    # nickname, image (multipart)
 - 닉네임 최대 10자(`NICKNAME_MAX_LENGTH`), 사진 검증은 3.3과 동일.
 - 로그인/회원가입 API(`POST /auth/login`, `/auth/signup`)는 **아직 연동되어 있지 않다.** 화면은 있고 토큰 저장 구조(`lib/auth.ts` + 인터셉터)는 준비돼 있다.
 
+### 6.1 설정 조회 / 수정
+
+화면: `src/pages/settings/Settings.tsx` (라우트 `/settings`, 마이페이지 우측 상단 버튼에서 진입)
+
+```
+GET   /settings
+PATCH /settings     # 바뀐 항목만 부분 전송
+```
+
+```json
+{
+  "notifications": { "enabled": true, "nudge": true, "todo": true, "deadline": true },
+  "doNotDisturb": { "enabled": false, "startHour": 0, "endHour": 7 },
+  "planner": { "startHour": 6, "endHour": 24 },
+  "linkedProviders": ["kakao"]
+}
+```
+
+프론트 타입: `AppSettings` (`src/types/settings.ts`)
+
+| 그룹              | 필드                              | 뜻                                                           |
+| ----------------- | --------------------------------- | ------------------------------------------------------------ |
+| `notifications`   | `enabled`                         | 전체 알림 스위치. 끄면 아래 항목은 모두 무시                 |
+|                   | `nudge`                           | AI 선톡·독촉 알림                                            |
+|                   | `todo`                            | 투두 추가·완료 알림                                          |
+|                   | `deadline`                        | 밤 11시 마감 리마인더                                        |
+| `doNotDisturb`    | `enabled`, `startHour`, `endHour` | 이 시간대에는 알림을 보내지 않는다 (시작 > 종료면 자정 넘김) |
+| `planner`         | `startHour`, `endHour`            | 텐미닛 플래너 표에 그릴 범위 (기본 6~24)                     |
+| `linkedProviders` | `"kakao" \| "google"` 배열        | 연결된 소셜 로그인 (읽기 전용 표시)                          |
+
+- **알림 발송 판단은 서버가 한다.** 프론트는 값만 저장하며, 실제로 푸시를 보낼지 말지는 서버 스케줄러가 이 설정을 보고 결정해야 한다.
+- `planner` 범위는 기록 탭 플래너 표에 바로 반영된다(`PlannerTimeline`의 `startHour`/`endHour`).
+- 프론트는 값을 바꾸는 즉시 화면에 반영하고 `PATCH`를 보낸다(낙관적). 실패하면 이전 값으로 되돌린다.
+
+### 6.2 비밀번호 변경 / 회원 탈퇴
+
+```
+POST   /auth/password         { currentPassword, newPassword }   → 204
+POST   /auth/password/reset   { email }                          → 204
+DELETE /me                                                        → 204
+```
+
+- 새 비밀번호는 프론트에서 8자 이상 + 확인 일치를 검사한다. **서버에서도 재검증 필요.**
+- **비밀번호 찾기**(`/auth/password/reset`)는 재설정 링크를 메일로 보낸다. 가입되지 않은 이메일이어도 **계정 존재 여부가 드러나지 않도록 항상 같은 응답**을 준다(계정 열거 방지). 프론트도 "메일을 보냈어요"만 표시한다.
+- 재설정 링크의 토큰은 **일회용 + 짧은 만료(예: 30분)** 로 두고, 링크를 열었을 때의 새 비밀번호 입력 화면은 아직 없다(웹 페이지로 서버가 제공하거나 딥링크가 필요).
+- 비밀번호 찾기 팝업은 **설정 화면과 로그인 화면 두 곳에서** 같은 컴포넌트(`PasswordResetModal`)로 뜬다.
+- 탈퇴는 확인 팝업을 거친 뒤 호출하고, 성공하면 토큰을 지우고 시작 화면으로 보낸다.
+- **탈퇴 시 목표·대화·투두·플래너 기록 처리 정책은 미정**이다(즉시 삭제 / 유예 기간 / 익명화).
+
+### 6.3 약관·정책 (미연결)
+
+이용약관, 개인정보 처리방침, 오픈소스 라이선스, 문의하기 항목은 화면에 있지만 **연결할 대상이 없다.** 정적 페이지 URL이 정해지면 링크만 걸면 된다.
+
 ---
 
 ## 7. 백엔드에 확인해야 할 것
@@ -408,4 +465,7 @@ PATCH /me    # nickname, image (multipart)
 5. 안 읽은 개수 계산 기준 (마지막 읽은 메시지 id 기반 권장)
 6. AI 프롬프트 주입 방어 (사용자 `prompt`와 시스템 프롬프트 분리)
 7. 목표 진도(`progress`) 스키마 — AI가 사용자에게서 받을 정보 확정 후
-8. 밤 11시 독촉 알림용 스케줄러 + 푸시(FCM/APNs) 구성
+8. 밤 11시 독촉 알림용 스케줄러 + 푸시(FCM/APNs) 구성 — **알림 설정값을 참조해 발송 여부를 판단해야 함**
+9. 회원 탈퇴 시 데이터 처리 정책 (즉시 삭제 / 유예 / 익명화)
+10. 비밀번호 재설정 링크를 어디로 보낼지 (서버 웹페이지 / 앱 딥링크)
+11. 약관·개인정보 처리방침 페이지 URL

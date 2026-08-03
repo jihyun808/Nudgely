@@ -1,11 +1,13 @@
 // pages/record/components/TenMinutePlanner.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { fetchDailyPlanner } from '@/api/record';
+import { fetchSettings } from '@/api/settings';
 import { Button } from '@/components/ui/button';
 import PlannerSummary from '@/pages/record/components/PlannerSummary';
 import PlannerTimeline from '@/pages/record/components/PlannerTimeline';
 import { summarizePlanner } from '@/pages/record/plannerSummary';
 import type { DailyPlanner } from '@/types/planner';
+import type { PlannerSettings } from '@/types/settings';
 import { formatDateKey } from '@/utils/date';
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'] as const;
@@ -25,6 +27,8 @@ export default function TenMinutePlanner() {
   /** 날짜가 미래로 이동했는지 (전환 애니메이션 방향) */
   const [isMovingForward, setIsMovingForward] = useState(true);
   const [planner, setPlanner] = useState<DailyPlanner>();
+  /** 표에 그릴 시간 범위. 설정 화면에서 정한다 */
+  const [plannerRange, setPlannerRange] = useState<PlannerSettings>({ startHour: 6, endHour: 24 });
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -35,10 +39,11 @@ export default function TenMinutePlanner() {
 
   useEffect(() => {
     let isStale = false;
-    fetchDailyPlanner(dateKey)
-      .then((data) => {
+    Promise.all([fetchDailyPlanner(dateKey), fetchSettings()])
+      .then(([plannerData, settings]) => {
         if (isStale) return;
-        setPlanner(data);
+        setPlanner(plannerData);
+        setPlannerRange(settings.planner);
         setHasError(false);
       })
       .catch(() => {
@@ -134,7 +139,12 @@ export default function TenMinutePlanner() {
         ) : (
           <>
             <div className="mt-4">
-              <PlannerTimeline planned={planner.planned} actual={planner.actual} />
+              <PlannerTimeline
+                planned={planner.planned}
+                actual={planner.actual}
+                startHour={plannerRange.startHour}
+                endHour={plannerRange.endHour}
+              />
             </div>
             <div className="mt-5">
               <PlannerSummary {...summary} />

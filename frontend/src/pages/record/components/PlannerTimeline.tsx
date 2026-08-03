@@ -2,9 +2,6 @@
 import { cn } from '@/lib/utils';
 import type { PlannerBlock, PlannerRecordKind } from '@/types/planner';
 
-/** 표가 다룰 수 있는 시간 범위 (06:00 ~ 24:00) */
-const START_HOUR = 6;
-const END_HOUR = 24;
 /** 한 줄이 담는 시간(분) */
 const ROW_MINUTES = 30;
 
@@ -72,6 +69,9 @@ function RowCell({ fill, isPlan }: { fill: ReturnType<typeof getRowFill>; isPlan
 interface PlannerTimelineProps {
   planned: PlannerBlock[];
   actual: PlannerBlock[];
+  /** 표에 그릴 시간 범위(시). 설정 화면에서 바꿀 수 있다 */
+  startHour: number;
+  endHour: number;
 }
 
 /**
@@ -79,8 +79,14 @@ interface PlannerTimelineProps {
  * 세로로 30분씩 한 줄이고, 시각은 1시간 단위로만 적는다.
  * 막대는 오른쪽으로 길어지며 그 줄(30분) 중 차지한 시간을 나타내고, 제목은 막대 아래에 붙는다.
  * 일정이 있는 첫 줄부터 마지막 줄까지만 그려서 스크롤 없이 한눈에 들어오게 한다.
+ * 그릴 수 있는 범위(startHour~endHour)는 설정 화면에서 정한다.
  */
-export default function PlannerTimeline({ planned, actual }: PlannerTimelineProps) {
+export default function PlannerTimeline({
+  planned,
+  actual,
+  startHour,
+  endHour,
+}: PlannerTimelineProps) {
   const blocks = [...planned, ...actual];
 
   if (blocks.length === 0) {
@@ -88,8 +94,8 @@ export default function PlannerTimeline({ planned, actual }: PlannerTimelineProp
   }
 
   // 일정이 걸쳐 있는 구간만 30분 단위로 잘라 그린다
-  const dayStart = START_HOUR * 60;
-  const dayEnd = END_HOUR * 60;
+  const dayStart = startHour * 60;
+  const dayEnd = endHour * 60;
   const firstMinute = Math.max(
     Math.min(...blocks.map(({ startMinutes }) => startMinutes)),
     dayStart,

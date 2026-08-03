@@ -1,5 +1,6 @@
 // pages/my/My.tsx
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchMyProfile, updateMyProfile } from '@/api/user';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import type { UpdateProfileInput } from '@/types/user';
  * 헤더(+설정) / 프로필 / 요약 카드 3개 / 이번 주 집중 / 집중 히트맵.
  */
 export default function My() {
+  const navigate = useNavigate();
   // 프로필은 전역 상태에 두고 다른 화면과 함께 쓴다
   const profile = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
@@ -59,7 +61,7 @@ export default function My() {
         action={
           <button
             type="button"
-            // TODO: 설정 화면 구현 후 이동 연결
+            onClick={() => navigate('/settings')}
             aria-label="설정"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background text-foreground transition-colors active:bg-muted-foreground/10"
           >
