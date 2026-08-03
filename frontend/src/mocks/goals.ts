@@ -64,5 +64,7 @@ export const MOCK_GOALS: GoalDetail[] = [
     lastMessage: '지난주에 읽던 책 이어서 볼까?',
     lastMessageAt: ago(10 * DAY),
     unreadCount: 0,
+    // 숨긴 방. 채팅 목록에서 빠지고 설정 > 히스토리에서만 보인다
+    isHidden: true,
   },
 ];

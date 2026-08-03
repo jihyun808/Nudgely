@@ -1,4 +1,4 @@
-// pages/archive/components/GoalOptionsSection.tsx
+// pages/goalSettings/components/GoalOptionsSection.tsx
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import SettingsRow from '@/pages/settings/components/SettingsRow';

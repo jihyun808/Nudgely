@@ -1,4 +1,4 @@
-// pages/archive/components/GoalBasicForm.tsx
+// pages/goalSettings/components/GoalBasicForm.tsx
 import ImagePicker from '@/components/ImagePicker';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

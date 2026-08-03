@@ -47,6 +47,8 @@ export interface GoalDetail extends Goal {
   dueDate?: string;
   /** 이 목표의 알림만 꺼둔 상태 (전역 알림 설정과 별개) */
   isNotificationMuted?: boolean;
+  /** 숨긴 채팅방. 목록에서 빠지고 설정 > 히스토리에서만 보인다 */
+  isHidden?: boolean;
   /** 목표를 끝낸 날 (ISO 8601). 있으면 완료된 목표 */
   completedAt?: string;
 }
@@ -59,6 +61,7 @@ export interface UpdateGoalInput {
   prompt?: string;
   dueDate?: string;
   isNotificationMuted?: boolean;
+  isHidden?: boolean;
 }
 
 /** 목표 생성 폼 입력값. 이름만 필수이고 나머지는 나중에 수정할 수 있다 */

@@ -9,6 +9,7 @@ import PasswordResetModal from '@/components/PasswordResetModal';
 import AccountManagementSection from '@/pages/settings/components/AccountManagementSection';
 import AccountSection from '@/pages/settings/components/AccountSection';
 import AppInfoSection from '@/pages/settings/components/AppInfoSection';
+import HistorySection from '@/pages/settings/components/HistorySection';
 import NotificationSection from '@/pages/settings/components/NotificationSection';
 import PasswordChangeModal from '@/pages/settings/components/PasswordChangeModal';
 import PlannerSection from '@/pages/settings/components/PlannerSection';
@@ -107,6 +108,8 @@ export default function Settings() {
             planner={settings.planner}
             onChange={(planner) => patchSettings({ planner })}
           />
+
+          <HistorySection />
 
           <AccountSection
             email={user?.email}

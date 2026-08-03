@@ -1,17 +1,17 @@
-// pages/archive/components/GoalSettings.tsx
+// pages/goalSettings/components/GoalSettings.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearGoalMessages, completeGoal, deleteGoal, updateGoal } from '@/api/goal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { Button } from '@/components/ui/button';
-import GoalBasicForm, { type GoalBasicValues } from '@/pages/archive/components/GoalBasicForm';
-import GoalManageSection from '@/pages/archive/components/GoalManageSection';
-import GoalOptionsSection from '@/pages/archive/components/GoalOptionsSection';
+import GoalBasicForm, { type GoalBasicValues } from '@/pages/goalSettings/components/GoalBasicForm';
+import GoalManageSection from '@/pages/goalSettings/components/GoalManageSection';
+import GoalOptionsSection from '@/pages/goalSettings/components/GoalOptionsSection';
 import { showToast } from '@/stores/toastStore';
 import type { GoalDetail } from '@/types/goal';
 
 /** 열려 있는 확인 팝업 */
-type OpenDialog = 'complete' | 'clearMessages' | 'delete' | null;
+type OpenDialog = 'complete' | 'hide' | 'clearMessages' | 'delete' | null;
 
 interface GoalSettingsProps {
   goal: GoalDetail;
@@ -78,6 +78,12 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
     showToast('목표를 완료했어요. 수고했어요! 🎉', { variant: 'success' });
   };
 
+  const handleHide = async () => {
+    await updateGoal(goal.id, { isHidden: true });
+    showToast('채팅방을 숨겼어요. 설정 > 히스토리에서 볼 수 있어요', { variant: 'info' });
+    navigate('/chat', { replace: true });
+  };
+
   const handleClearMessages = async () => {
     await clearGoalMessages(goal.id);
     showToast('대화 내용을 삭제했어요', { variant: 'info' });
@@ -111,6 +117,7 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
       <GoalManageSection
         isCompleted={Boolean(goal.completedAt)}
         onComplete={() => setOpenDialog('complete')}
+        onHide={() => setOpenDialog('hide')}
         onClearMessages={() => setOpenDialog('clearMessages')}
         onDelete={() => setOpenDialog('delete')}
       />
@@ -121,6 +128,16 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
           description="진도가 100%가 되고 완주한 목표로 기록돼요."
           confirmLabel="완료하기"
           onConfirm={handleComplete}
+          onClose={() => setOpenDialog(null)}
+        />
+      )}
+
+      {openDialog === 'hide' && (
+        <ConfirmDialog
+          title="채팅방을 숨길까요?"
+          description="채팅 목록에서 사라지지만 대화와 기록은 그대로 남아요. 설정 > 히스토리에서 다시 꺼낼 수 있어요."
+          confirmLabel="숨기기"
+          onConfirm={handleHide}
           onClose={() => setOpenDialog(null)}
         />
       )}

@@ -14,7 +14,17 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 export async function fetchGoals(): Promise<Goal[]> {
   await delay(600);
-  return MOCK_GOALS;
+  // 숨긴 목표는 목록에서 빠진다
+  return MOCK_GOALS.filter(({ isHidden }) => !isHidden);
+}
+
+/**
+ * 숨긴 목표 목록 (설정 > 히스토리).
+ * TODO: `api.get<Goal[]>('/goals', { params: { hidden: true } })`로 교체.
+ */
+export async function fetchHiddenGoals(): Promise<Goal[]> {
+  await delay(400);
+  return MOCK_GOALS.filter(({ isHidden }) => isHidden);
 }
 
 /**
