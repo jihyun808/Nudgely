@@ -1,4 +1,5 @@
 // api/focus.ts
+import { createMockWeeklyFocus } from '@/mocks/my';
 import { createMockPlanner } from '@/mocks/planner';
 import type { FocusSessionInput, FocusSummary } from '@/types/focus';
 import { formatDateKey } from '@/utils/date';
@@ -20,6 +21,32 @@ export async function fetchFocusSummary(): Promise<FocusSummary> {
   const targetMinutes = planner.planned.reduce((sum, block) => sum + block.durationMinutes, 0);
 
   return { focusedSeconds: mockFocusedSeconds, targetMinutes };
+}
+
+/** 주간 집중 조회 결과 */
+export interface WeeklyFocus {
+  /** 월요일부터 일요일까지의 집중 시간(시간 단위) */
+  hours: number[];
+  /** 지난 주 대비 증감(시간) */
+  diffFromLastWeek: number;
+}
+
+/**
+ * 한 주의 요일별 집중 시간 조회.
+ * @param weekOffset 0이면 이번 주, -1이면 지난 주
+ * TODO: `api.get<WeeklyFocus>('/focus/weekly', { params: { weekStart } })`로 교체.
+ */
+export async function fetchWeeklyFocus(weekOffset: number): Promise<WeeklyFocus> {
+  await delay(300);
+
+  const hours = createMockWeeklyFocus(weekOffset);
+  const previousHours = createMockWeeklyFocus(weekOffset - 1);
+  const sum = (values: number[]) => values.reduce((acc, value) => acc + value, 0);
+
+  return {
+    hours,
+    diffFromLastWeek: Math.round((sum(hours) - sum(previousHours)) * 10) / 10,
+  };
 }
 
 /**

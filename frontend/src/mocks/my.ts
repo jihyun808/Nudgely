@@ -17,10 +17,22 @@ export const MOCK_PROFILE: User = {
 export const MOCK_JOINED_AT = new Date(Date.now() - 240 * 24 * 60 * 60 * 1000).toISOString();
 
 /**
- * 이번 주 요일별 집중 시간(시간 단위). 월요일부터 일요일 순.
- * 집중 탭이 없어 실제 값을 만들 수 없으므로 하드코딩이다.
+ * 주차별 요일별 집중 시간(시간 단위). 월요일부터 일요일 순.
+ * 실제 집중 기록이 없어 주차를 씨앗 삼아 만들어낸 값이다.
+ *
+ * @param weekOffset 0이면 이번 주, -1이면 지난 주
  */
-export const MOCK_WEEKLY_FOCUS_HOURS = [1, 2, 1.5, 3, 2.2, 0, 0];
+export function createMockWeeklyFocus(weekOffset: number): number[] {
+  // 이번 주는 눈에 익은 값으로 고정하고, 지난 주들은 규칙적으로 만들어낸다
+  if (weekOffset === 0) return [1, 2, 1.5, 3, 2.2, 0, 0];
+
+  const seed = Math.abs(weekOffset);
+  return Array.from({ length: 7 }, (_, day) => {
+    const value = ((day * 7 + seed * 13) % 9) * 0.5;
+    // 주말은 조금 적게
+    return day >= 5 ? Math.round(value * 0.6 * 10) / 10 : value;
+  });
+}
 
 /**
  * 가입일부터 오늘까지의 날짜별 집중량(0~4단계).

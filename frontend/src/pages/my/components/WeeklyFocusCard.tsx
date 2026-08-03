@@ -1,126 +1,157 @@
 // pages/my/components/WeeklyFocusCard.tsx
+import { useEffect, useState } from 'react';
+import { fetchWeeklyFocus } from '@/api/focus';
 import { cn } from '@/lib/utils';
-import { MOCK_WEEKLY_FOCUS_HOURS } from '@/mocks/my';
+import WeeklyFocusChart from '@/pages/my/components/WeeklyFocusChart';
 
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const;
-/** y축 최대치(시간). 이보다 크면 '7+' 구간으로 본다 */
-const MAX_HOURS = 7;
-/** 그래프 본문 높이(px) */
-const CHART_HEIGHT = 154;
-/** 지난 주 대비 증가량(시간). 집중 기록이 없어 하드코딩 */
-const DIFF_FROM_LAST_WEEK = 1.2;
+const DAY = 24 * 60 * 60 * 1000;
 
 /** 월요일을 0으로 두는 오늘의 요일 인덱스 */
 const getTodayIndex = (now = new Date()) => (now.getDay() + 6) % 7;
 
-/** 이번 달 기준 몇 주차인지 (1일이 속한 주를 1주차로 센다) */
-function getWeekLabel(now = new Date()) {
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-  const weekIndex = Math.ceil((now.getDate() + firstDay.getDay()) / 7);
-  return `${now.getMonth() + 1}월 ${weekIndex}주차`;
+/** weekOffset 주의 월요일 날짜 */
+function getWeekStart(weekOffset: number) {
+  const today = new Date();
+  const monday = new Date(today.getTime() - getTodayIndex(today) * DAY);
+  monday.setHours(0, 0, 0, 0);
+  return new Date(monday.getTime() + weekOffset * 7 * DAY);
+}
+
+/** 'M월 N주차' (1일이 속한 주를 1주차로 센다) */
+function getWeekLabel(weekStart: Date) {
+  const firstDay = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
+  const weekIndex = Math.ceil((weekStart.getDate() + firstDay.getDay()) / 7);
+  return `${weekStart.getMonth() + 1}월 ${weekIndex}주차`;
 }
 
 /** 1.5 → '1.5h', 2 → '2h' */
 const formatHours = (hours: number) => `${Number(hours.toFixed(1))}h`;
 
+/** 이전·다음 주 버튼 */
+function WeekButton({
+  direction,
+  disabled,
+  onClick,
+}: {
+  direction: 'prev' | 'next';
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={direction === 'prev' ? '이전 주' : '다음 주'}
+      className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors active:bg-muted-foreground/10 disabled:opacity-30"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="h-4 w-4"
+      >
+        <path d={direction === 'prev' ? 'm15 18-6-6 6-6' : 'm9 6 6 6-6 6'} />
+      </svg>
+    </button>
+  );
+}
+
 /**
- * 이번 주 집중 카드.
- * 위쪽은 요일별 막대그래프(오늘 요일을 브랜드 색으로 강조), 아래쪽은 총합·지난 주 대비·최고 집중 요일.
+ * 주간 집중 카드.
+ * 좌우 버튼으로 지난 주를 볼 수 있고, 이번 주보다 미래로는 갈 수 없다.
  *
- * 값은 전부 하드코딩이다(집중 탭이 없어 실제 집중 시간을 만들 수 없다).
- * TODO: 집중 탭 구현 후 요일별 집중 시간 API로 교체
+ * 값은 아직 실제 집중 기록이 아니다(mock).
+ * TODO: 집중 탭 기록이 쌓이면 실제 주간 집계로 교체
  */
 export default function WeeklyFocusCard() {
-  const hours = MOCK_WEEKLY_FOCUS_HOURS;
+  /** 0이면 이번 주, -1이면 지난 주 */
+  const [weekOffset, setWeekOffset] = useState(0);
+  /** 과거로 이동했는지 (전환 애니메이션 방향) */
+  const [isMovingBack, setIsMovingBack] = useState(true);
+  const [hours, setHours] = useState<number[]>([]);
+  const [diffFromLastWeek, setDiffFromLastWeek] = useState(0);
+
+  useEffect(() => {
+    let isStale = false;
+    fetchWeeklyFocus(weekOffset)
+      .then((data) => {
+        if (isStale) return;
+        setHours(data.hours);
+        setDiffFromLastWeek(data.diffFromLastWeek);
+      })
+      .catch(() => {
+        // 못 받아도 카드 틀은 그대로 둔다
+      });
+    return () => {
+      isStale = true;
+    };
+  }, [weekOffset]);
+
+  const moveWeek = (offset: number) => {
+    setIsMovingBack(offset < 0);
+    setWeekOffset((prev) => Math.min(prev + offset, 0));
+  };
+
+  const isThisWeek = weekOffset === 0;
   const total = hours.reduce((sum, value) => sum + value, 0);
-  const maxHours = Math.max(...hours);
-  /** 아래 요약에 쓰는 최고 집중 요일 */
+  const maxHours = hours.length > 0 ? Math.max(...hours) : 0;
   const bestDayIndex = hours.indexOf(maxHours);
-  /** 막대 강조는 오늘 요일에 준다 */
-  const todayIndex = getTodayIndex();
 
   return (
     <div className="rounded-2xl border border-border bg-background p-4">
-      <div className="flex items-baseline justify-between">
-        <h3 className="text-sm font-bold">이번 주 집중</h3>
-        <span className="text-xs text-muted-foreground">{getWeekLabel()}</span>
-      </div>
-
-      {/* 그래프: 왼쪽 y축(시간) + 요일별 막대 */}
-      <div className="mt-4 flex gap-2">
-        <div
-          aria-hidden
-          className="flex flex-col justify-between text-[10px] text-muted-foreground"
-          style={{ height: CHART_HEIGHT }}
-        >
-          {[`${MAX_HOURS}+`, 6, 5, 4, 3, 2, 1, 0].map((tick) => (
-            <span key={tick} className="leading-none">
-              {tick}
-            </span>
-          ))}
-        </div>
-
-        <div className="relative flex-1">
-          {/* y축 눈금에 맞춘 희미한 가로줄 */}
-          <div
-            aria-hidden
-            className="absolute inset-x-0 top-0 flex flex-col justify-between"
-            style={{ height: CHART_HEIGHT }}
-          >
-            {Array.from({ length: 8 }, (_, i) => (
-              <span key={i} className="h-px w-full bg-border" />
-            ))}
-          </div>
-
-          <div className="relative flex items-end justify-between gap-1.5">
-            {hours.map((value, index) => {
-              const isToday = index === todayIndex;
-              const barHeight = (Math.min(value, MAX_HOURS) / MAX_HOURS) * CHART_HEIGHT;
-
-              return (
-                <div key={WEEKDAYS[index]} className="flex flex-1 flex-col items-center gap-1">
-                  <div className="flex w-full items-end" style={{ height: CHART_HEIGHT }}>
-                    <div
-                      className={cn(
-                        'w-full rounded-t-md',
-                        isToday ? 'bg-primary' : 'bg-primary/25',
-                        value === 0 && 'bg-transparent',
-                      )}
-                      style={{ height: barHeight }}
-                    />
-                  </div>
-                  <span
-                    className={cn(
-                      'text-xs',
-                      isToday ? 'font-bold text-primary' : 'text-muted-foreground',
-                    )}
-                  >
-                    {WEEKDAYS[index]}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold">{isThisWeek ? '이번 주 집중' : '주간 집중'}</h3>
+        <div className="flex items-center gap-1">
+          <WeekButton direction="prev" onClick={() => moveWeek(-1)} />
+          <span aria-live="polite" className="text-xs text-muted-foreground">
+            {getWeekLabel(getWeekStart(weekOffset))}
+          </span>
+          <WeekButton direction="next" disabled={isThisWeek} onClick={() => moveWeek(1)} />
         </div>
       </div>
 
-      <hr className="my-4 border-border" />
+      {/* key를 바꿔 주가 넘어갈 때마다 진입 애니메이션이 실행되게 한다 */}
+      <div key={weekOffset} className={isMovingBack ? 'panel-enter-left' : 'panel-enter-right'}>
+        <div className="mt-4">
+          {/* 강조는 이번 주에만, 오늘 요일에 준다 */}
+          <WeeklyFocusChart
+            hours={hours}
+            highlightIndex={isThisWeek ? getTodayIndex() : undefined}
+          />
+        </div>
 
-      <div className="grid grid-cols-3 text-center">
-        <div>
-          <p className="text-base font-bold">{formatHours(total)}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">이번 주 총합</p>
-        </div>
-        <div>
-          <p className="text-base font-bold text-[#1E9E5A]">
-            {DIFF_FROM_LAST_WEEK >= 0 ? '+' : ''}
-            {formatHours(DIFF_FROM_LAST_WEEK)}
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">지난 주 대비</p>
-        </div>
-        <div>
-          <p className="text-base font-bold">{WEEKDAYS[bestDayIndex]}요일</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">최고 집중 요일</p>
+        <hr className="my-4 border-border" />
+
+        <div className="grid grid-cols-3 text-center">
+          <div>
+            <p className="text-base font-bold">{formatHours(total)}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {isThisWeek ? '이번 주 총합' : '주 총합'}
+            </p>
+          </div>
+          <div>
+            <p
+              className={cn(
+                'text-base font-bold',
+                diffFromLastWeek >= 0 ? 'text-[#1E9E5A]' : 'text-[#D9622B]',
+              )}
+            >
+              {diffFromLastWeek >= 0 ? '+' : ''}
+              {formatHours(diffFromLastWeek)}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">지난 주 대비</p>
+          </div>
+          <div>
+            <p className="text-base font-bold">
+              {maxHours > 0 ? `${WEEKDAYS[bestDayIndex]}요일` : '-'}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">최고 집중 요일</p>
+          </div>
         </div>
       </div>
     </div>

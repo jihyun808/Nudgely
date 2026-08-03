@@ -1,7 +1,7 @@
 // pages/record/components/Calendar.tsx
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import TodoFlower from '@/pages/record/components/TodoFlower';
+import CalendarDay from '@/pages/record/components/CalendarDay';
 import type { TodoMark } from '@/types/record';
 import { formatDateKey } from '@/utils/date';
 
@@ -123,47 +123,22 @@ export default function Calendar({ selected, onSelect, marks = [], onMonthChange
         ))}
 
         {days.map((date) => {
-          const isSelected = isSameDate(date, selected);
-          const isToday = isSameDate(date, today);
-          const weekday = date.getDay();
           const dateKey = formatDateKey(date);
-          const doneGoalIds = marksByDate.get(dateKey) ?? [];
-          const hasFlower = doneGoalIds.length > 0;
 
           return (
-            <div key={date.toISOString()} className="flex justify-center py-0.5">
-              <button
-                type="button"
-                onClick={() => {
+            <div key={dateKey} className="flex justify-center py-0.5">
+              <CalendarDay
+                date={date}
+                doneGoalIds={marksByDate.get(dateKey) ?? []}
+                isSelected={isSameDate(date, selected)}
+                isToday={isSameDate(date, today)}
+                isWiggling={wiggledDate === dateKey}
+                onSelect={() => {
                   onSelect(date);
                   setWiggledDate(dateKey);
                 }}
-                onAnimationEnd={() => setWiggledDate(undefined)}
-                aria-pressed={isSelected}
-                aria-label={`${date.getMonth() + 1}월 ${date.getDate()}일`}
-                className={cn(
-                  'relative flex h-8 w-8 items-center justify-center rounded-full transition-transform',
-                  // 오늘은 회색 원, 선택한 날은 브랜드 테두리로 구분한다
-                  isToday && !isSelected && 'bg-muted-foreground/12',
-                  isSelected && 'scale-105 ring-2 ring-primary',
-                  wiggledDate === dateKey && 'flower-wiggle',
-                )}
-              >
-                <TodoFlower doneGoalIds={doneGoalIds} />
-
-                <span
-                  className={cn(
-                    'relative text-xs transition-colors',
-                    // 파스텔 꽃잎 위에서는 어두운 글씨가 가장 잘 읽힌다
-                    hasFlower ? 'font-bold text-foreground' : 'text-foreground',
-                    !hasFlower && weekday === 0 && 'text-destructive',
-                    !hasFlower && weekday === 6 && 'text-primary',
-                    isToday && 'font-bold',
-                  )}
-                >
-                  {date.getDate()}
-                </span>
-              </button>
+                onWiggleEnd={() => setWiggledDate(undefined)}
+              />
             </div>
           );
         })}

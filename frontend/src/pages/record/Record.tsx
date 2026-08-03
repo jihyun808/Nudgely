@@ -113,8 +113,6 @@ export default function Record() {
               />
             </div>
 
-            {/* TODO: 오늘 총 집중 시간 카드 */}
-
             <div className="mt-6">
               <h2 className="mb-3 text-sm font-bold">
                 {selectedDate.getMonth() + 1}월 {selectedDate.getDate()}일 투두
