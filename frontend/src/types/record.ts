@@ -23,3 +23,15 @@ export interface DailyTodo {
   date: string;
   items: TodoItem[];
 }
+
+/** 캘린더 한 칸에 꽃 모양으로 그릴 하루치 완료 표시 */
+export interface TodoMark {
+  /** 날짜 (YYYY-MM-DD) */
+  date: string;
+  /**
+   * 그날 완료한 항목들이 속한 목표 id 목록.
+   * 항목 하나가 꽃잎 하나이고, 색은 목표별로 고정된다.
+   * (같은 목표에서 3개를 완료했다면 같은 id가 세 번 들어간다)
+   */
+  doneGoalIds: string[];
+}

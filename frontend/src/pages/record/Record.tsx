@@ -1,13 +1,13 @@
 // pages/record/Record.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { fetchDailyTodos } from '@/api/record';
+import { fetchDailyTodos, fetchTodoMarks } from '@/api/record';
 import PageHeader from '@/components/PageHeader';
 import SegmentedTabs from '@/components/SegmentedTabs';
 import { Button } from '@/components/ui/button';
 import Calendar from '@/pages/record/components/Calendar';
 import TenMinutePlanner from '@/pages/record/components/TenMinutePlanner';
 import TodoCarousel from '@/pages/record/components/TodoCarousel';
-import type { DailyTodo } from '@/types/record';
+import type { DailyTodo, TodoMark } from '@/types/record';
 import { formatDateKey } from '@/utils/date';
 
 type RecordTab = 'calendar' | 'planner';
@@ -34,6 +34,24 @@ export default function Record() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const dateKey = useMemo(() => formatDateKey(selectedDate), [selectedDate]);
+  /** 캘린더에 꽃 모양으로 표시할 완료 기록 */
+  const [marks, setMarks] = useState<TodoMark[]>([]);
+  const [visibleMonth, setVisibleMonth] = useState(() => dateKey.slice(0, 7));
+
+  // 보이는 달이 바뀌면 그 달의 완료 표시를 다시 불러온다
+  useEffect(() => {
+    let isStale = false;
+    fetchTodoMarks(visibleMonth)
+      .then((data) => {
+        if (!isStale) setMarks(data);
+      })
+      .catch(() => {
+        // 표시를 못 받아도 캘린더는 쓸 수 있다
+      });
+    return () => {
+      isStale = true;
+    };
+  }, [visibleMonth]);
   // 선택한 날짜가 바뀌면 그 날짜에 할당된 투두를 다시 불러온다
   useEffect(() => {
     let isStale = false;
@@ -87,7 +105,12 @@ export default function Record() {
         {tab === 'calendar' ? (
           <>
             <div className="mt-5">
-              <Calendar selected={selectedDate} onSelect={handleSelectDate} />
+              <Calendar
+                selected={selectedDate}
+                onSelect={handleSelectDate}
+                marks={marks}
+                onMonthChange={setVisibleMonth}
+              />
             </div>
 
             {/* TODO: 오늘 총 집중 시간 카드 */}
