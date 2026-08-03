@@ -1,10 +1,9 @@
 // pages/my/components/ProfileEditModal.tsx
 import { useState, type FormEvent } from 'react';
 import ImagePicker from '@/components/ImagePicker';
+import InputField from '@/components/InputField';
 import Modal from '@/components/Modal';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import type { User } from '@/types/auth';
 import { NICKNAME_MAX_LENGTH, type UpdateProfileInput } from '@/types/user';
 
@@ -47,24 +46,17 @@ export default function ProfileEditModal({ profile, onClose, onSave }: ProfileEd
           <ImagePicker imageUrl={imageUrl} onChange={setImageUrl} label="프로필 사진 선택" />
         </div>
 
-        <div className="mt-5 flex flex-col gap-1.5">
-          <div className="flex items-baseline justify-between">
-            <Label htmlFor="profile-nickname">
-              닉네임 <span className="text-destructive">*</span>
-            </Label>
-            <span className="text-xs text-muted-foreground">
-              {nickname.length}/{NICKNAME_MAX_LENGTH}
-            </span>
-          </div>
-          <Input
-            id="profile-nickname"
-            value={nickname}
-            maxLength={NICKNAME_MAX_LENGTH}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="Buddy가 이렇게 불러요"
-            autoFocus
-          />
-        </div>
+        <InputField
+          className="mt-5"
+          label="닉네임"
+          isRequired
+          showsCount
+          maxLength={NICKNAME_MAX_LENGTH}
+          value={nickname}
+          onChange={setNickname}
+          placeholder="Buddy가 이렇게 불러요"
+          autoFocus
+        />
 
         {submitError && (
           <p role="alert" className="mt-4 text-center text-xs text-destructive">

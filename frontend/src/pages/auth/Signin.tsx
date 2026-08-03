@@ -46,8 +46,20 @@ export default function Signin() {
       }
     >
       <div className="mt-10 rounded-2xl bg-background p-6 shadow-lg">
-        <InputField label="이메일" type="email" value={email} onChange={setEmail} />
-        <InputField label="비밀번호" type="password" value={password} onChange={setPassword} />
+        <InputField
+          className="mb-4"
+          label="이메일"
+          type="email"
+          value={email}
+          onChange={setEmail}
+        />
+        <InputField
+          className="mb-4"
+          label="비밀번호"
+          type="password"
+          value={password}
+          onChange={setPassword}
+        />
         <div className="text-right">
           <button
             type="button"

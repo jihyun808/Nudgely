@@ -1,7 +1,7 @@
 // pages/goalSettings/components/GoalBasicForm.tsx
+import FieldLabel from '@/components/FieldLabel';
 import ImagePicker from '@/components/ImagePicker';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import InputField from '@/components/InputField';
 import { Textarea } from '@/components/ui/textarea';
 import { GOAL_LIMITS } from '@/types/goal';
 
@@ -15,28 +15,6 @@ export interface GoalBasicValues {
 interface GoalBasicFormProps {
   values: GoalBasicValues;
   onChange: (values: GoalBasicValues) => void;
-}
-
-/** 글자수 표시가 붙은 입력 한 줄 */
-function FieldLabel({
-  id,
-  label,
-  length,
-  max,
-}: {
-  id: string;
-  label: string;
-  length: number;
-  max: number;
-}) {
-  return (
-    <div className="flex items-baseline justify-between">
-      <Label htmlFor={id}>{label}</Label>
-      <span className="text-xs text-muted-foreground">
-        {length}/{max}
-      </span>
-    </div>
-  );
 }
 
 /**
@@ -54,43 +32,31 @@ export default function GoalBasicForm({ values, onChange }: GoalBasicFormProps) 
         label="목표 사진 변경"
       />
 
-      <div className="mt-5 flex flex-col gap-1.5">
-        <FieldLabel
-          id="goal-setting-name"
-          label="채팅방 이름"
-          length={values.name.length}
-          max={GOAL_LIMITS.name}
-        />
-        <Input
-          id="goal-setting-name"
-          value={values.name}
-          maxLength={GOAL_LIMITS.name}
-          onChange={(e) => update({ name: e.target.value })}
-        />
-      </div>
+      <InputField
+        className="mt-5"
+        label="채팅방 이름"
+        showsCount
+        maxLength={GOAL_LIMITS.name}
+        value={values.name}
+        onChange={(name) => update({ name })}
+      />
+
+      <InputField
+        className="mt-4"
+        label="목표"
+        showsCount
+        maxLength={GOAL_LIMITS.title}
+        value={values.title}
+        onChange={(title) => update({ title })}
+        placeholder="예) UI/UX 디자인 강의 완주"
+      />
 
       <div className="mt-4 flex flex-col gap-1.5">
         <FieldLabel
-          id="goal-setting-title"
-          label="목표"
-          length={values.title.length}
-          max={GOAL_LIMITS.title}
-        />
-        <Input
-          id="goal-setting-title"
-          value={values.title}
-          maxLength={GOAL_LIMITS.title}
-          onChange={(e) => update({ title: e.target.value })}
-          placeholder="예) UI/UX 디자인 강의 완주"
-        />
-      </div>
-
-      <div className="mt-4 flex flex-col gap-1.5">
-        <FieldLabel
-          id="goal-setting-prompt"
+          htmlFor="goal-setting-prompt"
           label="프롬프트"
           length={values.prompt.length}
-          max={GOAL_LIMITS.prompt}
+          maxLength={GOAL_LIMITS.prompt}
         />
         <Textarea
           id="goal-setting-prompt"

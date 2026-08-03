@@ -1,9 +1,10 @@
 // components/CreateGoalModal.tsx
 import { useState, type FormEvent } from 'react';
+import FieldLabel from '@/components/FieldLabel';
 import ImagePicker from '@/components/ImagePicker';
+import InputField from '@/components/InputField';
 import Modal from '@/components/Modal';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -60,24 +61,17 @@ export default function CreateGoalModal({ onClose, onCreate }: CreateGoalModalPr
         </div>
 
         {/* 목표 이름 (필수) */}
-        <div className="mt-5 flex flex-col gap-1.5">
-          <div className="flex items-baseline justify-between">
-            <Label htmlFor="goal-name">
-              채팅방 이름 <span className="text-destructive">*</span>
-            </Label>
-            <span className="text-xs text-muted-foreground">
-              {name.length}/{GOAL_LIMITS.name}
-            </span>
-          </div>
-          <Input
-            id="goal-name"
-            value={name}
-            maxLength={GOAL_LIMITS.name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="예) 스터디 메이트"
-            autoFocus
-          />
-        </div>
+        <InputField
+          className="mt-5"
+          label="채팅방 이름"
+          isRequired
+          showsCount
+          maxLength={GOAL_LIMITS.name}
+          value={name}
+          onChange={setName}
+          placeholder="예) 스터디 메이트"
+          autoFocus
+        />
 
         {/* AI 페르소나 (선택) */}
         <div className="mt-4 flex flex-col gap-1.5">
@@ -97,30 +91,24 @@ export default function CreateGoalModal({ onClose, onCreate }: CreateGoalModalPr
         </div>
 
         {/* 목표 이름 (홈·기록 카드 제목으로도 쓰인다) */}
-        <div className="mt-4 flex flex-col gap-1.5">
-          <div className="flex items-baseline justify-between">
-            <Label htmlFor="goal-title">목표</Label>
-            <span className="text-xs text-muted-foreground">
-              {title.length}/{GOAL_LIMITS.title}
-            </span>
-          </div>
-          <Input
-            id="goal-title"
-            value={title}
-            maxLength={GOAL_LIMITS.title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="예) UI/UX 디자인 강의 완주"
-          />
-        </div>
+        <InputField
+          className="mt-4"
+          label="목표"
+          showsCount
+          maxLength={GOAL_LIMITS.title}
+          value={title}
+          onChange={setTitle}
+          placeholder="예) UI/UX 디자인 강의 완주"
+        />
 
         {/* 프롬프트 */}
         <div className="mt-4 flex flex-col gap-1.5">
-          <div className="flex items-baseline justify-between">
-            <Label htmlFor="goal-prompt">프롬프트</Label>
-            <span className="text-xs text-muted-foreground">
-              {prompt.length}/{GOAL_LIMITS.prompt}
-            </span>
-          </div>
+          <FieldLabel
+            htmlFor="goal-prompt"
+            label="프롬프트"
+            length={prompt.length}
+            maxLength={GOAL_LIMITS.prompt}
+          />
           <Textarea
             id="goal-prompt"
             value={prompt}

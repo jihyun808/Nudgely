@@ -1,10 +1,9 @@
 // components/PasswordResetModal.tsx
 import { useState, type FormEvent } from 'react';
 import { requestPasswordReset } from '@/api/settings';
+import InputField from '@/components/InputField';
 import Modal from '@/components/Modal';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 interface PasswordResetModalProps {
   /** 미리 채워둘 이메일 (설정 화면에서 열 때 로그인한 계정) */
@@ -60,17 +59,15 @@ export default function PasswordResetModal({ defaultEmail, onClose }: PasswordRe
           가입한 이메일을 입력하면 비밀번호를 다시 설정할 수 있는 링크를 보내드려요.
         </p>
 
-        <div className="mt-4 flex flex-col gap-1.5">
-          <Label htmlFor="reset-email">이메일</Label>
-          <Input
-            id="reset-email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="example@email.com"
-            autoFocus
-          />
-        </div>
+        <InputField
+          className="mt-4"
+          label="이메일"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          placeholder="example@email.com"
+          autoFocus
+        />
 
         {error && (
           <p role="alert" className="mt-4 text-center text-xs text-destructive">

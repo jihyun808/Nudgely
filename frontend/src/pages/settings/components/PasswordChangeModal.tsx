@@ -1,10 +1,9 @@
 // pages/settings/components/PasswordChangeModal.tsx
 import { useState, type FormEvent } from 'react';
 import { changePassword } from '@/api/settings';
+import InputField from '@/components/InputField';
 import Modal from '@/components/Modal';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { showToast } from '@/stores/toastStore';
 
 /** 비밀번호 최소 길이 */
@@ -52,47 +51,50 @@ export default function PasswordChangeModal({
   return (
     <Modal title="비밀번호 변경" onClose={onClose}>
       <form onSubmit={(e) => void handleSubmit(e)}>
-        <div className="mt-4 flex flex-col gap-1.5">
-          <Label htmlFor="current-password">현재 비밀번호</Label>
-          <Input
-            id="current-password"
+        <div className="mt-4">
+          <InputField
+            label="현재 비밀번호"
             type="password"
             value={current}
-            onChange={(e) => setCurrent(e.target.value)}
+            onChange={setCurrent}
             autoFocus
           />
-          <button
-            type="button"
-            onClick={onForgotPassword}
-            className="self-end text-xs text-primary underline"
-          >
-            비밀번호를 잊었어요
-          </button>
+          <div className="mt-1.5 text-right">
+            <button
+              type="button"
+              onClick={onForgotPassword}
+              className="text-xs text-primary underline"
+            >
+              비밀번호를 잊었어요
+            </button>
+          </div>
         </div>
 
-        <div className="mt-4 flex flex-col gap-1.5">
-          <Label htmlFor="new-password">새 비밀번호</Label>
-          <Input
-            id="new-password"
+        <div className="mt-4">
+          <InputField
+            label="새 비밀번호"
             type="password"
             value={next}
-            onChange={(e) => setNext(e.target.value)}
+            onChange={setNext}
             placeholder={`${MIN_PASSWORD_LENGTH}자 이상`}
           />
           {isTooShort && (
-            <p className="text-xs text-destructive">{MIN_PASSWORD_LENGTH}자 이상 입력해주세요.</p>
+            <p className="mt-1.5 text-xs text-destructive">
+              {MIN_PASSWORD_LENGTH}자 이상 입력해주세요.
+            </p>
           )}
         </div>
 
-        <div className="mt-4 flex flex-col gap-1.5">
-          <Label htmlFor="confirm-password">새 비밀번호 확인</Label>
-          <Input
-            id="confirm-password"
+        <div className="mt-4">
+          <InputField
+            label="새 비밀번호 확인"
             type="password"
             value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
+            onChange={setConfirm}
           />
-          {isMismatched && <p className="text-xs text-destructive">비밀번호가 일치하지 않아요.</p>}
+          {isMismatched && (
+            <p className="mt-1.5 text-xs text-destructive">비밀번호가 일치하지 않아요.</p>
+          )}
         </div>
 
         {error && (

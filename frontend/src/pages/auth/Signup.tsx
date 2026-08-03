@@ -57,18 +57,32 @@ export default function Signup() {
     <AuthLayout title="기본 정보 입력" subtitle="가입에 필요한 정보를 입력해주세요.">
       <div className="mt-10 rounded-2xl bg-background p-6 shadow-lg">
         <InputField
+          className="mb-4"
           label="닉네임"
           value={nickname}
           onChange={(value) => setNickname(value.slice(0, NICKNAME_MAX_LENGTH))}
         />
-        <InputField label="이메일" type="email" value={email} onChange={setEmail} />
-        <InputField label="비밀번호" type="password" value={password} onChange={setPassword} />
+        <InputField
+          className="mb-4"
+          label="이메일"
+          type="email"
+          value={email}
+          onChange={setEmail}
+        />
+        <InputField
+          className="mb-4"
+          label="비밀번호"
+          type="password"
+          value={password}
+          onChange={setPassword}
+        />
         {isPasswordTooShort && (
           <p className="-mt-2 mb-4 text-xs text-destructive">
             {MIN_PASSWORD_LENGTH}자 이상 입력해주세요.
           </p>
         )}
         <InputField
+          className="mb-4"
           label="비밀번호 확인"
           type="password"
           value={passwordConfirm}
