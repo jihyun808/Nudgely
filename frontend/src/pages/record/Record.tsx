@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button';
 import Calendar from '@/pages/record/components/Calendar';
 import TenMinutePlanner from '@/pages/record/components/TenMinutePlanner';
 import TodoCarousel from '@/pages/record/components/TodoCarousel';
-import type { DailyTodo, TodoMark } from '@/types/record';
+import TodoItemDialog from '@/pages/record/components/TodoItemDialog';
+import { useTodoItems, type TodoTarget } from '@/pages/record/useTodoItems';
+import { showToast } from '@/stores/toastStore';
+import { TODO_ITEM_MAX, type DailyTodo, type TodoMark } from '@/types/record';
 import { formatDateKey } from '@/utils/date';
 
 type RecordTab = 'calendar' | 'planner';
@@ -33,11 +36,16 @@ export default function Record() {
   const [hasTodoError, setHasTodoError] = useState(false);
   /** 값을 늘려 같은 날짜로 다시 조회를 트리거한다 (다시 시도 버튼용) */
   const [reloadKey, setReloadKey] = useState(0);
+  const [dialog, setDialog] = useState<TodoTarget>();
 
   const dateKey = useMemo(() => formatDateKey(selectedDate), [selectedDate]);
+  /** 투두는 오늘 것만 고칠 수 있다 (지난 기록은 그대로 두고, 앞날은 AI가 정한다) */
+  const isToday = dateKey === formatDateKey(new Date());
   /** 캘린더에 꽃 모양으로 표시할 완료 기록 */
   const [marks, setMarks] = useState<TodoMark[]>([]);
   const [visibleMonth, setVisibleMonth] = useState(() => dateKey.slice(0, 7));
+  /** 투두가 바뀌면 값을 늘려 그 달의 꽃 표시를 다시 불러온다 */
+  const [marksReloadKey, setMarksReloadKey] = useState(0);
 
   // 보이는 달이 바뀌면 그 달의 완료 표시를 다시 불러온다
   useEffect(() => {
@@ -52,7 +60,7 @@ export default function Record() {
     return () => {
       isStale = true;
     };
-  }, [visibleMonth]);
+  }, [visibleMonth, marksReloadKey]);
   // 선택한 날짜가 바뀌면 그 날짜에 할당된 투두를 다시 불러온다
   useEffect(() => {
     let isStale = false;
@@ -89,6 +97,20 @@ export default function Record() {
     const nextIndex = TABS.findIndex(({ value }) => value === next);
     setIsMovingRight(nextIndex > currentIndex);
     setTab(next);
+  };
+
+  // 완료 개수가 바뀌면 캘린더 꽃잎도 다시 센다
+  const { toggleItem, submitItem, deleteItem } = useTodoItems(setTodos, () =>
+    setMarksReloadKey((key) => key + 1),
+  );
+
+  /** 항목 수가 상한에 닿았으면 추가 팝업 대신 안내만 한다 */
+  const handleAddItem = (todo: DailyTodo) => {
+    if (todo.items.length >= TODO_ITEM_MAX) {
+      showToast(`할 일은 하루 ${TODO_ITEM_MAX}개까지 추가할 수 있어요`, { variant: 'warning' });
+      return;
+    }
+    setDialog({ todo });
   };
 
   return (
@@ -129,7 +151,14 @@ export default function Record() {
                 </div>
               ) : (
                 // key: 날짜가 바뀌면 캐러셀을 첫 장으로 되돌린다
-                <TodoCarousel key={dateKey} todos={todos} />
+                <TodoCarousel
+                  key={dateKey}
+                  todos={todos}
+                  isEditable={isToday}
+                  onToggleItem={(todo, item) => void toggleItem(todo, item)}
+                  onEditItem={(todo, item) => setDialog({ todo, item })}
+                  onAddItem={handleAddItem}
+                />
               )}
             </div>
           </>
@@ -137,6 +166,16 @@ export default function Record() {
           <TenMinutePlanner />
         )}
       </div>
+
+      {dialog && (
+        <TodoItemDialog
+          item={dialog.item}
+          goalTitle={dialog.todo.goalTitle}
+          onSubmit={(input) => submitItem(dialog, input)}
+          onDelete={dialog.item ? () => deleteItem(dialog) : undefined}
+          onClose={() => setDialog(undefined)}
+        />
+      )}
     </div>
   );
 }

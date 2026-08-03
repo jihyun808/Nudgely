@@ -131,3 +131,10 @@ export const MOCK_DAILY_TODOS: DailyTodo[] = [
   ]),
   todo(GOALS.uiux, -22, [['UI/UX 6강 수강', '강의', true]]),
 ];
+
+/** 특정 투두의 항목 배열. 추가·수정·삭제가 이 배열을 직접 고친다 */
+export function getMockTodoItems(todoId: string): TodoItem[] {
+  const todo = MOCK_DAILY_TODOS.find(({ id }) => id === todoId);
+  if (!todo) throw new Error(`투두를 찾을 수 없습니다: ${todoId}`);
+  return todo.items;
+}

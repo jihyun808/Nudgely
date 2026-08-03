@@ -1,6 +1,7 @@
 // pages/focus/useFocusTimer.ts
 import { useEffect, useState } from 'react';
 import { fetchFocusSummary, saveFocusSession } from '@/api/focus';
+import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus';
 import { getElapsedMs, useFocusStore } from '@/stores/focusStore';
 import { showToast } from '@/stores/toastStore';
 import {
@@ -46,6 +47,11 @@ export function useFocusTimer() {
   const [targetMinutes, setTargetMinutes] = useState(0);
   /** 화면을 다시 그리기 위한 현재 시각 */
   const [now, setNow] = useState(() => Date.now());
+  /** 값을 늘려 요약을 다시 불러온다 */
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // 플래너를 고치고 돌아왔을 수 있으니 창을 다시 볼 때마다 요약을 맞춘다
+  useRefreshOnFocus(() => setReloadKey((key) => key + 1));
 
   // 오늘 집중 요약 조회
   useEffect(() => {
@@ -62,7 +68,7 @@ export function useFocusTimer() {
     return () => {
       isStale = true;
     };
-  }, [setTodayFocusedSeconds]);
+  }, [setTodayFocusedSeconds, reloadKey]);
 
   // 돌아가는 동안 화면 갱신
   useEffect(() => {

@@ -1,11 +1,9 @@
 // api/focus.ts
+import { fetchDailyPlanner } from '@/api/record';
+import { delay } from '@/mocks/delay';
 import { createMockWeeklyFocus } from '@/mocks/my';
-import { createMockPlanner } from '@/mocks/planner';
 import type { FocusSessionInput, FocusSummary } from '@/types/focus';
 import { formatDateKey } from '@/utils/date';
-
-/** mock 지연 (연동 시 삭제) */
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** mock 단계에서 오늘 쌓인 집중 시간을 들고 있는 변수 (새로고침하면 초기화된다) */
 let mockFocusedSeconds = 0;
@@ -16,8 +14,8 @@ let mockFocusedSeconds = 0;
  * TODO: `api.get<FocusSummary>('/focus/summary', { params: { date } })`로 교체.
  */
 export async function fetchFocusSummary(): Promise<FocusSummary> {
-  await delay(400);
-  const planner = createMockPlanner(formatDateKey(new Date()));
+  // 플래너를 고치면 집중 탭에도 바로 반영되도록 같은 데이터를 본다
+  const planner = await fetchDailyPlanner(formatDateKey(new Date()));
   const targetMinutes = planner.planned.reduce((sum, block) => sum + block.durationMinutes, 0);
 
   return { focusedSeconds: mockFocusedSeconds, targetMinutes };

@@ -8,6 +8,7 @@ import Skeleton from '@/components/Skeleton';
 import ErrorRetry from '@/components/ErrorRetry';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
+import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus';
 import FocusSummary from '@/pages/home/components/FocusSummary';
 import GoalList from '@/pages/home/components/GoalList';
 import NotificationBell from '@/pages/home/components/NotificationBell';
@@ -55,17 +56,7 @@ export default function Home() {
   }, [reloadKey, setNotifications]);
 
   // 채팅방에 다녀오거나 앱을 다시 열었을 때 안 읽은 메시지·목표를 최신 상태로 맞춘다
-  useEffect(() => {
-    const refresh = () => {
-      if (document.visibilityState === 'visible') setReloadKey((key) => key + 1);
-    };
-    window.addEventListener('focus', refresh);
-    document.addEventListener('visibilitychange', refresh);
-    return () => {
-      window.removeEventListener('focus', refresh);
-      document.removeEventListener('visibilitychange', refresh);
-    };
-  }, []);
+  useRefreshOnFocus(() => setReloadKey((key) => key + 1));
 
   const handleRetry = () => {
     setIsLoading(true);

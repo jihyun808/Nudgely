@@ -8,6 +8,9 @@ interface InputFieldProps {
   onChange: (value: string) => void;
   placeholder?: string;
   type?: string;
+  /** 글자수 제한 */
+  maxLength?: number;
+  autoFocus?: boolean;
 }
 
 const InputField = ({
@@ -16,6 +19,8 @@ const InputField = ({
   onChange,
   placeholder = '',
   type = 'text',
+  maxLength,
+  autoFocus,
 }: InputFieldProps) => {
   const id = useId();
 
@@ -28,6 +33,8 @@ const InputField = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        maxLength={maxLength}
+        autoFocus={autoFocus}
       />
     </div>
   );

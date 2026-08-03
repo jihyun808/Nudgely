@@ -1,6 +1,7 @@
 // pages/focus/useCurrentPlan.ts
 import { useEffect, useState } from 'react';
 import { fetchDailyPlanner } from '@/api/record';
+import { useRefreshOnFocus } from '@/lib/useRefreshOnFocus';
 import { formatDateKey } from '@/utils/date';
 
 /**
@@ -9,6 +10,11 @@ import { formatDateKey } from '@/utils/date';
  */
 export function useCurrentPlan() {
   const [currentPlan, setCurrentPlan] = useState<string>();
+  /** 값을 늘려 계획을 다시 불러온다 */
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // 플래너를 고치고 돌아왔을 수 있으니 창을 다시 볼 때마다 맞춘다
+  useRefreshOnFocus(() => setReloadKey((key) => key + 1));
 
   useEffect(() => {
     let isStale = false;
@@ -29,7 +35,7 @@ export function useCurrentPlan() {
     return () => {
       isStale = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   return currentPlan;
 }

@@ -1,22 +1,65 @@
 // pages/record/components/TodoCard.tsx
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import type { DailyTodo } from '@/types/record';
+import TodoItemRow from '@/pages/record/components/TodoItemRow';
+import { useLongPress } from '@/pages/record/useLongPress';
+import type { DailyTodo, TodoItem } from '@/types/record';
+
+/** AI가 만든 항목을 눌렀을 때 안내를 띄워두는 시간(ms) */
+const HINT_MS = 3000;
 
 interface TodoCardProps {
   todo: DailyTodo;
+  /** 오늘, 진행 중인 목표의 투두만 손댈 수 있다 */
+  isEditable: boolean;
+  onToggleItem: (item: TodoItem) => void;
+  /** 내가 추가한 항목의 글씨를 눌렀을 때 (수정 팝업) */
+  onEditItem: (item: TodoItem) => void;
+  /** 카드를 길게 눌렀을 때 (추가 팝업) */
+  onAddItem: () => void;
 }
 
 /**
  * 목표 하나의 하루치 투두 카드.
- * 제목은 목표 이름(Goal.title)이고, 항목은 그날 AI가 만든 할 일이다.
- * 체크 상태는 AI와의 대화로 갱신되므로 화면에서는 읽기 전용이다.
+ * 제목은 목표 이름(Goal.title)이고, 항목은 AI가 만들거나 사용자가 직접 적은 할 일이다.
+ *
+ * 체크는 모든 항목에 되고, 수정·삭제는 내가 추가한 항목만 된다.
+ * 추가는 카드를 길게 누르면 된다.
  */
-export default function TodoCard({ todo }: TodoCardProps) {
+export default function TodoCard({
+  todo,
+  isEditable,
+  onToggleItem,
+  onEditItem,
+  onAddItem,
+}: TodoCardProps) {
   const { goalTitle, items } = todo;
   const doneCount = items.filter(({ isDone }) => isDone).length;
+  const { isPressing, handlers } = useLongPress(onAddItem, isEditable);
+  /** AI가 만든 항목을 눌렀을 때 카드 아래에 잠깐 뜨는 안내 */
+  const [showsAiHint, setShowsAiHint] = useState(false);
+
+  useEffect(() => {
+    if (!showsAiHint) return;
+    const timer = window.setTimeout(() => setShowsAiHint(false), HINT_MS);
+    return () => window.clearTimeout(timer);
+  }, [showsAiHint]);
+
+  /** AI가 만든 항목은 수정 팝업 대신 안내만 띄운다 */
+  const handlePressContent = (item: TodoItem) => {
+    if (item.source === 'user') onEditItem(item);
+    else setShowsAiHint(true);
+  };
 
   return (
-    <div className="rounded-2xl bg-muted-foreground/5 p-4">
+    <div
+      {...handlers}
+      className={cn(
+        'rounded-2xl p-4 transition-colors select-none',
+        // 길게 누르는 중이라는 걸 색이 진해지는 것으로 알린다
+        isPressing ? 'bg-muted-foreground/15' : 'bg-muted-foreground/5',
+      )}
+    >
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="min-w-0 truncate text-sm font-bold">{goalTitle}</h3>
         <span className="shrink-0 text-xs text-muted-foreground">
@@ -25,51 +68,14 @@ export default function TodoCard({ todo }: TodoCardProps) {
       </div>
 
       <ul className="mt-3 space-y-1">
-        {items.map(({ id, content, isDone, tag }) => (
-          <li
-            key={id}
-            className="flex items-center gap-2.5 border-b border-border py-2.5 last:border-b-0"
-          >
-            {/* AI가 상태를 바꾸므로 버튼이 아닌 표시 전용 체크박스 */}
-            <span
-              role="checkbox"
-              aria-checked={isDone}
-              aria-label={content}
-              className={cn(
-                'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border',
-                isDone ? 'border-primary bg-primary' : 'border-border bg-background',
-              )}
-            >
-              {isDone && (
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={3}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-3 w-3 text-primary-foreground"
-                >
-                  <path d="m5 13 4 4L19 7" />
-                </svg>
-              )}
-            </span>
-
-            <span
-              className={cn(
-                'min-w-0 flex-1 text-sm',
-                isDone ? 'text-muted-foreground line-through' : 'text-foreground',
-              )}
-            >
-              {content}
-            </span>
-
-            {tag && (
-              <span className="shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-xs text-primary">
-                {tag}
-              </span>
-            )}
-          </li>
+        {items.map((item) => (
+          <TodoItemRow
+            key={item.id}
+            item={item}
+            isEditable={isEditable}
+            onToggle={() => onToggleItem(item)}
+            onPressContent={() => handlePressContent(item)}
+          />
         ))}
 
         {items.length === 0 && (
@@ -78,6 +84,12 @@ export default function TodoCard({ todo }: TodoCardProps) {
           </li>
         )}
       </ul>
+
+      {showsAiHint && (
+        <p className="panel-enter-top mt-3 text-center text-[11px] text-muted-foreground">
+          AI가 만든 할 일은 대화로 바꿀 수 있어요
+        </p>
+      )}
     </div>
   );
 }

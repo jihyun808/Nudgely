@@ -254,13 +254,28 @@ GET /todos?date=2026-08-03
   "goalId": "g_01H",
   "goalTitle": "UI/UX 디자인 강의 완주",
   "date": "2026-08-03",
-  "items": [{ "id": "ti_01H", "content": "UI/UX 21강 수강", "isDone": true, "tag": "강의" }]
+  "isGoalCompleted": false,
+  "items": [
+    { "id": "ti_01H", "content": "UI/UX 21강 수강", "isDone": true, "tag": "강의", "source": "ai" }
+  ]
 }
 ```
 
 - **투두는 날짜마다 새로 만들어진다.** 그날 할 일이 없는 목표는 내려주지 않는다.
 - `goalTitle`은 `Goal.title`과 같은 값. 목표 이름이 바뀌면 함께 따라와야 한다.
-- 체크 상태는 **AI가 바꾸고 화면은 읽기 전용**.
+
+**항목 추가·수정·삭제**
+
+```
+PATCH  /todos/{todoId}/items/{itemId}   { isDone } | { content, tag }
+POST   /todos/{todoId}/items            { content, tag } → TodoItem
+DELETE /todos/{todoId}/items/{itemId}   → 204
+```
+
+- `content` 50자, `tag` 10자, **한 목표의 하루 항목 10개까지**(투두는 매일 통째로 AI 컨텍스트에 들어간다).
+- **`source`로 권한이 갈린다.** `ai` 항목은 **체크만** 되고 수정·삭제는 대화로만 한다(AI의 로드맵과 독촉 근거라서). `user` 항목은 전부 가능하다. 없으면 `ai`로 본다. `POST`로 만든 항목은 서버가 `user`로 넣는다.
+- 프론트는 **오늘 날짜, 진행 중인 목표**에만 요청을 보낸다. **서버도 재검증**해야 한다.
+- ⚠️ **사용자가 바꾼 투두 상태를 AI 컨텍스트에 반영해야 한다.** 안 그러면 사용자가 다 체크했는데 밤 11시에 미완료 독촉이 나간다.
 
 ### 4.2 캘린더 완료 표시
 
@@ -291,8 +306,21 @@ GET /planners?date=2026-08-03
 
 - `startMinutes`는 자정 기준 분(08:00 → 480).
 - `kind`(실제 기록만): `focus` / `verify` / `manual`
-- 계획은 AI가 정하며 사용자가 바꿀 수 없다. 실제 기록 수정 API는 미정.
 - 달성률·블록 수는 프론트가 계산한다(10분 = 1블록).
+
+**계획(`planned`)은 AI 소유로 읽기 전용이고, 실제 기록(`actual`)만 사용자가 손댄다.**
+
+```
+POST   /planners/{date}/actual            { title, startMinutes, durationMinutes }
+PATCH  /planners/{date}/actual/{blockId}  # 같은 필드
+DELETE /planners/{date}/actual/{blockId}
+```
+
+- 셋 다 **갱신된 `DailyPlanner` 전체**를 돌려주면 프론트가 요약까지 한 번에 다시 그린다.
+- `title` 30자, 시간은 10분 단위. 사용자가 추가한 기록의 `kind`는 서버가 `manual`로 넣는다.
+- 프론트는 **오늘의 이미 지나간 시간대만** 보낸다. **서버도 재검증**해야 한다.
+- 타이머·인증 기록(`focus`/`verify`)도 고칠 수 있다(타이머를 안 켠 경우 때문에).
+  ⚠️ 이때 **집중 세션 원본까지 함께 고칠지** 정해야 한다. 안 맞추면 플래너와 집중 통계가 어긋난다.
 
 ---
 
@@ -436,3 +464,5 @@ PATCH  /settings     # 바뀐 항목만
 | 12  | **알림 실시간 수신 방식** (5.2) 과 밤 11시 스케줄러            | 🔧 방식에 따라 구현                 |
 | 13  | **알림 `linkTo` 형태** — 경로 문자열 vs `targetType`+`targetId` | 🔧 후자면 경로 조립 추가            |
 | 14  | 약관·개인정보 처리방침 페이지 URL                              | ✅ 링크만 연결                      |
+| 15  | **사용자가 고친 투두·플래너를 AI 컨텍스트에 넣는 방법** (4.1)  | ✅ 서버 몫                          |
+| 16  | 실제 기록 수정 시 **집중 세션 원본 동기화** 여부 (4.3)         | ✅ 서버 몫                          |

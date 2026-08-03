@@ -1,14 +1,26 @@
 // pages/record/components/TenMinutePlanner.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { fetchDailyPlanner } from '@/api/record';
+import {
+  addPlannerActual,
+  deletePlannerActual,
+  fetchDailyPlanner,
+  updatePlannerActual,
+} from '@/api/record';
 import { fetchSettings } from '@/api/settings';
 import Skeleton from '@/components/Skeleton';
 import StepperButton from '@/components/StepperButton';
 import { Button } from '@/components/ui/button';
+import PlannerBlockDialog from '@/pages/record/components/PlannerBlockDialog';
 import PlannerSummary from '@/pages/record/components/PlannerSummary';
 import PlannerTimeline from '@/pages/record/components/PlannerTimeline';
 import { summarizePlanner } from '@/pages/record/plannerSummary';
-import type { DailyPlanner } from '@/types/planner';
+import { showToast } from '@/stores/toastStore';
+import {
+  PLANNER_BLOCK_MINUTES,
+  type DailyPlanner,
+  type PlannerBlock,
+  type PlannerBlockInput,
+} from '@/types/planner';
 import type { PlannerSettings } from '@/types/settings';
 import { formatDateKey } from '@/utils/date';
 
@@ -19,10 +31,17 @@ function formatPlannerDate(date: Date) {
   return `${date.getMonth() + 1}월 ${date.getDate()}일 ${WEEKDAY_LABELS[date.getDay()]}요일`;
 }
 
+/** 열려 있는 실제 기록 팝업. block이 없으면 추가 모드 */
+interface PlannerDialogState {
+  block?: PlannerBlock;
+  /** 추가 모드에서 미리 채울 시작 시각(분) */
+  startMinutes: number;
+}
+
 /**
  * 텐미닛 플래너.
  * 날짜를 좌우로 넘겨 지난 기록도 볼 수 있고, 표와 요약은 그 날짜 데이터로 다시 그려진다.
- * 계획은 AI가 정해 고정이며, 실제 기록은 추후 수정 가능하게 열어둘 예정이다.
+ * 계획은 AI가 정해 고정이고, 실제 기록은 사용자가 추가·수정·삭제할 수 있다.
  */
 export default function TenMinutePlanner() {
   const [date, setDate] = useState(() => new Date());
@@ -34,6 +53,7 @@ export default function TenMinutePlanner() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [dialog, setDialog] = useState<PlannerDialogState>();
 
   const dateKey = useMemo(() => formatDateKey(date), [date]);
   // 아직 오지 않은 날은 볼 수 없다 (오늘이 마지막)
@@ -70,6 +90,24 @@ export default function TenMinutePlanner() {
   };
 
   const summary = planner ? summarizePlanner(planner) : undefined;
+  /** 지금 시각(자정 기준 분). 아직 오지 않은 시간에는 기록을 남길 수 없다 */
+  const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+
+  const handleSubmitBlock = async (input: PlannerBlockInput) => {
+    const block = dialog?.block;
+    const next = block
+      ? await updatePlannerActual(dateKey, block.id, input)
+      : await addPlannerActual(dateKey, input);
+    setPlanner(next);
+    showToast(block ? '기록을 수정했어요' : '기록을 추가했어요', { variant: 'success' });
+  };
+
+  const handleDeleteBlock = async () => {
+    const block = dialog?.block;
+    if (!block) return;
+    setPlanner(await deletePlannerActual(dateKey, block.id));
+    showToast('기록을 삭제했어요');
+  };
 
   return (
     <div>
@@ -116,6 +154,10 @@ export default function TenMinutePlanner() {
                 actual={planner.actual}
                 startHour={plannerRange.startHour}
                 endHour={plannerRange.endHour}
+                isEditable={isToday}
+                maxStartMinutes={nowMinutes}
+                onSelectActual={(block) => setDialog({ block, startMinutes: block.startMinutes })}
+                onAddActual={(startMinutes) => setDialog({ startMinutes })}
               />
             </div>
             <div className="mt-5">
@@ -124,6 +166,20 @@ export default function TenMinutePlanner() {
           </>
         )}
       </div>
+
+      {dialog && (
+        <PlannerBlockDialog
+          block={dialog.block}
+          defaultStartMinutes={dialog.startMinutes}
+          startHour={plannerRange.startHour}
+          endHour={plannerRange.endHour}
+          // 10분 단위로 끊어 '지금'까지만 고르게 한다
+          maxMinutes={Math.floor(nowMinutes / PLANNER_BLOCK_MINUTES) * PLANNER_BLOCK_MINUTES}
+          onSubmit={handleSubmitBlock}
+          onDelete={dialog.block ? handleDeleteBlock : undefined}
+          onClose={() => setDialog(undefined)}
+        />
+      )}
     </div>
   );
 }

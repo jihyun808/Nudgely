@@ -20,6 +20,13 @@ export interface PlannerBlock {
   kind?: PlannerRecordKind;
 }
 
+/** 실제 기록을 추가·수정할 때 보내는 값. 출처(kind)는 서버가 정한다 */
+export interface PlannerBlockInput {
+  title: string;
+  startMinutes: number;
+  durationMinutes: number;
+}
+
 /** 하루치 텐미닛 플래너 */
 export interface DailyPlanner {
   /** 날짜 (YYYY-MM-DD) */
