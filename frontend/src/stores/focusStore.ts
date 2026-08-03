@@ -34,13 +34,19 @@ interface FocusState {
   dismissCelebration: () => void;
 }
 
-/** 실행 중이면 지금까지 흐른 시간(ms) */
+/**
+ * 실행 중이면 지금까지 흐른 시간(ms).
+ * 시작 시각을 기준으로 계산하므로 화면을 떠났다 와도 시간이 어긋나지 않는다.
+ *
+ * `now`는 화면이 주기적으로 갱신하는 값이라 시작 직후에는 startedAt보다 과거일 수 있다.
+ * 그대로 두면 흐른 시간이 음수가 되어 남은 시간이 25:01처럼 거꾸로 보이므로 0으로 막는다.
+ */
 export function getElapsedMs(
   state: Pick<FocusState, 'isRunning' | 'startedAt' | 'accumulatedMs'>,
   now: number = Date.now(),
 ) {
-  // 시작 시각을 기준으로 계산하므로 화면을 떠났다 와도 시간이 어긋나지 않는다
-  return state.accumulatedMs + (state.isRunning && state.startedAt ? now - state.startedAt : 0);
+  const running = state.isRunning && state.startedAt ? now - state.startedAt : 0;
+  return Math.max(0, state.accumulatedMs + running);
 }
 
 export const useFocusStore = create<FocusState>((set, get) => ({

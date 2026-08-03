@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button';
 import ChatDateDivider from '@/pages/chat/components/ChatDateDivider';
 import ChatDetailHeader from '@/pages/chat/components/ChatDetailHeader';
 import ChatInputBar from '@/pages/chat/components/ChatInputBar';
+import ImageViewer from '@/components/ImageViewer';
 import ChatMessageBubble from '@/pages/chat/components/ChatMessageBubble';
 import { showToast } from '@/stores/toastStore';
 import type { ChatMessage } from '@/types/chat';
 import type { GoalDetail } from '@/types/goal';
 import { isSameDay, isSameMinute } from '@/utils/date';
+import { isImageFile } from '@/utils/file';
 
 /**
  * 채팅방 상세.
@@ -30,6 +32,8 @@ export default function ChatDetail() {
   /** 다음(더 과거) 페이지 커서. null이면 더 불러올 과거가 없다 */
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  /** 크게 보고 있는 사진 */
+  const [viewerImage, setViewerImage] = useState<{ src: string; name: string }>();
   const [reloadKey, setReloadKey] = useState(0);
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -132,7 +136,13 @@ export default function ChatDetail() {
       role: 'user',
       content: payload.content ?? '',
       createdAt: new Date().toISOString(),
-      file: payload.file ? { name: payload.file.name } : undefined,
+      file: payload.file
+        ? {
+            name: payload.file.name,
+            // 사진은 보내는 즉시 미리보기가 보이도록 로컬 URL을 붙인다
+            url: isImageFile(payload.file.name) ? URL.createObjectURL(payload.file) : undefined,
+          }
+        : undefined,
       status: 'sending',
     };
     setMessages((prev) => [...prev, myMessage]);
@@ -228,6 +238,7 @@ export default function ChatDetail() {
               showSender={showSender}
               showTime={showTime}
               onRetry={handleRetry}
+              onOpenImage={(src, name) => setViewerImage({ src, name })}
             />
           </div>
         ))}
@@ -240,6 +251,14 @@ export default function ChatDetail() {
 
         <div ref={bottomRef} />
       </div>
+
+      {viewerImage && (
+        <ImageViewer
+          src={viewerImage.src}
+          alt={viewerImage.name}
+          onClose={() => setViewerImage(undefined)}
+        />
+      )}
 
       <ChatInputBar
         onSend={(content) => void send({ content })}

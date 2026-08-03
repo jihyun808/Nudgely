@@ -1,7 +1,19 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { isSocialLoginReady, startSocialLogin } from '@/lib/oauth';
+import { showToast } from '@/stores/toastStore';
+import type { AuthProvider } from '@/types/auth';
 
 export default function Landing() {
+  /** 키가 설정돼 있으면 제공자 로그인 페이지로, 없으면 안내만 한다 */
+  const handleSocialLogin = (provider: AuthProvider) => {
+    if (!isSocialLoginReady(provider)) {
+      showToast('소셜 로그인은 준비 중이에요', { variant: 'info' });
+      return;
+    }
+    startSocialLogin(provider);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#a8c5f0] to-[#d9e4f5]">
       {/* 상단 그라데이션 아래로 둥근 흰색 시트 */}
@@ -15,12 +27,11 @@ export default function Landing() {
           </p>
         </div>
 
-        {/* TODO: 각 제공자 SDK로 인가 코드를 받아 socialLogin({ provider, code })에 넘긴다 */}
         <div className="mt-20 flex flex-col gap-3">
-          <Button variant="kakao" size="lg">
+          <Button variant="kakao" size="lg" onClick={() => handleSocialLogin('kakao')}>
             카카오로 시작하기
           </Button>
-          <Button variant="outline" size="lg">
+          <Button variant="outline" size="lg" onClick={() => handleSocialLogin('google')}>
             구글로 시작하기
           </Button>
         </div>

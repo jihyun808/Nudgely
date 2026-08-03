@@ -24,6 +24,8 @@ export interface Goal {
   /** 채팅 목록용 — 안 읽은 메시지 수. 0이면 배지를 표시하지 않는다 */
   unreadCount: number;
 
+  /** 목표를 시작한 날 (ISO 8601). 진도가 없을 때 '언제부터 진행 중'인지 보여준다 */
+  startedAt?: string;
   /** 목표 기한까지 남은 일수. 기한이 없으면 D-day 배지를 표시하지 않는다 */
   remainingDays?: number;
   /**

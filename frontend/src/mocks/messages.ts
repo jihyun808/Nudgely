@@ -49,6 +49,10 @@ export const MOCK_MESSAGES: ChatMessage[] = [
   message('assistant', '지수야, 오늘 21강 들을 차례야. 준비됐어?', at(0, 9, 0)),
   message('user', '응! 근데 20강 복습하고 싶어', at(0, 9, 2)),
   message('user', '', at(0, 9, 3), { name: '20강_요약노트.pdf', caption: '분석 완료' }),
+  message('user', '', at(0, 9, 4), {
+    name: '노트_인증.jpg',
+    url: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjEiIHkyPSIxIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMyNTYzRUIiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiM3REE2RjUiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgZmlsbD0idXJsKCNnKSIvPjx0ZXh0IHg9IjIwMCIgeT0iMTYwIiBmb250LWZhbWlseT0ic2Fucy1zZXJpZiIgZm9udC1zaXplPSIyOCIgZmlsbD0iI2ZmZmZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+64W47Yq4IOyduOymnTwvdGV4dD48L3N2Zz4=',
+  }),
   message('assistant', '정리 잘했어! 핵심 개념 시각화가 특히 좋아.', at(0, 9, 5)),
   message('assistant', '퀴즈 3문항 중 2개 맞혔어. 오답 복습할까?', at(0, 9, 6)),
   message('user', '나중에 볼게, 이따 모아보기에서', at(0, 9, 7)),

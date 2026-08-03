@@ -14,6 +14,7 @@ import History from '@/pages/settings/History';
 import Landing from '@/pages/auth/Landing';
 import Signin from '@/pages/auth/Signin';
 import Signup from '@/pages/auth/Signup';
+import SocialCallback from '@/pages/auth/SocialCallback';
 import { isAuthenticated } from '@/lib/auth';
 
 export const router = createBrowserRouter([
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
   { path: '/landing', element: <Landing /> },
   { path: '/signin', element: <Signin /> },
   { path: '/signup', element: <Signup /> },
+  { path: '/auth/callback/:provider', element: <SocialCallback /> },
 
   // 채팅방 상세·설정은 하단 탭바 없이 전체 화면을 쓴다
   { path: '/chat/:goalId', element: <ChatDetail /> },

@@ -22,7 +22,6 @@ function isSameDate(a: Date, b: Date) {
  * 월 단위 캘린더.
  * 상단에 'YYYY년 M월'과 이전/다음 달 버튼, 아래에 요일 헤더와 날짜 그리드를 그린다.
  * 선택된 날짜는 브랜드 색 원, 오늘은 연한 브랜드 배경으로 구분한다.
- * TODO: 날짜 아래 기록 유무 점 표시
  */
 export default function Calendar({ selected, onSelect }: CalendarProps) {
   // 화면에 보여줄 달 (선택 날짜와 별개로 넘겨볼 수 있다)

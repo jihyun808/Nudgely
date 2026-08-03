@@ -12,6 +12,7 @@ const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 export const MOCK_GOALS: GoalDetail[] = [
   {
     id: '1',
+    startedAt: ago(60 * DAY),
     name: 'Buddy',
     title: 'UI/UX 디자인 강의 완주',
     prompt: '학습 코치처럼 다정하지만 단호하게 챙겨줘.',
@@ -24,6 +25,7 @@ export const MOCK_GOALS: GoalDetail[] = [
   },
   {
     id: '2',
+    startedAt: ago(96 * DAY),
     name: '영어 코치',
     title: '매일 영어 단어 30개 외우기',
     lastMessage: '어제 외운 단어 10개 복습부터 시작할까?',
@@ -33,6 +35,7 @@ export const MOCK_GOALS: GoalDetail[] = [
   },
   {
     id: '3',
+    startedAt: ago(30 * DAY),
     name: '알고리즘 짝',
     title: '알고리즘 하루 한 문제 풀기',
     lastMessage: 'DP 문제 하나 더 풀어볼래? 힌트 줄게',
@@ -43,6 +46,7 @@ export const MOCK_GOALS: GoalDetail[] = [
   },
   {
     id: '4',
+    startedAt: ago(14 * DAY),
     name: '운동 트레이너',
     title: '주 3회 홈트 루틴 지키기',
     lastMessage: '오늘 스트레칭 5분이라도 해보자!',
@@ -51,6 +55,7 @@ export const MOCK_GOALS: GoalDetail[] = [
   },
   {
     id: '5',
+    startedAt: ago(45 * DAY),
     name: '회고 도우미',
     title: '매주 회고 남기기',
     lastMessage: '이번 주 집중 시간 2시간 넘겼어. 잘하고 있어',
@@ -59,6 +64,7 @@ export const MOCK_GOALS: GoalDetail[] = [
   },
   {
     id: '6',
+    startedAt: ago(120 * DAY),
     name: '독서 메이트',
     title: '이번 달 책 1권 읽기',
     lastMessage: '지난주에 읽던 책 이어서 볼까?',

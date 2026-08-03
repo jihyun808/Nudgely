@@ -67,8 +67,13 @@ export function useFocusTimer() {
   // 돌아가는 동안 화면 갱신
   useEffect(() => {
     if (!isRunning) return;
+    // 시작 직후 한 번 바로 맞춰 첫 프레임이 밀리지 않게 한다
+    const frame = requestAnimationFrame(() => setNow(Date.now()));
     const timer = window.setInterval(() => setNow(Date.now()), TICK_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearInterval(timer);
+    };
   }, [isRunning]);
 
   const elapsedSeconds = Math.floor(getElapsedMs(useFocusStore.getState(), now) / 1000);

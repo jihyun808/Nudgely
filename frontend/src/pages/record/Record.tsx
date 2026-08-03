@@ -34,7 +34,6 @@ export default function Record() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const dateKey = useMemo(() => formatDateKey(selectedDate), [selectedDate]);
-
   // 선택한 날짜가 바뀌면 그 날짜에 할당된 투두를 다시 불러온다
   useEffect(() => {
     let isStale = false;

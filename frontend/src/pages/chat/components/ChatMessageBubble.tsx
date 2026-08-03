@@ -3,6 +3,7 @@ import ChatAvatar from '@/components/ChatAvatar';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/types/chat';
 import { formatMessageTime } from '@/utils/date';
+import { isImageFile } from '@/utils/file';
 
 interface ChatMessageBubbleProps {
   message: ChatMessage;
@@ -15,6 +16,8 @@ interface ChatMessageBubbleProps {
   showTime?: boolean;
   /** 전송 실패한 메시지 재시도 */
   onRetry?: (message: ChatMessage) => void;
+  /** 사진을 눌렀을 때 크게 보기 */
+  onOpenImage?: (src: string, name: string) => void;
 }
 
 /** 파일 첨부 말풍선 내용. 아이콘 가독성 때문에 보낸 쪽과 무관하게 흰 카드로 그린다 */
@@ -55,10 +58,13 @@ export default function ChatMessageBubble({
   showSender = true,
   showTime = true,
   onRetry,
+  onOpenImage,
 }: ChatMessageBubbleProps) {
   const { role, content, createdAt, file, status } = message;
   const isMine = role === 'user';
   const isFailed = status === 'failed';
+  /** 사진 첨부는 말풍선 대신 썸네일로 보여준다 */
+  const imageUrl = file && file.url && isImageFile(file.name) ? file.url : undefined;
 
   const timeLabel = (
     <span className="shrink-0 pb-0.5 text-[11px] leading-none text-muted-foreground">
@@ -66,7 +72,23 @@ export default function ChatMessageBubble({
     </span>
   );
 
-  const bubble = (
+  const bubble = imageUrl ? (
+    <button
+      type="button"
+      onClick={() => onOpenImage?.(imageUrl, file!.name)}
+      className={cn(
+        'max-w-full overflow-hidden rounded-2xl border border-border bg-background',
+        status === 'sending' && 'opacity-60',
+      )}
+    >
+      <img
+        src={imageUrl}
+        alt={file!.name}
+        // 가로는 말풍선 폭에 맞추고, 세로가 너무 길면 잘라 균형을 맞춘다
+        className="max-h-72 w-full object-cover"
+      />
+    </button>
+  ) : (
     <div
       className={cn(
         'max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap',

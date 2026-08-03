@@ -1,9 +1,8 @@
 // pages/chat/components/ChatInputBar.tsx
 import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { MESSAGE_MAX_LENGTH } from '@/types/chat';
+import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/utils/file';
 
-/** 첨부 파일 최대 크기: 10MB */
-const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 /** 입력창이 늘어날 수 있는 최대 높이(px) */
 const MAX_TEXTAREA_HEIGHT = 120;
 
@@ -17,6 +16,7 @@ interface ChatInputBarProps {
 /**
  * 채팅방 하단 입력 바.
  * 파일 첨부 버튼 → 메시지 입력 → 보내기 버튼 순서로 배치한다.
+ * 첨부는 JPG·PNG·PDF·TXT만 받는다.
  * Enter로 전송하고 Shift+Enter로 줄바꿈한다.
  */
 export default function ChatInputBar({ onSend, onAttach, disabled }: ChatInputBarProps) {
@@ -57,11 +57,11 @@ export default function ChatInputBar({ onSend, onAttach, disabled }: ChatInputBa
   const handlePickFile = (file: File | undefined) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
-    if (file.size > MAX_ATTACHMENT_SIZE) {
-      setFileError(`파일은 ${MAX_ATTACHMENT_SIZE / 1024 / 1024}MB 이하만 첨부할 수 있어요.`);
-      return;
-    }
-    setFileError(undefined);
+
+    const error = validateAttachmentFile(file);
+    setFileError(error ?? undefined);
+    if (error) return;
+
     onAttach(file);
   };
 
@@ -96,6 +96,7 @@ export default function ChatInputBar({ onSend, onAttach, disabled }: ChatInputBa
         <input
           ref={fileInputRef}
           type="file"
+          accept={ATTACHMENT_ACCEPT}
           className="hidden"
           onChange={(e) => handlePickFile(e.target.files?.[0])}
         />
