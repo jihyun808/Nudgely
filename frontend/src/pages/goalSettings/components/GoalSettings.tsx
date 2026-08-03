@@ -1,17 +1,16 @@
 // pages/goalSettings/components/GoalSettings.tsx
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { clearGoalMessages, completeGoal, deleteGoal, updateGoal } from '@/api/goal';
-import ConfirmDialog from '@/components/ConfirmDialog';
+import { updateGoal } from '@/api/goal';
 import { Button } from '@/components/ui/button';
 import GoalBasicForm, { type GoalBasicValues } from '@/pages/goalSettings/components/GoalBasicForm';
+import GoalManageDialogs, {
+  type GoalDialog,
+} from '@/pages/goalSettings/components/GoalManageDialogs';
 import GoalManageSection from '@/pages/goalSettings/components/GoalManageSection';
 import GoalOptionsSection from '@/pages/goalSettings/components/GoalOptionsSection';
+import { useGoalActions } from '@/pages/goalSettings/useGoalActions';
 import { showToast } from '@/stores/toastStore';
 import type { GoalDetail } from '@/types/goal';
-
-/** 열려 있는 확인 팝업 */
-type OpenDialog = 'complete' | 'hide' | 'clearMessages' | 'delete' | null;
 
 interface GoalSettingsProps {
   goal: GoalDetail;
@@ -20,12 +19,10 @@ interface GoalSettingsProps {
 }
 
 /**
- * 목표(채팅방) 설정 탭.
+ * 목표(채팅방) 설정 본문.
  * 기본 정보는 '저장'을 눌러야 반영되고, 기한·알림 토글은 바꾸는 즉시 저장된다.
  */
 export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
-  const navigate = useNavigate();
-
   const [basic, setBasic] = useState<GoalBasicValues>({
     name: goal.name,
     title: goal.title ?? '',
@@ -33,7 +30,8 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
     imageUrl: goal.imageUrl,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [openDialog, setOpenDialog] = useState<OpenDialog>(null);
+  const [openDialog, setOpenDialog] = useState<GoalDialog>(null);
+  const actions = useGoalActions(goal, onUpdated);
 
   /** 기본 정보에 바뀐 값이 있는지 (있을 때만 저장 버튼이 살아난다) */
   const isDirty =
@@ -62,7 +60,7 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
     }
   };
 
-  /** 기한·알림처럼 바로 반영되는 값. 실패하면 토스트로 알린다 */
+  /** 기한·알림처럼 바로 반영되는 값. 실패하면 되돌리고 토스트로 알린다 */
   const patchImmediately = (patch: Partial<GoalDetail>) => {
     const previous = goal;
     onUpdated({ ...goal, ...patch });
@@ -70,29 +68,6 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
       onUpdated(previous);
       showToast('설정을 저장하지 못했어요', { variant: 'warning' });
     });
-  };
-
-  const handleComplete = async () => {
-    await completeGoal(goal.id);
-    onUpdated({ ...goal, completedAt: new Date().toISOString() });
-    showToast('목표를 완료했어요. 수고했어요! 🎉', { variant: 'success' });
-  };
-
-  const handleHide = async () => {
-    await updateGoal(goal.id, { isHidden: true });
-    showToast('채팅방을 숨겼어요. 설정 > 히스토리에서 볼 수 있어요', { variant: 'info' });
-    navigate('/chat', { replace: true });
-  };
-
-  const handleClearMessages = async () => {
-    await clearGoalMessages(goal.id);
-    showToast('대화 내용을 삭제했어요', { variant: 'info' });
-  };
-
-  const handleDelete = async () => {
-    await deleteGoal(goal.id);
-    showToast('목표를 삭제했어요', { variant: 'info' });
-    navigate('/chat', { replace: true });
   };
 
   return (
@@ -122,47 +97,14 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
         onDelete={() => setOpenDialog('delete')}
       />
 
-      {openDialog === 'complete' && (
-        <ConfirmDialog
-          title="목표를 완료할까요?"
-          description="진도가 100%가 되고 완주한 목표로 기록돼요."
-          confirmLabel="완료하기"
-          onConfirm={handleComplete}
-          onClose={() => setOpenDialog(null)}
-        />
-      )}
-
-      {openDialog === 'hide' && (
-        <ConfirmDialog
-          title="채팅방을 숨길까요?"
-          description="채팅 목록에서 사라지지만 대화와 기록은 그대로 남아요. 설정 > 히스토리에서 다시 꺼낼 수 있어요."
-          confirmLabel="숨기기"
-          onConfirm={handleHide}
-          onClose={() => setOpenDialog(null)}
-        />
-      )}
-
-      {openDialog === 'clearMessages' && (
-        <ConfirmDialog
-          title="대화 내용을 삭제할까요?"
-          description="주고받은 메시지가 모두 사라져요. 목표와 기록은 그대로 남아요."
-          confirmLabel="삭제하기"
-          isDestructive
-          onConfirm={handleClearMessages}
-          onClose={() => setOpenDialog(null)}
-        />
-      )}
-
-      {openDialog === 'delete' && (
-        <ConfirmDialog
-          title="목표를 삭제할까요?"
-          description="대화와 투두, 기록이 모두 사라지고 되돌릴 수 없어요."
-          confirmLabel="삭제하기"
-          isDestructive
-          onConfirm={handleDelete}
-          onClose={() => setOpenDialog(null)}
-        />
-      )}
+      <GoalManageDialogs
+        openDialog={openDialog}
+        onClose={() => setOpenDialog(null)}
+        onComplete={actions.complete}
+        onHide={actions.hide}
+        onClearMessages={actions.clearMessages}
+        onDelete={actions.remove}
+      />
     </div>
   );
 }

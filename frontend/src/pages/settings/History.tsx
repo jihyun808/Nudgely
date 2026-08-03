@@ -1,13 +1,11 @@
 // pages/settings/History.tsx
 import { useEffect, useState } from 'react';
 import { fetchHiddenGoals, updateGoal } from '@/api/goal';
-import ChatAvatar from '@/components/ChatAvatar';
 import DetailHeader from '@/components/DetailHeader';
 import ErrorRetry from '@/components/ErrorRetry';
-import { Button } from '@/components/ui/button';
+import HiddenGoalItem from '@/pages/settings/components/HiddenGoalItem';
 import { showToast } from '@/stores/toastStore';
 import type { Goal } from '@/types/goal';
-import { formatChatTime } from '@/utils/date';
 
 /**
  * 히스토리.
@@ -74,17 +72,8 @@ export default function History() {
       ) : (
         <ul className="mt-6 divide-y divide-border rounded-2xl border border-border">
           {goals.map((goal) => (
-            <li key={goal.id} className="flex items-center gap-3 px-4 py-3">
-              <ChatAvatar name={goal.name} imageUrl={goal.imageUrl} size="sm" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{goal.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  마지막 대화 {formatChatTime(goal.lastMessageAt)}
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => void handleUnhide(goal)}>
-                되돌리기
-              </Button>
+            <li key={goal.id}>
+              <HiddenGoalItem goal={goal} onUnhide={(target) => void handleUnhide(target)} />
             </li>
           ))}
         </ul>
