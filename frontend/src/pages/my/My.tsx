@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchMyProfile, updateMyProfile } from '@/api/user';
+import ErrorRetry from '@/components/ErrorRetry';
 import PageHeader from '@/components/PageHeader';
-import { Button } from '@/components/ui/button';
 import FocusHeatmap from '@/pages/my/components/FocusHeatmap';
 import ProfileEditModal from '@/pages/my/components/ProfileEditModal';
 import StatCards from '@/pages/my/components/StatCards';
@@ -89,12 +89,7 @@ export default function My() {
           <div className="h-20 animate-pulse rounded-2xl bg-muted-foreground/8" />
         </div>
       ) : hasError || !profile ? (
-        <div className="mt-20 flex flex-col items-center gap-3">
-          <p className="text-sm text-muted-foreground">프로필을 불러오지 못했어요</p>
-          <Button variant="outline" size="sm" onClick={handleRetry}>
-            다시 시도
-          </Button>
-        </div>
+        <ErrorRetry message="프로필을 불러오지 못했어요" onRetry={handleRetry} />
       ) : (
         <>
           {/* 프로필 */}

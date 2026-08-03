@@ -3,15 +3,15 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { deleteAccount, fetchSettings, updateSettings } from '@/api/settings';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import DetailHeader from '@/components/DetailHeader';
+import ErrorRetry from '@/components/ErrorRetry';
 import PasswordResetModal from '@/components/PasswordResetModal';
-import { Button } from '@/components/ui/button';
 import AccountManagementSection from '@/pages/settings/components/AccountManagementSection';
 import AccountSection from '@/pages/settings/components/AccountSection';
 import AppInfoSection from '@/pages/settings/components/AppInfoSection';
 import NotificationSection from '@/pages/settings/components/NotificationSection';
 import PasswordChangeModal from '@/pages/settings/components/PasswordChangeModal';
 import PlannerSection from '@/pages/settings/components/PlannerSection';
-import SettingsHeader from '@/pages/settings/components/SettingsHeader';
 import { useAuthStore } from '@/stores/authStore';
 import { showToast } from '@/stores/toastStore';
 import type { AppSettings } from '@/types/settings';
@@ -78,7 +78,7 @@ export default function Settings() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-md bg-background px-6 pt-6 pb-10">
-      <SettingsHeader />
+      <DetailHeader title="설정" />
 
       {isLoading ? (
         <div className="mt-6 space-y-4">
@@ -86,20 +86,14 @@ export default function Settings() {
           <div className="h-28 animate-pulse rounded-2xl bg-muted-foreground/8" />
         </div>
       ) : hasError || !settings ? (
-        <div className="mt-20 flex flex-col items-center gap-3">
-          <p className="text-sm text-muted-foreground">설정을 불러오지 못했어요</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setIsLoading(true);
-              setHasError(false);
-              setReloadKey((key) => key + 1);
-            }}
-          >
-            다시 시도
-          </Button>
-        </div>
+        <ErrorRetry
+          message="설정을 불러오지 못했어요"
+          onRetry={() => {
+            setIsLoading(true);
+            setHasError(false);
+            setReloadKey((key) => key + 1);
+          }}
+        />
       ) : (
         <>
           <NotificationSection

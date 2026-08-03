@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { createGoal, fetchGoals } from '@/api/goal';
 import CreateGoalModal from '@/components/CreateGoalModal';
+import ErrorRetry from '@/components/ErrorRetry';
 import PageHeader from '@/components/PageHeader';
-import { Button } from '@/components/ui/button';
 import ChatListItem from '@/pages/chat/components/ChatListItem';
 import ChatListItemSkeleton from '@/pages/chat/components/ChatListItemSkeleton';
 import { sortGoals } from '@/pages/chat/sortGoals';
@@ -148,12 +148,7 @@ export default function Chat() {
           ))}
         </div>
       ) : hasError ? (
-        <div className="mt-20 flex flex-col items-center gap-3">
-          <p className="text-sm text-muted-foreground">채팅 목록을 불러오지 못했어요</p>
-          <Button variant="outline" size="sm" onClick={handleRetry}>
-            다시 시도
-          </Button>
-        </div>
+        <ErrorRetry message="채팅 목록을 불러오지 못했어요" onRetry={handleRetry} />
       ) : visibleGoals.length > 0 ? (
         <ul className="-mx-6 mt-4 divide-y divide-border border-t border-border">
           {visibleGoals.map((goal) => (

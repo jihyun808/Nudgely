@@ -1,8 +1,20 @@
-// pages/settings/components/SettingsHeader.tsx
+// components/DetailHeader.tsx
 import { useNavigate } from 'react-router-dom';
+import type { ReactNode } from 'react';
 
-/** 설정 화면 상단 헤더. 뒤로가기 + 제목 */
-export default function SettingsHeader() {
+interface DetailHeaderProps {
+  title: string;
+  /** 제목 아래 작은 보조 문구 */
+  subtitle?: string;
+  /** 오른쪽에 붙는 액션 버튼 */
+  action?: ReactNode;
+}
+
+/**
+ * 탭바 없이 전체 화면을 쓰는 하위 화면(설정, 모아보기 등)의 상단 헤더.
+ * 뒤로가기 + 제목(+부제)로 구성된다.
+ */
+export default function DetailHeader({ title, subtitle, action }: DetailHeaderProps) {
   const navigate = useNavigate();
 
   return (
@@ -25,7 +37,13 @@ export default function SettingsHeader() {
           <path d="m15 18-6-6 6-6" />
         </svg>
       </button>
-      <h1 className="text-2xl font-bold">설정</h1>
+
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-2xl font-bold">{title}</h1>
+        {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
+      </div>
+
+      {action}
     </header>
   );
 }

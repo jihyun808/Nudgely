@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchFocusSummary } from '@/api/focus';
 import { fetchHomePreviews, fetchNotifications } from '@/api/home';
 import { fetchGoals } from '@/api/goal';
+import ErrorRetry from '@/components/ErrorRetry';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import FocusSummary from '@/pages/home/components/FocusSummary';
@@ -98,12 +99,7 @@ export default function Home() {
           <div className="h-12 animate-pulse rounded-2xl bg-muted-foreground/8" />
         </div>
       ) : hasError ? (
-        <div className="mt-20 flex flex-col items-center gap-3">
-          <p className="text-sm text-muted-foreground">홈 정보를 불러오지 못했어요</p>
-          <Button variant="outline" size="sm" onClick={handleRetry}>
-            다시 시도
-          </Button>
-        </div>
+        <ErrorRetry message="홈 정보를 불러오지 못했어요" onRetry={handleRetry} />
       ) : (
         <>
           <div className="mt-4">

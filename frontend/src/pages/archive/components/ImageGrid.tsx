@@ -1,4 +1,5 @@
 // pages/archive/components/ImageGrid.tsx
+import MonthSection from '@/pages/archive/components/MonthSection';
 import { groupByMonth } from '@/pages/archive/components/groupByMonth';
 import type { Attachment } from '@/types/archive';
 
@@ -17,8 +18,7 @@ export default function ImageGrid({ images }: ImageGridProps) {
   return (
     <div className="space-y-6">
       {groupByMonth(images).map(({ month, items }) => (
-        <section key={month}>
-          <h3 className="mb-2 text-xs font-semibold text-muted-foreground">{month}</h3>
+        <MonthSection key={month} month={month}>
           <ul className="grid grid-cols-3 gap-1.5">
             {items.map((item) => (
               <li key={item.id}>
@@ -35,7 +35,7 @@ export default function ImageGrid({ images }: ImageGridProps) {
               </li>
             ))}
           </ul>
-        </section>
+        </MonthSection>
       ))}
     </div>
   );

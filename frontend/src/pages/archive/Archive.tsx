@@ -1,10 +1,11 @@
 // pages/archive/Archive.tsx
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { fetchAttachments, fetchGoalProgress } from '@/api/archive';
 import { fetchGoal } from '@/api/goal';
+import DetailHeader from '@/components/DetailHeader';
+import ErrorRetry from '@/components/ErrorRetry';
 import SegmentedTabs from '@/components/SegmentedTabs';
-import { Button } from '@/components/ui/button';
 import FileGrid from '@/pages/archive/components/FileGrid';
 import ImageGrid from '@/pages/archive/components/ImageGrid';
 import ProgressTimeline from '@/pages/archive/components/ProgressTimeline';
@@ -25,7 +26,6 @@ const TABS: { value: ArchiveTab; label: string }[] = [
  */
 export default function Archive() {
   const { goalId = '' } = useParams();
-  const navigate = useNavigate();
 
   const [tab, setTab] = useState<ArchiveTab>('file');
   const [goalName, setGoalName] = useState('');
@@ -65,32 +65,10 @@ export default function Archive() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-md bg-background px-6 pt-6 pb-10">
-      <header className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          aria-label="뒤로 가기"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors active:bg-muted-foreground/10"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-5 w-5"
-          >
-            <path d="m15 18-6-6 6-6" />
-          </svg>
-        </button>
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold">모아보기</h1>
-          {goalName && (
-            <p className="truncate text-xs text-muted-foreground">{goalName}와의 학습 기록</p>
-          )}
-        </div>
-      </header>
+      <DetailHeader
+        title="모아보기"
+        subtitle={goalName ? `${goalName}와의 학습 기록` : undefined}
+      />
 
       <SegmentedTabs items={TABS} value={tab} onChange={setTab} className="mt-4" />
 
@@ -100,20 +78,14 @@ export default function Archive() {
           <div className="h-28 animate-pulse rounded-2xl bg-muted-foreground/8" />
         </div>
       ) : hasError ? (
-        <div className="mt-20 flex flex-col items-center gap-3">
-          <p className="text-sm text-muted-foreground">모아보기를 불러오지 못했어요</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setIsLoading(true);
-              setHasError(false);
-              setReloadKey((key) => key + 1);
-            }}
-          >
-            다시 시도
-          </Button>
-        </div>
+        <ErrorRetry
+          message="모아보기를 불러오지 못했어요"
+          onRetry={() => {
+            setIsLoading(true);
+            setHasError(false);
+            setReloadKey((key) => key + 1);
+          }}
+        />
       ) : (
         <div className="mt-6">
           {tab === 'file' && <FileGrid files={files} />}
