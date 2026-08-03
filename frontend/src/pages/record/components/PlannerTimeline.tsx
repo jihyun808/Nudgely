@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import type { PlannerBlock, PlannerRecordKind } from '@/types/planner';
 
 /** 한 줄이 담는 시간(분) */
-const ROW_MINUTES = 30;
+const ROW_MINUTES = 60;
 
 /** 실제 기록 출처별 색 */
 const KIND_COLORS: Record<PlannerRecordKind, string> = {
@@ -20,7 +20,7 @@ function formatTime(minute: number) {
 }
 
 /**
- * 한 줄(30분)에서 블록들이 차지하는 시간과, 그 줄에 표시할 제목을 구한다.
+ * 한 줄(1시간)에서 블록들이 차지하는 시간과, 그 줄에 표시할 제목을 구한다.
  * 차지한 시간이 없으면 undefined (아무것도 그리지 않는다).
  */
 function getRowFill(blocks: PlannerBlock[], rowStart: number) {
@@ -48,7 +48,7 @@ function getRowFill(blocks: PlannerBlock[], rowStart: number) {
   };
 }
 
-/** 한 칸: 얇은 막대 + 그 아래 작은 제목. 막대 길이가 그 30분 중 차지한 시간이다 */
+/** 한 칸: 얇은 막대 + 그 아래 작은 제목. 막대 길이가 그 1시간 중 차지한 시간이다 */
 function RowCell({ fill, isPlan }: { fill: ReturnType<typeof getRowFill>; isPlan: boolean }) {
   if (!fill) return <div className="flex-1" />;
 
@@ -76,10 +76,9 @@ interface PlannerTimelineProps {
 
 /**
  * 텐미닛 플래너 표.
- * 세로로 30분씩 한 줄이고, 시각은 1시간 단위로만 적는다.
- * 막대는 오른쪽으로 길어지며 그 줄(30분) 중 차지한 시간을 나타내고, 제목은 막대 아래에 붙는다.
- * 일정이 있는 첫 줄부터 마지막 줄까지만 그려서 스크롤 없이 한눈에 들어오게 한다.
- * 그릴 수 있는 범위(startHour~endHour)는 설정 화면에서 정한다.
+ * 세로로 1시간씩 한 줄이다.
+ * 막대는 오른쪽으로 길어지며 그 줄(1시간) 중 차지한 시간을 나타내고, 제목은 막대 아래에 붙는다.
+ * 설정한 범위(기본 06:00~24:00) 전체를 스크롤 없이 한 화면에 그린다.
  */
 export default function PlannerTimeline({
   planned,
@@ -87,29 +86,8 @@ export default function PlannerTimeline({
   startHour,
   endHour,
 }: PlannerTimelineProps) {
-  const blocks = [...planned, ...actual];
-
-  if (blocks.length === 0) {
-    return <p className="py-10 text-center text-sm text-muted-foreground">이 날의 기록이 없어요</p>;
-  }
-
-  // 일정이 걸쳐 있는 구간만 30분 단위로 잘라 그린다
-  const dayStart = startHour * 60;
-  const dayEnd = endHour * 60;
-  const firstMinute = Math.max(
-    Math.min(...blocks.map(({ startMinutes }) => startMinutes)),
-    dayStart,
-  );
-  const lastMinute = Math.min(
-    Math.max(...blocks.map((b) => b.startMinutes + b.durationMinutes)),
-    dayEnd,
-  );
-  const rowStart = Math.floor(firstMinute / ROW_MINUTES) * ROW_MINUTES;
-  const rowEnd = Math.ceil(lastMinute / ROW_MINUTES) * ROW_MINUTES;
-  const rows = Array.from(
-    { length: (rowEnd - rowStart) / ROW_MINUTES },
-    (_, i) => rowStart + i * ROW_MINUTES,
-  );
+  // 설정한 시간 범위 전체를 1시간 단위로 그린다
+  const rows = Array.from({ length: endHour - startHour }, (_, i) => (startHour + i) * ROW_MINUTES);
 
   return (
     <div>
@@ -121,10 +99,9 @@ export default function PlannerTimeline({
       </div>
 
       {rows.map((minute) => (
-        <div key={minute} className="flex items-center gap-2 border-b border-border/60 py-1.5">
+        <div key={minute} className="flex items-center gap-2 border-b border-border/60 py-1">
           <span className="w-11 shrink-0 text-[11px] font-semibold text-muted-foreground">
-            {/* 시각은 1시간 단위로만 적는다 */}
-            {minute % 60 === 0 ? formatTime(minute) : ''}
+            {formatTime(minute)}
           </span>
           <RowCell fill={getRowFill(planned, minute)} isPlan />
           <RowCell fill={getRowFill(actual, minute)} isPlan={false} />

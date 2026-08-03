@@ -10,6 +10,9 @@ const CHART_HEIGHT = 154;
 /** 지난 주 대비 증가량(시간). 집중 기록이 없어 하드코딩 */
 const DIFF_FROM_LAST_WEEK = 1.2;
 
+/** 월요일을 0으로 두는 오늘의 요일 인덱스 */
+const getTodayIndex = (now = new Date()) => (now.getDay() + 6) % 7;
+
 /** 이번 달 기준 몇 주차인지 (1일이 속한 주를 1주차로 센다) */
 function getWeekLabel(now = new Date()) {
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -22,7 +25,7 @@ const formatHours = (hours: number) => `${Number(hours.toFixed(1))}h`;
 
 /**
  * 이번 주 집중 카드.
- * 위쪽은 요일별 막대그래프, 아래쪽은 총합·지난 주 대비·최고 집중 요일.
+ * 위쪽은 요일별 막대그래프(오늘 요일을 브랜드 색으로 강조), 아래쪽은 총합·지난 주 대비·최고 집중 요일.
  *
  * 값은 전부 하드코딩이다(집중 탭이 없어 실제 집중 시간을 만들 수 없다).
  * TODO: 집중 탭 구현 후 요일별 집중 시간 API로 교체
@@ -31,7 +34,10 @@ export default function WeeklyFocusCard() {
   const hours = MOCK_WEEKLY_FOCUS_HOURS;
   const total = hours.reduce((sum, value) => sum + value, 0);
   const maxHours = Math.max(...hours);
+  /** 아래 요약에 쓰는 최고 집중 요일 */
   const bestDayIndex = hours.indexOf(maxHours);
+  /** 막대 강조는 오늘 요일에 준다 */
+  const todayIndex = getTodayIndex();
 
   return (
     <div className="rounded-2xl border border-border bg-background p-4">
@@ -68,7 +74,7 @@ export default function WeeklyFocusCard() {
 
           <div className="relative flex items-end justify-between gap-1.5">
             {hours.map((value, index) => {
-              const isBest = value > 0 && index === bestDayIndex;
+              const isToday = index === todayIndex;
               const barHeight = (Math.min(value, MAX_HOURS) / MAX_HOURS) * CHART_HEIGHT;
 
               return (
@@ -77,13 +83,20 @@ export default function WeeklyFocusCard() {
                     <div
                       className={cn(
                         'w-full rounded-t-md',
-                        isBest ? 'bg-primary' : 'bg-primary/25',
+                        isToday ? 'bg-primary' : 'bg-primary/25',
                         value === 0 && 'bg-transparent',
                       )}
                       style={{ height: barHeight }}
                     />
                   </div>
-                  <span className="text-xs text-muted-foreground">{WEEKDAYS[index]}</span>
+                  <span
+                    className={cn(
+                      'text-xs',
+                      isToday ? 'font-bold text-primary' : 'text-muted-foreground',
+                    )}
+                  >
+                    {WEEKDAYS[index]}
+                  </span>
                 </div>
               );
             })}

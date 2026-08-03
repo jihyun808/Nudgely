@@ -4,7 +4,7 @@ import type { ComponentType, SVGProps } from 'react';
 
 /**
  * 하단 탭바(바텀시트).
- * 홈 / 채팅 / 기록 / 마이 네 개의 탭을 오간다.
+ * 홈 / 채팅 / 집중 / 기록 / 마이 다섯 개의 탭을 오간다.
  * 선택된 탭은 브랜드 색(primary)으로 상단 인디케이터 바 + 아이콘 + 라벨이 표시되고,
  * 나머지는 회색(muted-foreground)으로 표시된다.
  */
@@ -55,6 +55,21 @@ const RecordIcon = (props: IconProps) => (
   </svg>
 );
 
+const FocusIcon = (props: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </svg>
+);
+
 const UserIcon = (props: IconProps) => (
   <svg
     viewBox="0 0 24 24"
@@ -73,6 +88,7 @@ const UserIcon = (props: IconProps) => (
 const TABS: { to: string; label: string; Icon: ComponentType<IconProps> }[] = [
   { to: '/home', label: '홈', Icon: HomeIcon },
   { to: '/chat', label: '채팅', Icon: ChatIcon },
+  { to: '/focus', label: '집중', Icon: FocusIcon },
   { to: '/record', label: '기록', Icon: RecordIcon },
   { to: '/my', label: '마이', Icon: UserIcon },
 ];

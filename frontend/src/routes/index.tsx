@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import Layout from '@/layouts/Layout';
 import Home from '@/pages/home/Home';
 import Chat from '@/pages/chat/Chat';
+import Focus from '@/pages/focus/Focus';
 import ChatDetail from '@/pages/chat/ChatDetail';
 import Record from '@/pages/record/Record';
 import My from '@/pages/my/My';
@@ -27,12 +28,13 @@ export const router = createBrowserRouter([
   { path: '/chat/:goalId', element: <ChatDetail /> },
   { path: '/settings', element: <Settings /> },
 
-  // 로그인 이후 메인: 하단 탭바로 4개 화면을 오간다
+  // 로그인 이후 메인: 하단 탭바로 5개 화면을 오간다
   {
     element: <Layout />,
     children: [
       { path: '/home', element: <Home /> },
       { path: '/chat', element: <Chat /> },
+      { path: '/focus', element: <Focus /> },
       { path: '/record', element: <Record /> },
       { path: '/my', element: <My /> },
     ],
