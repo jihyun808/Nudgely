@@ -40,7 +40,7 @@ export default function GoalSettingsPage() {
   }, [goalId, reloadKey]);
 
   return (
-    <div className="mx-auto min-h-dvh max-w-md bg-background px-6 pt-6 pb-10">
+    <div className="mx-auto min-h-dvh max-w-md bg-background px-6 pt-safe pb-10">
       <DetailHeader title="목표 설정" subtitle={goal?.name} className="-mx-6 px-6" />
 
       {isLoading ? (

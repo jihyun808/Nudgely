@@ -5,6 +5,7 @@ import { MOCK_GOALS } from '@/mocks/goals';
 import { MOCK_MESSAGES } from '@/mocks/messages';
 import type { ChatMessage } from '@/types/chat';
 import type { CreateGoalInput, Goal, GoalDetail, UpdateGoalInput } from '@/types/goal';
+import { createId } from '@/utils/uuid';
 
 /**
  * 목표 목록 조회 (채팅 목록 · 홈의 진행 중인 목표 공용).
@@ -54,7 +55,7 @@ export async function fetchGoal(goalId: string): Promise<GoalDetail> {
 export async function createGoal(input: CreateGoalInput): Promise<GoalDetail> {
   await delay(300);
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     name: input.name,
     imageUrl: input.imageUrl,
     title: input.title || undefined,
@@ -147,7 +148,7 @@ export async function sendMessage(
   if (!goalId) throw new Error('GOAL_NOT_FOUND');
   await delay(900);
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     role: 'assistant',
     content: payload.file
       ? `${payload.file.name} 잘 받았어! 내용 확인해볼게.`

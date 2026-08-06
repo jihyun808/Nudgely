@@ -5,6 +5,7 @@ import { showToast } from '@/stores/toastStore';
 import type { ChatMessage } from '@/types/chat';
 import type { GoalDetail } from '@/types/goal';
 import { isImageFile } from '@/utils/file';
+import { createId } from '@/utils/uuid';
 
 /** 위로 스크롤해 이 거리 안에 들어오면 과거를 더 불러온다(px) */
 const LOAD_MORE_THRESHOLD = 80;
@@ -97,7 +98,7 @@ export function useChatRoom(goalId: string) {
 
   /** 낙관적으로 내 메시지를 먼저 그리고, 응답을 받아 확정한다 */
   const send = async (payload: { content?: string; file?: File }) => {
-    const localId = crypto.randomUUID();
+    const localId = createId();
     const myMessage: ChatMessage = {
       id: localId,
       role: 'user',

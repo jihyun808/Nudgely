@@ -15,9 +15,12 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#a8c5f0] to-[#d9e4f5]">
-      {/* 상단 그라데이션 아래로 둥근 흰색 시트 */}
-      <div className="mt-40 min-h-[calc(100vh-10rem)] rounded-t-[2rem] bg-background px-6 pt-14">
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-[#a8c5f0] to-[#d9e4f5]">
+      {/* 위쪽 그라데이션이 드러나는 영역 */}
+      <div className="h-40 shrink-0" aria-hidden />
+
+      {/* 그 아래로 이어지는 둥근 흰색 시트 */}
+      <div className="flex-1 rounded-t-[2rem] bg-background px-6 pt-14 pb-10">
         <div className="text-center">
           <h1 className="text-2xl font-bold">이제는 공부도 AI와 함께!</h1>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
