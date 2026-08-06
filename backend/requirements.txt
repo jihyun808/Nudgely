@@ -1,6 +1,17 @@
 # 런타임 의존성 (production)
 fastapi>=0.115,<1.0
 uvicorn[standard]>=0.32,<1.0
-pydantic>=2.9,<3.0
+pydantic[email]>=2.9,<3.0
 pydantic-settings>=2.6,<3.0
 openai>=2.0,<3.0
+
+# ── DB ──
+sqlalchemy[asyncio]>=2.0,<3.0
+aiosqlite>=0.20,<1.0            # 개발용 SQLite (async). Postgres는 asyncpg로 교체
+alembic>=1.13,<2.0             # 마이그레이션
+
+# ── 인증 ──
+passlib[bcrypt]>=1.7,<2.0
+bcrypt>=4.0.1,<4.1            # passlib 1.7.4 호환(버전 읽기 버그 회피)
+pyjwt>=2.9,<3.0
+python-multipart>=0.0.9,<1.0  # multipart/form-data (파일 업로드·폼)

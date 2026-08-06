@@ -17,9 +17,7 @@ def get_openai_client() -> AsyncOpenAI:
     API 키가 없으면 명확한 에러를 던져 설정 누락을 빨리 알아채도록 함.
     """
     if not settings.openai_api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY 가 설정되지 않았습니다. backend/.env 를 확인하세요."
-        )
+        raise RuntimeError("OPENAI_API_KEY 가 설정되지 않았습니다. backend/.env 를 확인하세요.")
     return AsyncOpenAI(
         api_key=settings.openai_api_key,
         timeout=settings.openai_timeout,

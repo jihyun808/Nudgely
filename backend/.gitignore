@@ -19,3 +19,6 @@ env/
 .idea/
 .vscode/
 .DS_Store
+
+# 로컬 개발 DB (SQLite)
+*.db

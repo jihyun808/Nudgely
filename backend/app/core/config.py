@@ -25,6 +25,18 @@ class Settings(BaseSettings):
     app_env: str = "dev"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # ── DB ──
+    # 개발: SQLite(async). 운영: postgresql+asyncpg://user:pw@host/db 로 교체.
+    database_url: str = "sqlite+aiosqlite:///./nudgely.db"
+    db_echo: bool = False  # True 면 실행되는 SQL 을 로그로 출력
+
+    # ── 인증(JWT) ──
+    # ⚠️ 운영에서는 반드시 .env 로 강력한 비밀키를 주입할 것.
+    jwt_secret: str = "dev-insecure-change-me"
+    jwt_algorithm: str = "HS256"
+    # 액세스 토큰 만료(분). 현재는 리프레시 토큰 없이 만료 시 재로그인(api.md §8-2).
+    access_token_expire_minutes: int = 60 * 24 * 7  # 7일
+
     @property
     def cors_origins_list(self) -> list[str]:
         """쉼표로 구분된 CORS_ORIGINS 문자열을 리스트로 변환."""
