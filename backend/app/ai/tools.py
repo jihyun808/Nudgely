@@ -8,7 +8,7 @@
   투두=record_service, 플래너=planner_service, 마일스톤·진도=progress/goal_service
 """
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -129,6 +129,17 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "complete_goal",
+            "description": (
+                "사용자가 목표 완주를 확인하면 완료 처리한다. "
+                "반드시 사용자의 명시적 확인('응 완주로 해줘' 등) 뒤에만 호출할 것."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "set_progress",
             "description": (
                 "목표 진도를 절대값으로 설정/보정한다. 목표 파악 시 total·unit 을 세우고, "
@@ -226,5 +237,12 @@ async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments:
         )
         await db.commit()
         return f"진도를 갱신했다: {goal.progress}."
+
+    if name == "complete_goal":
+        if goal.completed_at is not None:
+            return "이미 완주한 목표다."
+        goal.completed_at = datetime.now(UTC)
+        await db.commit()
+        return "목표를 완주로 기록했다. 사용자에게 축하를 전해라."
 
     return f"알 수 없는 도구: {name}"

@@ -362,9 +362,10 @@ async def send_message(
 
     persona, prompt, title = goal.persona, goal.prompt, goal.title
     assistant_id = new_id("m")
+    was_completed = goal.completed_at is not None  # 이번 턴 완주 감지용
 
     async def _dispatch(name: str, arguments: dict) -> str:
-        # AI 도구 호출 → 실제 동작(투두·플래너·마일스톤·진도 생성/갱신)
+        # AI 도구 호출 → 실제 동작(투두·플래너·마일스톤·진도·완주 처리)
         return await dispatch_tool_call(db, goal, name, arguments)
 
     async def event_stream():
@@ -390,11 +391,14 @@ async def send_message(
         await db.commit()
         await db.refresh(assistant_msg)
 
-        # TODO(AI 완주 판정): 대화에서 완주 의도 감지 시 goalCompleted=True 부착.
-        yield _sse(
-            "done",
-            {"messageId": assistant_id, "createdAt": assistant_msg.created_at.isoformat()},
-        )
+        # 이번 턴에 AI 가 완주 처리했으면 프론트 축하 연출 신호를 얹는다(api.md §3.2).
+        done_data = {
+            "messageId": assistant_id,
+            "createdAt": assistant_msg.created_at.isoformat(),
+        }
+        if not was_completed and goal.completed_at is not None:
+            done_data["goalCompleted"] = True
+        yield _sse("done", done_data)
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)
