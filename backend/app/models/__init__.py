@@ -6,6 +6,7 @@
 """
 
 from app.models.goal import Goal, Message, ReadState
+from app.models.milestone import Milestone
 from app.models.planner import Planner, PlannerBlock
 from app.models.todo import Todo, TodoItem
 from app.models.user import User, UserSettings
@@ -13,6 +14,7 @@ from app.models.user import User, UserSettings
 __all__ = [
     "Goal",
     "Message",
+    "Milestone",
     "Planner",
     "PlannerBlock",
     "ReadState",
