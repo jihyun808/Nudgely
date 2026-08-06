@@ -57,6 +57,24 @@ uvicorn app.main:app --reload
 - API 문서(Swagger): http://localhost:8000/docs
 - 헬스체크: http://localhost:8000/api/health
 
+## DB 마이그레이션 (Alembic)
+
+개발에서는 `AUTO_CREATE_TABLES=true` 로 앱 시작 시 테이블이 자동 생성됩니다.
+**운영에서는 `AUTO_CREATE_TABLES=false` 로 두고 마이그레이션을 사용하세요.**
+
+```bash
+# 현재 스키마로 DB 반영
+alembic upgrade head
+
+# 모델을 바꾼 뒤 새 마이그레이션 생성(검토 후 커밋)
+alembic revision --autogenerate -m "변경 설명"
+
+# 모델과 마이그레이션이 일치하는지 확인(CI 용)
+alembic check
+```
+
+DB URL 은 `migrations/env.py` 가 `settings.database_url` 에서 읽습니다.
+
 ## AI 대화 테스트
 
 ```bash

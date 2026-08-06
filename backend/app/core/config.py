@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     # 개발: SQLite(async). 운영: postgresql+asyncpg://user:pw@host/db 로 교체.
     database_url: str = "sqlite+aiosqlite:///./nudgely.db"
     db_echo: bool = False  # True 면 실행되는 SQL 을 로그로 출력
+    # 앱 시작 시 테이블 자동 생성(개발 편의). 운영은 False + Alembic 마이그레이션.
+    auto_create_tables: bool = True
 
     # ── 인증(JWT) ──
     # ⚠️ 운영에서는 반드시 .env 로 강력한 비밀키를 주입할 것.

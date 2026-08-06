@@ -20,9 +20,10 @@ from app.core.scheduler import shutdown_scheduler, start_scheduler
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # 개발용: 앱 시작 시 테이블 생성(SQLite).
-    # 운영에서는 Alembic 마이그레이션으로 대체한다.
-    await init_models()
+    # 개발 편의: 앱 시작 시 테이블 생성(SQLite).
+    # 운영에서는 auto_create_tables=False 로 두고 `alembic upgrade head` 를 쓴다.
+    if settings.auto_create_tables:
+        await init_models()
     if settings.scheduler_enabled:
         start_scheduler()  # 밤 11시 점검 스케줄러
     yield
