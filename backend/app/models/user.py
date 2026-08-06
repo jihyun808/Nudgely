@@ -67,5 +67,20 @@ class UserSettings(Base):
 
     @classmethod
     def defaults(cls, user_id: str) -> "UserSettings":
-        """가입 시 기본 설정 한 벌을 만든다."""
-        return cls(user_id=user_id)
+        """가입 시 기본 설정 한 벌을 만든다.
+
+        컬럼 default 는 DB 삽입 시점에만 적용되므로, transient 객체도
+        바로 쓸 수 있도록 값을 명시적으로 채운다.
+        """
+        return cls(
+            user_id=user_id,
+            notif_enabled=True,
+            notif_nudge=True,
+            notif_todo=True,
+            notif_deadline=True,
+            dnd_enabled=False,
+            dnd_start_hour=0,
+            dnd_end_hour=7,
+            planner_start_hour=6,
+            planner_end_hour=24,
+        )

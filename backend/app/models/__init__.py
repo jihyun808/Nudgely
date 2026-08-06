@@ -8,6 +8,7 @@
 from app.models.focus import FocusSession
 from app.models.goal import Goal, Message, ReadState
 from app.models.milestone import Milestone
+from app.models.notification import Notification
 from app.models.planner import Planner, PlannerBlock
 from app.models.todo import Todo, TodoItem
 from app.models.user import User, UserSettings
@@ -17,6 +18,7 @@ __all__ = [
     "Goal",
     "Message",
     "Milestone",
+    "Notification",
     "Planner",
     "PlannerBlock",
     "ReadState",

@@ -13,6 +13,7 @@ from app.api.router import api_router
 from app.core.config import settings
 from app.core.db import init_models
 from app.core.errors import register_error_handlers
+from app.core.scheduler import shutdown_scheduler, start_scheduler
 
 
 @asynccontextmanager
@@ -20,7 +21,10 @@ async def lifespan(_: FastAPI):
     # 개발용: 앱 시작 시 테이블 생성(SQLite).
     # 운영에서는 Alembic 마이그레이션으로 대체한다.
     await init_models()
+    if settings.scheduler_enabled:
+        start_scheduler()  # 밤 11시 점검 스케줄러
     yield
+    shutdown_scheduler()
 
 
 app = FastAPI(

@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.goal import Goal
 from app.models.todo import Todo, TodoItem
 from app.services.goal_service import set_progress
+from app.services.notification_service import chat_link, create_notification
 from app.services.planner_service import add_block
 from app.services.progress_service import set_milestones
 from app.services.record_service import add_todo_items, set_item_done
@@ -160,6 +161,14 @@ async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments:
             for it in arguments.get("items", [])
         ]
         await add_todo_items(db, goal, on, items)
+        await create_notification(
+            db,
+            goal.user_id,
+            ntype="todoAdded",
+            title=goal.name,
+            body=f"새 할 일 {len(items)}개가 추가됐어요.",
+            link_to=chat_link(goal.id),
+        )
         await db.commit()
         return f"{on} 에 투두 {len(items)}개를 추가했다."
 
@@ -170,7 +179,17 @@ async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments:
         todo = await db.get(Todo, item.todo_id)
         if todo is None or todo.goal_id != goal.id:
             return "이 목표의 항목이 아니다."
-        await set_item_done(db, item, bool(arguments.get("done", True)))
+        done = bool(arguments.get("done", True))
+        await set_item_done(db, item, done)
+        if done:
+            await create_notification(
+                db,
+                goal.user_id,
+                ntype="todoDone",
+                title=goal.name,
+                body="할 일을 완료했어요!",
+                link_to=chat_link(goal.id),
+            )
         await db.commit()
         return "투두 체크 상태를 갱신했다."
 
