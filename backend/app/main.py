@@ -5,9 +5,11 @@
 """
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import settings
@@ -48,6 +50,12 @@ app.add_middleware(
 
 # /api 하위로 모든 라우터 연결
 app.include_router(api_router, prefix="/api")
+
+# 업로드 파일 서빙(/static). 운영에서는 S3+CDN 등으로 대체.
+# StaticFiles 는 경로 이탈을 막고, 저장 시 파일명을 서버가 생성하므로 실행 위험이 없다.
+_media = Path(settings.storage_dir)
+_media.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_media)), name="static")
 
 
 @app.get("/")

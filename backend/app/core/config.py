@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     # 점검 실행 시각(시, UTC 기준). ⚠️ 사용자 로컬 타임존 반영은 후속.
     nightly_hour: int = 23
 
+    # ── 파일 스토리지 ──
+    # 로컬 개발: 디스크에 저장하고 /static 으로 서빙. 운영은 S3 등으로 교체.
+    storage_dir: str = "./media"
+    # 첨부 URL 앞에 붙는 절대 주소(프론트가 바로 열 수 있어야 함).
+    public_base_url: str = "http://localhost:8000"
+    max_chat_file_mb: int = 10  # 채팅 첨부(jpg·jpeg·png·pdf·txt)
+    max_image_mb: int = 5  # 목표·프로필 이미지(jpg·png)
+
     @property
     def cors_origins_list(self) -> list[str]:
         """쉼표로 구분된 CORS_ORIGINS 문자열을 리스트로 변환."""

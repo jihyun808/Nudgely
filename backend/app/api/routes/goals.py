@@ -17,7 +17,7 @@
 import json
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,21 +28,25 @@ from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.ids import new_id
+from app.core.storage import CHAT_ALLOWED, chat_max_bytes, image_max_bytes, save_upload
+from app.models.attachment import Attachment
 from app.models.goal import Goal, Message, ReadState
 from app.models.user import User
-from app.schemas.archive import GoalProgressOut
+from app.schemas.archive import AttachmentOut, GoalProgressOut
 from app.schemas.goal import (
+    MESSAGE_CONTENT_MAX,
     NAME_MAX,
     PERSONAS,
     PROMPT_MAX,
     TITLE_MAX,
     GoalDetailOut,
     GoalOut,
+    MessageFile,
     MessageOut,
     MessagePage,
-    SendMessageIn,
     UpdateGoalIn,
 )
+from app.services.attachment_service import create_attachment, list_attachments
 from app.services.goal_service import build_goal_detail, build_goal_out, get_owned_goal
 from app.services.progress_service import build_goal_progress
 
@@ -63,6 +67,20 @@ def _sse(event: str, data: dict) -> str:
 def _validate_persona(persona: str | None) -> None:
     if persona is not None and persona not in PERSONAS:
         raise AppError("INVALID_PERSONA", "지원하지 않는 페르소나입니다.", status_code=422)
+
+
+async def _files_for(db: AsyncSession, message_ids: list[str]) -> dict[str, MessageFile]:
+    """메시지 id 목록에 붙은 첨부를 {message_id: MessageFile} 로."""
+    if not message_ids:
+        return {}
+    rows = (
+        (await db.execute(select(Attachment).where(Attachment.message_id.in_(message_ids))))
+        .scalars()
+        .all()
+    )
+    return {
+        a.message_id: MessageFile(name=a.name, url=a.url) for a in rows if a.message_id is not None
+    }
 
 
 @router.get("/goals", response_model=list[GoalOut])
@@ -98,13 +116,22 @@ async def create_goal(
     db: AsyncSession = Depends(get_db),
 ) -> GoalDetailOut:
     _validate_persona(persona)
-    # TODO(파일 슬라이스): image 를 검증·재인코딩·저장하고 image_url 을 채운다.
+    image_url = None
+    if image is not None and image.filename:
+        saved = save_upload(
+            await image.read(),
+            image.filename,
+            allowed_exts={"jpg", "jpeg", "png"},
+            max_bytes=image_max_bytes(),
+        )
+        image_url = saved.url
     goal = Goal(
         user_id=user.id,
         name=name.strip(),
         title=title.strip() or None,
         prompt=prompt.strip() or None,
         persona=persona,
+        image_url=image_url,
     )
     db.add(goal)
     await db.commit()
@@ -206,6 +233,19 @@ async def get_goal_progress(
     return await build_goal_progress(db, goal)
 
 
+@router.get("/goals/{goal_id}/attachments", response_model=list[AttachmentOut])
+async def get_attachments(
+    goal_id: str,
+    kind: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AttachmentOut]:
+    if kind not in ("file", "image"):
+        raise AppError("INVALID_KIND", "kind 는 file 또는 image 여야 합니다.", status_code=422)
+    goal = await get_owned_goal(db, user.id, goal_id)
+    return await list_attachments(db, goal.id, kind)
+
+
 @router.get("/goals/{goal_id}/messages", response_model=MessagePage)
 async def list_messages(
     goal_id: str,
@@ -236,30 +276,71 @@ async def list_messages(
     has_more = len(rows) > limit
     page = rows[:limit]
 
+    files = await _files_for(db, [m.id for m in page])
     messages = [
-        MessageOut(id=m.id, role=m.role, content=m.content, created_at=m.created_at) for m in page
+        MessageOut(
+            id=m.id,
+            role=m.role,
+            content=m.content,
+            created_at=m.created_at,
+            file=files.get(m.id),
+        )
+        for m in page
     ]
     next_cursor = page[-1].id if (has_more and page) else None
     return MessagePage(messages=messages, next_cursor=next_cursor)
 
 
+async def _parse_send_body(request: Request) -> tuple[str, tuple[bytes, str | None] | None]:
+    """전송 본문에서 (content, (파일 바이트, 파일명)) 을 뽑는다.
+
+    - multipart/form-data: content(선택) + file(선택)
+    - 그 외(JSON): {content}
+    """
+    ctype = request.headers.get("content-type", "")
+    if ctype.startswith("multipart/form-data"):
+        form = await request.form()
+        content = str(form.get("content") or "").strip()
+        upload = form.get("file")
+        file = None
+        if upload is not None and hasattr(upload, "read"):
+            file = (await upload.read(), upload.filename)
+        return content, file
+    data = await request.json()
+    return str(data.get("content") or "").strip(), None
+
+
 @router.post("/goals/{goal_id}/messages")
 async def send_message(
     goal_id: str,
-    body: SendMessageIn,
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     streamer: ReplyStreamer = Depends(get_reply_streamer),
 ) -> StreamingResponse:
     """메시지 전송 → AI 응답 SSE 스트리밍 (api.md §3.4).
 
+    텍스트는 JSON {content}, 파일 첨부는 multipart(content?+file).
     이벤트: message_start → delta* → done, 실패 시 error.
     """
     goal = await get_owned_goal(db, user.id, goal_id)
 
-    # 1) 내 메시지 저장
-    user_msg = Message(goal_id=goal.id, role="user", content=body.content.strip())
+    content, file = await _parse_send_body(request)
+    if len(content) > MESSAGE_CONTENT_MAX:
+        raise AppError("VALIDATION_ERROR", "메시지가 너무 깁니다.", status_code=422)
+    if not content and file is None:
+        raise AppError("VALIDATION_ERROR", "내용이나 파일이 필요합니다.", status_code=422)
+
+    # 1) 내 메시지 저장 (+ 첨부)
+    user_msg = Message(goal_id=goal.id, role="user", content=content)
     db.add(user_msg)
+    await db.flush()
+
+    file_note = None
+    if file is not None:
+        saved = save_upload(file[0], file[1], allowed_exts=CHAT_ALLOWED, max_bytes=chat_max_bytes())
+        await create_attachment(db, goal.id, user_msg.id, saved)
+        file_note = saved.display_name
     await db.commit()
 
     # 2) AI 에 넘길 히스토리(오래된 → 최신, 최근 N개)
@@ -276,6 +357,8 @@ async def send_message(
         .all()
     )
     history = [(m.role, m.content) for m in reversed(rows)]
+    if file_note:
+        history.append(("user", f"[사용자가 파일을 첨부했습니다: {file_note}]"))
 
     persona, prompt, title = goal.persona, goal.prompt, goal.title
     assistant_id = new_id("m")
