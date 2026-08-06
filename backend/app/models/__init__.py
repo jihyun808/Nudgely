@@ -6,6 +6,15 @@
 """
 
 from app.models.goal import Goal, Message, ReadState
+from app.models.todo import Todo, TodoItem
 from app.models.user import User, UserSettings
 
-__all__ = ["Goal", "Message", "ReadState", "User", "UserSettings"]
+__all__ = [
+    "Goal",
+    "Message",
+    "ReadState",
+    "Todo",
+    "TodoItem",
+    "User",
+    "UserSettings",
+]
