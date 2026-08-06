@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # 액세스 토큰 만료(분). 현재는 리프레시 토큰 없이 만료 시 재로그인(api.md §8-2).
     access_token_expire_minutes: int = 60 * 24 * 7  # 7일
 
+    # ── 스케줄러(밤 11시 점검) ──
+    scheduler_enabled: bool = True
+    # 점검 실행 시각(시, UTC 기준). ⚠️ 사용자 로컬 타임존 반영은 후속.
+    nightly_hour: int = 23
+
     @property
     def cors_origins_list(self) -> list[str]:
         """쉼표로 구분된 CORS_ORIGINS 문자열을 리스트로 변환."""
