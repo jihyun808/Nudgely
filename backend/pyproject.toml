@@ -17,7 +17,14 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI 의존성 주입은 기본값에서 함수를 호출하는 게 정상 관용구다(B008 예외).
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body"]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Form",
+    "fastapi.File",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
