@@ -29,6 +29,7 @@ from app.core.errors import AppError
 from app.core.ids import new_id
 from app.models.goal import Goal, Message, ReadState
 from app.models.user import User
+from app.schemas.archive import GoalProgressOut
 from app.schemas.goal import (
     NAME_MAX,
     PERSONAS,
@@ -42,6 +43,7 @@ from app.schemas.goal import (
     UpdateGoalIn,
 )
 from app.services.goal_service import build_goal_detail, build_goal_out, get_owned_goal
+from app.services.progress_service import build_goal_progress
 
 router = APIRouter()
 
@@ -191,6 +193,16 @@ async def delete_goal(
     await db.delete(goal)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/goals/{goal_id}/progress", response_model=GoalProgressOut)
+async def get_goal_progress(
+    goal_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GoalProgressOut:
+    goal = await get_owned_goal(db, user.id, goal_id)
+    return await build_goal_progress(db, goal)
 
 
 @router.get("/goals/{goal_id}/messages", response_model=MessagePage)

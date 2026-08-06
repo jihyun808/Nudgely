@@ -17,6 +17,45 @@ from app.schemas.goal import GoalDetailOut, GoalOut, Progress
 EMPTY_GOAL_HINT = "새로운 목표가 만들어졌어요. 대화를 시작해보세요!"
 
 
+def _clamp(current: int, total: int) -> int:
+    """0 ≤ current ≤ total. total 이 없으면(0 이하) 하한만 적용."""
+    if total and total > 0:
+        return max(0, min(current, total))
+    return max(0, current)
+
+
+def apply_progress_delta(goal: Goal, delta: int) -> None:
+    """투두 체크/해제 시 목표 진도를 상대값으로 조정 (ai-plan §4.3b).
+
+    progress 가 아직 초기화되지 않았으면(total·unit 미설정) 아무것도 하지 않는다.
+    → AI 가 set_progress 로 total·unit 을 먼저 세운 뒤부터 delta 가 반영된다.
+    """
+    if not goal.progress:
+        return
+    p = dict(goal.progress)
+    p["current"] = _clamp(int(p.get("current", 0)) + delta, int(p.get("total", 0)))
+    goal.progress = p  # JSON 변경 감지를 위해 새 dict 로 재할당
+
+
+def set_progress(
+    goal: Goal,
+    *,
+    current: int | None = None,
+    total: int | None = None,
+    unit: str | None = None,
+) -> None:
+    """AI 보정: 진도를 절대값으로 설정 (ai-plan §4.3b)."""
+    p = dict(goal.progress) if goal.progress else {"current": 0, "total": 0, "unit": ""}
+    if total is not None:
+        p["total"] = total
+    if unit is not None:
+        p["unit"] = unit
+    if current is not None:
+        p["current"] = current
+    p["current"] = _clamp(int(p["current"]), int(p["total"]))
+    goal.progress = p
+
+
 async def get_owned_goal(db: AsyncSession, user_id: str, goal_id: str) -> Goal:
     """내 목표 하나를 가져온다. 없거나 남의 것이면 404."""
     goal = await db.get(Goal, goal_id)
