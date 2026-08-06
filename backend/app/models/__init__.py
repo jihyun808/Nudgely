@@ -5,6 +5,7 @@
 새 모델을 추가하면 이 목록에도 넣어주세요.
 """
 
+from app.models.goal import Goal, Message, ReadState
 from app.models.user import User, UserSettings
 
-__all__ = ["User", "UserSettings"]
+__all__ = ["Goal", "Message", "ReadState", "User", "UserSettings"]
