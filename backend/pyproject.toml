@@ -10,6 +10,8 @@ requires-python = ">=3.11"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+# Alembic 자동생성 파일은 린트 대상에서 제외.
+extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
 # E,F: pyflakes/pycodestyle, I: import 정렬, UP: pyupgrade, B: bugbear
