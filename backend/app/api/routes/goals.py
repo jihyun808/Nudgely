@@ -8,20 +8,25 @@
     DELETE /api/goals/{id}               삭제 (204)
     DELETE /api/goals/{id}/messages      대화만 삭제 (204)
     GET    /api/goals/{id}/messages      메시지 조회 (커서 페이지네이션)
+    POST   /api/goals/{id}/messages      메시지 전송 → AI 응답 SSE 스트리밍
     POST   /api/goals/{id}/read          읽음 처리 (204)
 
-메시지 전송(SSE)·파일 첨부·모아보기(attachments)·진도(progress) 쓰기는 다음 슬라이스.
+파일 첨부(multipart)·모아보기(attachments)·진도(progress) 쓰기는 다음 슬라이스.
 """
 
+import json
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.streaming import ReplyStreamer, get_reply_streamer
 from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.core.errors import AppError
+from app.core.ids import new_id
 from app.models.goal import Goal, Message, ReadState
 from app.models.user import User
 from app.schemas.goal import (
@@ -33,6 +38,7 @@ from app.schemas.goal import (
     GoalOut,
     MessageOut,
     MessagePage,
+    SendMessageIn,
     UpdateGoalIn,
 )
 from app.services.goal_service import build_goal_detail, build_goal_out, get_owned_goal
@@ -42,6 +48,13 @@ router = APIRouter()
 # 메시지 페이지 크기 상한(프론트 권장 30, 서버가 상한을 둔다: api.md §3.3)
 MESSAGE_LIMIT_MAX = 50
 MESSAGE_LIMIT_DEFAULT = 30
+# AI 에 넘길 대화 히스토리 최대 길이(최근 N개)
+HISTORY_LIMIT = 40
+
+
+def _sse(event: str, data: dict) -> str:
+    """SSE 한 이벤트를 직렬화 (api.md §3.4 포맷)."""
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
 def _validate_persona(persona: str | None) -> None:
@@ -215,6 +228,72 @@ async def list_messages(
     ]
     next_cursor = page[-1].id if (has_more and page) else None
     return MessagePage(messages=messages, next_cursor=next_cursor)
+
+
+@router.post("/goals/{goal_id}/messages")
+async def send_message(
+    goal_id: str,
+    body: SendMessageIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    streamer: ReplyStreamer = Depends(get_reply_streamer),
+) -> StreamingResponse:
+    """메시지 전송 → AI 응답 SSE 스트리밍 (api.md §3.4).
+
+    이벤트: message_start → delta* → done, 실패 시 error.
+    """
+    goal = await get_owned_goal(db, user.id, goal_id)
+
+    # 1) 내 메시지 저장
+    user_msg = Message(goal_id=goal.id, role="user", content=body.content.strip())
+    db.add(user_msg)
+    await db.commit()
+
+    # 2) AI 에 넘길 히스토리(오래된 → 최신, 최근 N개)
+    rows = (
+        (
+            await db.execute(
+                select(Message)
+                .where(Message.goal_id == goal.id)
+                .order_by(Message.created_at.desc(), Message.id.desc())
+                .limit(HISTORY_LIMIT)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    history = [(m.role, m.content) for m in reversed(rows)]
+
+    persona, prompt, title = goal.persona, goal.prompt, goal.title
+    assistant_id = new_id("m")
+
+    async def event_stream():
+        yield _sse("message_start", {"messageId": assistant_id, "role": "assistant"})
+        full = ""
+        try:
+            async for text in streamer.stream(
+                persona=persona, user_prompt=prompt, goal_title=title, history=history
+            ):
+                full += text
+                yield _sse("delta", {"text": text})
+        except Exception as exc:  # noqa: BLE001 - 외부 AI 오류를 error 이벤트로 감싼다
+            yield _sse("error", {"code": "AI_ERROR", "message": f"AI 응답 실패: {exc}"})
+            return
+
+        # 3) 완성된 assistant 메시지 저장
+        assistant_msg = Message(id=assistant_id, goal_id=goal.id, role="assistant", content=full)
+        db.add(assistant_msg)
+        await db.commit()
+        await db.refresh(assistant_msg)
+
+        # TODO(AI 완주 판정): 대화에서 완주 의도 감지 시 goalCompleted=True 부착.
+        yield _sse(
+            "done",
+            {"messageId": assistant_id, "createdAt": assistant_msg.created_at.isoformat()},
+        )
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)
 
 
 @router.post("/goals/{goal_id}/read", status_code=status.HTTP_204_NO_CONTENT)

@@ -88,3 +88,16 @@ class MessagePage(CamelModel):
 
     messages: list[MessageOut]
     next_cursor: str | None = None
+
+
+# 입력창 최대 길이(types/chat.ts MESSAGE_MAX_LENGTH)
+MESSAGE_CONTENT_MAX = 1000
+
+
+class SendMessageIn(CamelModel):
+    """POST /goals/{id}/messages 본문 (텍스트).
+
+    파일 첨부(multipart)는 파일 스토리지 슬라이스에서 추가한다.
+    """
+
+    content: str = Field(min_length=1, max_length=MESSAGE_CONTENT_MAX)
