@@ -8,6 +8,20 @@ from datetime import datetime
 from app.schemas.common import CamelModel
 
 
+class AttachmentOut(CamelModel):
+    """모아보기 첨부 (types/archive.ts Attachment).
+
+    사진(image)의 url 은 목록 표시용 썸네일을 내려준다(api.md §3.6).
+    """
+
+    id: str
+    kind: str  # file | image
+    name: str
+    size_bytes: int
+    uploaded_at: datetime
+    url: str | None = None
+
+
 class ProgressMilestoneOut(CamelModel):
     id: str
     title: str

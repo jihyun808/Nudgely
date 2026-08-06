@@ -5,6 +5,7 @@
 새 모델을 추가하면 이 목록에도 넣어주세요.
 """
 
+from app.models.attachment import Attachment
 from app.models.focus import FocusSession
 from app.models.goal import Goal, Message, ReadState
 from app.models.milestone import Milestone
@@ -14,6 +15,7 @@ from app.models.todo import Todo, TodoItem
 from app.models.user import User, UserSettings
 
 __all__ = [
+    "Attachment",
     "FocusSession",
     "Goal",
     "Message",

@@ -10,13 +10,15 @@
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.db import get_db
+from app.core.errors import AppError
+from app.core.storage import image_max_bytes, save_upload
 from app.models.user import User
-from app.schemas.user import UpdateProfileIn, UserOut
+from app.schemas.user import NICKNAME_MAX, NICKNAME_MIN, UpdateProfileIn, UserOut
 
 router = APIRouter()
 
@@ -26,16 +28,46 @@ async def get_me(user: User = Depends(get_current_user)) -> UserOut:
     return UserOut.model_validate(user)
 
 
+def _validate_nickname(nickname: str) -> str:
+    nickname = nickname.strip()
+    if not (NICKNAME_MIN <= len(nickname) <= NICKNAME_MAX):
+        raise AppError(
+            "VALIDATION_ERROR",
+            f"닉네임은 {NICKNAME_MIN}~{NICKNAME_MAX}자여야 합니다.",
+            status_code=422,
+        )
+    return nickname
+
+
 @router.patch("/me", response_model=UserOut)
 async def update_me(
-    body: UpdateProfileIn,
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserOut:
-    if body.nickname is not None:
-        user.nickname = body.nickname.strip()
-    if body.image_url is not None:
-        user.image_url = body.image_url
+    """프로필 수정. 사진은 multipart(image), 닉네임은 form/JSON 모두 받는다."""
+    ctype = request.headers.get("content-type", "")
+    if ctype.startswith("multipart/form-data"):
+        form = await request.form()
+        nickname = form.get("nickname")
+        if nickname is not None:
+            user.nickname = _validate_nickname(str(nickname))
+        image = form.get("image")
+        if image is not None and hasattr(image, "read"):
+            saved = save_upload(
+                await image.read(),
+                image.filename,
+                allowed_exts={"jpg", "jpeg", "png"},
+                max_bytes=image_max_bytes(),
+            )
+            user.image_url = saved.url
+    else:
+        body = UpdateProfileIn.model_validate(await request.json())
+        if body.nickname is not None:
+            user.nickname = _validate_nickname(body.nickname)
+        if body.image_url is not None:
+            user.image_url = body.image_url
+
     await db.commit()
     await db.refresh(user)
     return UserOut.model_validate(user)

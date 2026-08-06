@@ -6,14 +6,23 @@
 - session: 같은 DB 를 직접 조작할 때(메시지 사전 삽입 등) 쓰는 세션.
 """
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  (모델을 메타데이터에 등록)
+from app.core.config import settings
 from app.core.db import Base, get_db
 from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def _tmp_media(tmp_path, monkeypatch):
+    """업로드가 실제 ./media 를 더럽히지 않도록 테스트마다 임시 디렉토리로."""
+    monkeypatch.setattr(settings, "storage_dir", str(tmp_path / "media"))
+    monkeypatch.setattr(settings, "public_base_url", "http://test")
 
 
 @pytest_asyncio.fixture
