@@ -9,6 +9,7 @@ focusedSeconds/bestMonth 는 집중 세션(4단계)이 있어야 채워지므로
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.focus import FocusSession
 from app.models.goal import Goal
 from app.models.milestone import Milestone
 from app.models.todo import Todo, TodoItem
@@ -29,6 +30,14 @@ async def _completed_todo_count(db: AsyncSession, goal_id: str) -> int:
     return int((await db.execute(stmt)).scalar_one())
 
 
+async def _focused_seconds(db: AsyncSession, goal_id: str) -> int:
+    """이 목표에 붙은 집중 세션 시간 합(초). goal_id 가 붙은 세션만."""
+    stmt = select(func.coalesce(func.sum(FocusSession.seconds), 0)).where(
+        FocusSession.goal_id == goal_id
+    )
+    return int((await db.execute(stmt)).scalar_one())
+
+
 async def build_goal_progress(db: AsyncSession, goal: Goal) -> GoalProgressOut:
     ms_rows = (
         (
@@ -43,6 +52,7 @@ async def build_goal_progress(db: AsyncSession, goal: Goal) -> GoalProgressOut:
     )
 
     completed = await _completed_todo_count(db, goal.id)
+    focused = await _focused_seconds(db, goal.id)
 
     return GoalProgressOut(
         goal_id=goal.id,
@@ -50,8 +60,10 @@ async def build_goal_progress(db: AsyncSession, goal: Goal) -> GoalProgressOut:
         started_at=goal.started_at,
         completed_at=goal.completed_at,
         milestones=[ProgressMilestoneOut(id=m.id, title=m.title, status=m.status) for m in ms_rows],
-        # 집계: 완료 투두 수만 지금 계산. 나머지는 4단계(집중)에서.
+        # 집계: 없으면(0) 생략 → 프론트가 해당 칸을 그리지 않는다.
         completed_todo_count=completed or None,
+        focused_seconds=focused or None,
+        # bestMonth 는 월별 집중 집계가 필요 — 후속.
     )
 
 
