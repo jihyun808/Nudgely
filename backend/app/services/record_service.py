@@ -87,6 +87,26 @@ async def create_daily_todo(db: AsyncSession, goal: Goal, on: date, items: list[
     return todo
 
 
+async def add_todo_items(db: AsyncSession, goal: Goal, on: date, items: list[dict]) -> Todo:
+    """그날 투두 묶음에 항목을 추가(없으면 생성). 하루 한 목표 = 한 묶음 유지."""
+    existing = (
+        await db.execute(select(Todo).where(Todo.goal_id == goal.id, Todo.date == on))
+    ).scalar_one_or_none()
+    if existing is None:
+        return await create_daily_todo(db, goal, on, items)
+
+    for it in items:
+        existing.items.append(
+            TodoItem(
+                content=it["content"],
+                tag=it.get("tag"),
+                progress_delta=int(it.get("progress_delta", 0)),
+            )
+        )
+    await db.flush()
+    return existing
+
+
 async def set_item_done(db: AsyncSession, item: TodoItem, done: bool) -> None:
     """항목 체크/해제 + 목표 진도 반영. 상태가 실제로 바뀔 때만 delta 적용."""
     from datetime import UTC, datetime

@@ -23,6 +23,7 @@ from sqlalchemy import delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.streaming import ReplyStreamer, get_reply_streamer
+from app.ai.tools import dispatch_tool_call
 from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.core.errors import AppError
@@ -279,12 +280,20 @@ async def send_message(
     persona, prompt, title = goal.persona, goal.prompt, goal.title
     assistant_id = new_id("m")
 
+    async def _dispatch(name: str, arguments: dict) -> str:
+        # AI 도구 호출 → 실제 동작(투두·플래너·마일스톤·진도 생성/갱신)
+        return await dispatch_tool_call(db, goal, name, arguments)
+
     async def event_stream():
         yield _sse("message_start", {"messageId": assistant_id, "role": "assistant"})
         full = ""
         try:
             async for text in streamer.stream(
-                persona=persona, user_prompt=prompt, goal_title=title, history=history
+                persona=persona,
+                user_prompt=prompt,
+                goal_title=title,
+                history=history,
+                dispatch=_dispatch,
             ):
                 full += text
                 yield _sse("delta", {"text": text})
