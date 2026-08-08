@@ -85,6 +85,7 @@ export default function ChatDetail() {
         <ImageViewer
           src={viewerImage.src}
           alt={viewerImage.name}
+          fileName={viewerImage.name}
           onClose={() => setViewerImage(undefined)}
         />
       )}

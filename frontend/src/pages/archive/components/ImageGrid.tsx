@@ -54,6 +54,7 @@ export default function ImageGrid({ images }: ImageGridProps) {
         <ImageViewer
           src={viewerImage.src}
           alt={viewerImage.name}
+          fileName={viewerImage.name}
           onClose={() => setViewerImage(undefined)}
         />
       )}
