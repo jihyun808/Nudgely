@@ -3,6 +3,7 @@ import { delay } from '@/mocks/delay';
 import { MOCK_PROFILE } from '@/mocks/my';
 import type { User } from '@/types/auth';
 import type { SigninInput, SignupInput, SocialLoginInput } from '@/types/auth';
+import { createId } from '@/utils/uuid';
 
 /** 로그인·회원가입 응답 */
 export interface AuthResult {
@@ -37,7 +38,7 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
   return {
     accessToken: 'dev-token',
     user: {
-      id: crypto.randomUUID(),
+      id: createId(),
       email: input.email.trim(),
       nickname: input.nickname.trim(),
     },

@@ -46,7 +46,8 @@ export default function ChatDetail() {
   }
 
   return (
-    <div className="mx-auto flex h-dvh max-w-md flex-col bg-background">
+    // pt: 헤더가 노치·상태바에 가리지 않도록 안전 영역만큼 내린다
+    <div className="mx-auto flex h-dvh max-w-md flex-col bg-background pt-[env(safe-area-inset-top)]">
       <DetailHeader
         title={chat.goal.name}
         subtitle={chat.goal.title}

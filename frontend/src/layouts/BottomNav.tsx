@@ -95,7 +95,8 @@ const TABS: { to: string; label: string; Icon: ComponentType<IconProps> }[] = [
 
 export default function BottomNav() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background">
+    // pb: iOS 홈 인디케이터에 탭이 가리지 않도록 안전 영역만큼 아래를 띄운다
+    <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background pb-[env(safe-area-inset-bottom)]">
       <ul className="mx-auto flex max-w-md">
         {TABS.map(({ to, label, Icon }) => (
           <li key={to} className="flex-1">
