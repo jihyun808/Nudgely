@@ -1,6 +1,7 @@
 // pages/my/My.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { fetchDailyFocus, fetchFocusSummary } from '@/api/focus';
 import { fetchCompletedGoals } from '@/api/goal';
 import { fetchMyProfile, updateMyProfile } from '@/api/user';
 import Skeleton from '@/components/Skeleton';
@@ -16,6 +17,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { showToast } from '@/stores/toastStore';
 import type { Goal } from '@/types/goal';
 import type { UpdateProfileInput } from '@/types/user';
+import { formatDateKey } from '@/utils/date';
 
 /**
  * 마이페이지.
@@ -32,6 +34,10 @@ export default function My() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   /** 완주한 목표. 없으면 화면에 섹션 자체가 생기지 않는다 */
   const [completedGoals, setCompletedGoals] = useState<Goal[]>([]);
+  /** 가입일부터 오늘까지의 날짜별 집중 시간(초). 요약 카드와 히트맵이 함께 쓴다 */
+  const [secondsByDate, setSecondsByDate] = useState<Record<string, number>>({});
+  /** 연속 달성일 (서버 계산) */
+  const [streakDays, setStreakDays] = useState(0);
 
   useEffect(() => {
     let isStale = false;
@@ -46,6 +52,29 @@ export default function My() {
       isStale = true;
     };
   }, []);
+
+  const joinedAt = profile?.createdAt;
+
+  useEffect(() => {
+    if (!joinedAt) return;
+    let isStale = false;
+    // 집중 기록은 한 번만 받아 요약 카드와 히트맵이 나눠 쓴다
+    Promise.all([
+      fetchDailyFocus(formatDateKey(new Date(joinedAt)), formatDateKey(new Date())),
+      fetchFocusSummary(),
+    ])
+      .then(([byDate, summary]) => {
+        if (isStale) return;
+        setSecondsByDate(byDate);
+        setStreakDays(summary.streakDays);
+      })
+      .catch(() => {
+        // 못 받아도 0으로 그린다
+      });
+    return () => {
+      isStale = true;
+    };
+  }, [joinedAt]);
 
   useEffect(() => {
     let isStale = false;
@@ -132,7 +161,11 @@ export default function My() {
           <hr className="mt-7 border-border" />
 
           <div className="mt-5">
-            <StatCards />
+            <StatCards
+              streakDays={streakDays}
+              totalFocusedSeconds={Object.values(secondsByDate).reduce((a, b) => a + b, 0)}
+              completedGoalCount={completedGoals.length}
+            />
           </div>
 
           <div className="mt-4">
@@ -140,7 +173,7 @@ export default function My() {
           </div>
 
           <div className="mt-4">
-            <FocusHeatmap joinedAt={profile.createdAt} />
+            <FocusHeatmap joinedAt={profile.createdAt} secondsByDate={secondsByDate} />
           </div>
 
           <CompletedGoalList goals={completedGoals} />

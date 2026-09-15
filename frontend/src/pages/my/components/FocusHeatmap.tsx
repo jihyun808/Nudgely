@@ -1,6 +1,5 @@
 // pages/my/components/FocusHeatmap.tsx
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchDailyFocus } from '@/api/focus';
+import { useEffect, useMemo, useRef } from 'react';
 import { formatDateKey } from '@/utils/date';
 
 /** 집중량 5단계 색. 0단계는 기록 없음 */
@@ -29,6 +28,8 @@ const toMondayFirst = (date: Date) => (date.getDay() + 6) % 7;
 interface FocusHeatmapProps {
   /** 가입일 (ISO 문자열). 히트맵은 이 날부터 오늘까지를 그린다 */
   joinedAt: string;
+  /** 날짜별 집중 시간(초). 기록이 없는 날은 키 자체가 없다 */
+  secondsByDate: Record<string, number>;
 }
 
 /**
@@ -37,10 +38,8 @@ interface FocusHeatmapProps {
  * 왼쪽이 오래된 날, 오른쪽 끝이 오늘이며, 쓸수록 오른쪽으로 늘어난다.
  * 위에는 달이 바뀌는 주에 월 표시를, 오른쪽 아래에는 색 기준표를 둔다.
  */
-export default function FocusHeatmap({ joinedAt }: FocusHeatmapProps) {
+export default function FocusHeatmap({ joinedAt, secondsByDate }: FocusHeatmapProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  /** 날짜별 집중 시간(초). 기록이 없는 날은 키 자체가 없다 */
-  const [secondsByDate, setSecondsByDate] = useState<Record<string, number>>({});
 
   /** 주 단위 열. 각 열은 월~일 7칸이고, 기간 밖은 null이다 */
   const weeks = useMemo(() => {
@@ -63,19 +62,6 @@ export default function FocusHeatmap({ joinedAt }: FocusHeatmapProps) {
       return { columnStart, days };
     });
   }, [joinedAt, secondsByDate]);
-
-  // 가입일부터 오늘까지의 집중 기록을 한 번에 받아온다. 실패해도 빈 잔디로 그린다
-  useEffect(() => {
-    let isStale = false;
-    fetchDailyFocus(formatDateKey(new Date(joinedAt)), formatDateKey(new Date()))
-      .then((byDate) => {
-        if (!isStale) setSecondsByDate(byDate);
-      })
-      .catch(() => {});
-    return () => {
-      isStale = true;
-    };
-  }, [joinedAt]);
 
   // 기록이 길어지면 가로로 넘치므로, 처음에는 가장 최근(오른쪽 끝)이 보이게 둔다
   useEffect(() => {
