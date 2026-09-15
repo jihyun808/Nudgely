@@ -151,6 +151,7 @@ async def get_goal(
 
 # 폼은 값이 전부 문자열로 오므로 불리언 필드만 되돌린다
 _BOOL_FORM_FIELDS = ("isNotificationMuted", "isHidden", "is_notification_muted", "is_hidden")
+_DATE_FORM_FIELDS = ("dueDate", "due_date")
 
 
 async def _parse_goal_patch(
@@ -162,7 +163,7 @@ async def _parse_goal_patch(
     - 그 외(JSON): 보낸 필드만
     """
     ctype = request.headers.get("content-type", "")
-    if not ctype.startswith("multipart/form-data"):
+    if not ctype.startswith(("multipart/form-data", "application/x-www-form-urlencoded")):
         return UpdateGoalIn.model_validate(await request.json()), None
 
     form = await request.form()
@@ -175,7 +176,12 @@ async def _parse_goal_patch(
     for key, value in form.items():
         if key == "image" or not isinstance(value, str):
             continue
-        fields[key] = value.lower() == "true" if key in _BOOL_FORM_FIELDS else value
+        if key in _DATE_FORM_FIELDS and value == "":
+            fields[key] = None  # 날짜 입력을 비운 것 = 기한 지움
+        elif key in _BOOL_FORM_FIELDS:
+            fields[key] = value.lower() == "true"
+        else:
+            fields[key] = value
     return UpdateGoalIn.model_validate(fields), image
 
 
@@ -208,7 +214,7 @@ async def update_goal(
         goal.prompt = body.prompt.strip() or None
     if body.persona is not None:
         goal.persona = body.persona
-    if body.due_date is not None:
+    if "due_date" in body.model_fields_set:
         goal.due_date = body.due_date
     if body.is_notification_muted is not None:
         goal.is_notification_muted = body.is_notification_muted

@@ -63,8 +63,11 @@ export async function updateGoal(goalId: string, input: UpdateGoalInput): Promis
     return data;
   }
 
-  const patch = { ...input };
+  const patch: Record<string, unknown> = { ...input };
   delete patch.imageUrl;
+  // 날짜 입력을 비우면 ''가 온다. 서버는 날짜 형식만 받으므로 '기한 없음'으로 바꿔 보낸다
+  if (patch.dueDate === '') patch.dueDate = null;
+
   const { data } = await api.patch<GoalDetail>(`/goals/${goalId}`, patch);
   return data;
 }
@@ -181,6 +184,8 @@ export async function sendMessage(
   let content = '';
   let messageId: string | undefined;
   let createdAt: string | undefined;
+  /** done 을 받아야 완성된 답변이다. 중간에 끊긴 것과 구분한다 */
+  let isComplete = false;
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -208,9 +213,14 @@ export async function sendMessage(
         // TODO: done의 goalCompleted 신호로 완주 축하 연출을 띄운다(화면 쪽 작업)
         messageId = String(event.data.messageId ?? messageId);
         createdAt = String(event.data.createdAt ?? '');
+        isComplete = true;
       }
     }
   }
+
+  // done 없이 끊겼다면 답변이 잘린 것이다. 확정된 메시지인 척 그리면 안 된다
+  // (화면은 이 예외를 받아 '전송 실패 + 재시도'로 처리한다)
+  if (!isComplete) throw new Error('STREAM_INCOMPLETE');
 
   return {
     id: messageId ?? crypto.randomUUID(),
