@@ -201,3 +201,57 @@ async def test_update_profile_image_multipart(client: AsyncClient):
     body = res.json()
     assert body["nickname"] == "새이름"
     assert body["imageUrl"].startswith("http://test/static/")
+
+
+async def test_update_goal_image_multipart(client: AsyncClient):
+    """PATCH /goals 는 multipart 로 사진을 바꾸고, 같이 온 필드도 함께 반영한다."""
+    token = await _token(client)
+    created = await client.post("/api/goals", headers=_h(token), data={"name": "Buddy"})
+    goal_id = created.json()["id"]
+    assert created.json()["imageUrl"] is None
+
+    res = await client.patch(
+        f"/api/goals/{goal_id}",
+        headers=_h(token),
+        # 폼은 값이 전부 문자열이라 불리언도 'true' 로 온다
+        data={"name": "새이름", "isHidden": "true"},
+        files={"image": ("cover.png", _png_bytes(), "image/png")},
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["imageUrl"].startswith("http://test/static/")
+    assert body["name"] == "새이름"
+    assert body["isHidden"] is True
+
+
+async def test_update_goal_json_still_works(client: AsyncClient):
+    """기존 JSON PATCH 경로는 그대로여야 한다(사진은 건드리지 않는다)."""
+    token = await _token(client)
+    created = await client.post(
+        "/api/goals",
+        headers=_h(token),
+        data={"name": "Buddy"},
+        files={"image": ("avatar.png", _png_bytes(), "image/png")},
+    )
+    goal_id = created.json()["id"]
+    image_url = created.json()["imageUrl"]
+
+    res = await client.patch(f"/api/goals/{goal_id}", headers=_h(token), json={"title": "새 목표"})
+    assert res.status_code == 200
+    assert res.json()["title"] == "새 목표"
+    assert res.json()["imageUrl"] == image_url
+
+
+async def test_update_goal_rejects_unsupported_image(client: AsyncClient):
+    """확장자만 png 로 바꾼 파일은 서버가 매직 넘버로 걸러낸다."""
+    token = await _token(client)
+    created = await client.post("/api/goals", headers=_h(token), data={"name": "Buddy"})
+    goal_id = created.json()["id"]
+
+    res = await client.patch(
+        f"/api/goals/{goal_id}",
+        headers=_h(token),
+        files={"image": ("fake.png", PDF_BYTES, "image/png")},
+    )
+    assert res.status_code == 422
+    assert res.json()["code"] == "UNSUPPORTED_FILE"

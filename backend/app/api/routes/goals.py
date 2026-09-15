@@ -11,7 +11,7 @@
     POST   /api/goals/{id}/messages      메시지 전송 → AI 응답 SSE 스트리밍
     POST   /api/goals/{id}/read          읽음 처리 (204)
 
-파일 첨부(multipart)·모아보기(attachments)·진도(progress) 쓰기는 다음 슬라이스.
+PATCH 는 JSON·multipart 둘 다 받는다(사진 교체는 multipart image).
 """
 
 import json
@@ -149,15 +149,56 @@ async def get_goal(
     return await build_goal_detail(db, goal, user.id)
 
 
+# 폼은 값이 전부 문자열로 오므로 불리언 필드만 되돌린다
+_BOOL_FORM_FIELDS = ("isNotificationMuted", "isHidden", "is_notification_muted", "is_hidden")
+
+
+async def _parse_goal_patch(
+    request: Request,
+) -> tuple[UpdateGoalIn, tuple[bytes, str | None] | None]:
+    """PATCH 본문에서 (수정 필드, (사진 바이트, 파일명)) 을 뽑는다.
+
+    - multipart/form-data: 보낸 필드 + image(선택)
+    - 그 외(JSON): 보낸 필드만
+    """
+    ctype = request.headers.get("content-type", "")
+    if not ctype.startswith("multipart/form-data"):
+        return UpdateGoalIn.model_validate(await request.json()), None
+
+    form = await request.form()
+    image = None
+    upload = form.get("image")
+    if upload is not None and hasattr(upload, "read"):
+        image = (await upload.read(), upload.filename)
+
+    fields: dict[str, object] = {}
+    for key, value in form.items():
+        if key == "image" or not isinstance(value, str):
+            continue
+        fields[key] = value.lower() == "true" if key in _BOOL_FORM_FIELDS else value
+    return UpdateGoalIn.model_validate(fields), image
+
+
 @router.patch("/goals/{goal_id}", response_model=GoalDetailOut)
 async def update_goal(
     goal_id: str,
-    body: UpdateGoalIn,
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> GoalDetailOut:
+    """목표 수정. 사진은 multipart(image), 나머지는 form/JSON 모두 받는다."""
     goal = await get_owned_goal(db, user.id, goal_id)
+    body, image = await _parse_goal_patch(request)
     _validate_persona(body.persona)
+
+    if image is not None:
+        saved = save_upload(
+            image[0],
+            image[1],
+            allowed_exts={"jpg", "jpeg", "png"},
+            max_bytes=image_max_bytes(),
+        )
+        goal.image_url = saved.url
 
     if body.name is not None:
         goal.name = body.name.strip()
