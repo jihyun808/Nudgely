@@ -11,7 +11,8 @@ from app.schemas.common import CamelModel
 class AttachmentOut(CamelModel):
     """모아보기 첨부 (types/archive.ts Attachment).
 
-    사진(image)의 url 은 목록 표시용 썸네일을 내려준다(api.md §3.6).
+    url 은 항상 원본이다(뷰어·다운로드용). 목록에 작게 그릴 때 쓰라고
+    사진(image)은 thumbnail_url 을 함께 준다(api.md §3.6, §8-3-2).
     """
 
     id: str
@@ -20,6 +21,8 @@ class AttachmentOut(CamelModel):
     size_bytes: int
     uploaded_at: datetime
     url: str | None = None
+    # 사진만 있다. 없으면 프론트가 url(원본)로 대체한다.
+    thumbnail_url: str | None = None
 
 
 class ProgressMilestoneOut(CamelModel):

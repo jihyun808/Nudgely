@@ -44,8 +44,10 @@ async def list_attachments(db: AsyncSession, goal_id: str, kind: str) -> list[At
             name=a.name,
             size_bytes=a.size_bytes,
             uploaded_at=a.uploaded_at,
-            # 사진 목록은 썸네일 URL 을 쓴다(없으면 원본).
-            url=(a.thumb_url or a.url) if a.kind == "image" else a.url,
+            # url 은 언제나 원본(뷰어·다운로드가 원본을 받아야 한다).
+            url=a.url,
+            # 목록에 작게 그릴 때 쓸 썸네일. 사진에만 있다.
+            thumbnail_url=a.thumb_url if a.kind == "image" else None,
         )
         for a in rows
     ]

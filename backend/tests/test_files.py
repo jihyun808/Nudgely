@@ -114,7 +114,8 @@ async def test_chat_image_attachment(client: AsyncClient):
         assert len(body) == 1
         assert body[0]["kind"] == "image"
         assert body[0]["name"] == "photo.png"
-        assert "thumb_" in body[0]["url"]
+        assert "thumb_" not in body[0]["url"]
+        assert "thumb_" in body[0]["thumbnailUrl"]
 
         # 문서 탭은 비어 있음
         files = await client.get(
@@ -144,6 +145,7 @@ async def test_chat_pdf_attachment(client: AsyncClient):
         body = files.json()
         assert len(body) == 1
         assert body[0]["name"] == "note.pdf"
+        assert body[0]["thumbnailUrl"] is None
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)
 

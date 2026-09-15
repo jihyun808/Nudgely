@@ -29,7 +29,7 @@ export default function ImageGrid({ images }: ImageGridProps) {
           <ul className="grid grid-cols-3 gap-1.5">
             {items.map((item) => (
               <li key={item.id}>
-                {/* TODO: 서버 연동 후 목록은 썸네일, 뷰어는 원본 URL을 쓰도록 나눈다 */}
+                {/* 목록은 썸네일로 가볍게, 누르면 뷰어·다운로드가 원본(item.url)을 쓴다 */}
                 <button
                   type="button"
                   onClick={() => item.url && setViewerImage({ src: item.url, name: item.name })}
@@ -37,7 +37,11 @@ export default function ImageGrid({ images }: ImageGridProps) {
                   className="aspect-square w-full overflow-hidden rounded-lg bg-muted-foreground/10"
                 >
                   {item.url ? (
-                    <img src={item.url} alt={item.name} className="h-full w-full object-cover" />
+                    <img
+                      src={item.thumbnailUrl ?? item.url}
+                      alt={item.name}
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-xl">
                       🖼️

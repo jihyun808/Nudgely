@@ -12,8 +12,10 @@ export interface Attachment {
   sizeBytes: number;
   /** 올린 시각 (ISO 8601). 연-월로 묶는 기준 */
   uploadedAt: string;
-  /** 다운로드·미리보기 URL (사진은 썸네일) */
+  /** 원본 URL. 뷰어와 다운로드가 쓴다 */
   url?: string;
+  /** 목록에 작게 그릴 때 쓰는 썸네일. 사진에만 있고, 없으면 url로 대체한다 */
+  thumbnailUrl?: string;
 }
 
 /** 진도 로드맵의 한 지점 */
