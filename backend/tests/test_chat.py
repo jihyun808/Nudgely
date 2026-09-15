@@ -136,3 +136,81 @@ def test_prompt_injection_defense():
         {"role": "user", "content": "안녕"},
         {"role": "assistant", "content": "응 반가워"},
     ]
+
+
+async def test_retry_with_same_client_id_does_not_duplicate(client: AsyncClient):
+    """AI 가 실패해도 내 메시지는 이미 저장된다.
+
+    같은 clientId 로 재시도하면 내 메시지는 그대로 하나고, AI 응답만 새로 생긴다.
+    """
+    token = await _token(client)
+    goal_id = await _make_goal(client, token)
+
+    # 1차: AI 실패 → 내 메시지만 저장된다
+    app.dependency_overrides[get_reply_streamer] = lambda: _BoomStreamer()
+    try:
+        res = await client.post(
+            f"/api/goals/{goal_id}/messages",
+            headers=_h(token),
+            json={"content": "안녕", "clientId": "c-1"},
+        )
+        assert "event: error" in res.text
+    finally:
+        app.dependency_overrides.pop(get_reply_streamer, None)
+
+    page = (await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))).json()
+    assert [m["role"] for m in page["messages"]] == ["user"]
+
+    # 2차: 같은 clientId 로 재시도 → 내 메시지는 늘지 않고 AI 응답만 붙는다
+    app.dependency_overrides[get_reply_streamer] = lambda: _FakeStreamer(["다시 왔어"])
+    try:
+        res = await client.post(
+            f"/api/goals/{goal_id}/messages",
+            headers=_h(token),
+            json={"content": "안녕", "clientId": "c-1"},
+        )
+        assert "event: done" in res.text
+    finally:
+        app.dependency_overrides.pop(get_reply_streamer, None)
+
+    page = (await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))).json()
+    roles = [m["role"] for m in page["messages"]]
+    assert roles == ["assistant", "user"], roles  # 최신 → 과거 순
+    assert [m["content"] for m in page["messages"] if m["role"] == "user"] == ["안녕"]
+
+
+async def test_different_client_id_creates_new_message(client: AsyncClient):
+    """다른 clientId 는 별개의 전송이다(같은 내용을 두 번 보낸 경우)."""
+    app.dependency_overrides[get_reply_streamer] = lambda: _FakeStreamer(["응"])
+    try:
+        token = await _token(client)
+        goal_id = await _make_goal(client, token)
+        for client_id in ("c-1", "c-2"):
+            await client.post(
+                f"/api/goals/{goal_id}/messages",
+                headers=_h(token),
+                json={"content": "안녕", "clientId": client_id},
+            )
+
+        page = (await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))).json()
+        assert [m["role"] for m in page["messages"]].count("user") == 2
+    finally:
+        app.dependency_overrides.pop(get_reply_streamer, None)
+
+
+async def test_no_client_id_still_works(client: AsyncClient):
+    """clientId 를 안 보내는 클라이언트도 그대로 동작한다(멱등성만 없음)."""
+    app.dependency_overrides[get_reply_streamer] = lambda: _FakeStreamer(["응"])
+    try:
+        token = await _token(client)
+        goal_id = await _make_goal(client, token)
+        for _ in range(2):
+            res = await client.post(
+                f"/api/goals/{goal_id}/messages", headers=_h(token), json={"content": "안녕"}
+            )
+            assert "event: done" in res.text
+
+        page = (await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))).json()
+        assert [m["role"] for m in page["messages"]].count("user") == 2
+    finally:
+        app.dependency_overrides.pop(get_reply_streamer, None)

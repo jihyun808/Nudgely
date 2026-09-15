@@ -30,6 +30,8 @@ export function useChatRoom(goalId: string) {
   const bottomRef = useRef<HTMLDivElement>(null);
   /** 과거 메시지를 붙이기 직전의 스크롤 높이. 위치 보정에 쓰고 비운다 */
   const heightBeforePrependRef = useRef<number | null>(null);
+  /** 실패한 전송의 첨부 파일. 재시도 때 같이 다시 보내야 해서 들고 있는다 */
+  const pendingFilesRef = useRef(new Map<string, File>());
 
   useEffect(() => {
     let isStale = false;
@@ -95,9 +97,14 @@ export function useChatRoom(goalId: string) {
       .finally(() => setIsLoadingOlder(false));
   };
 
-  /** 낙관적으로 내 메시지를 먼저 그리고, 응답을 받아 확정한다 */
-  const send = async (payload: { content?: string; file?: File }) => {
-    const localId = crypto.randomUUID();
+  /**
+   * 낙관적으로 내 메시지를 먼저 그리고, 응답을 받아 확정한다.
+   *
+   * localId 는 전송 키(멱등키)로 서버에도 함께 보낸다. 재시도가 같은 값으로 가면
+   * 서버가 내 메시지를 중복 저장하지 않고 AI 응답만 새로 만들어 준다.
+   */
+  const send = async (payload: { content?: string; file?: File; localId?: string }) => {
+    const localId = payload.localId ?? crypto.randomUUID();
     const myMessage: ChatMessage = {
       id: localId,
       role: 'user',
@@ -116,13 +123,20 @@ export function useChatRoom(goalId: string) {
     setIsReplying(true);
 
     try {
-      const reply = await sendMessage(goalId, payload);
+      const reply = await sendMessage(goalId, {
+        content: payload.content,
+        file: payload.file,
+        clientId: localId,
+      });
+      pendingFilesRef.current.delete(localId);
       setMessages((prev) => [
         // 전송 성공한 내 메시지는 status를 지워 확정 상태로 만든다
         ...prev.map((m) => (m.id === localId ? { ...m, status: undefined } : m)),
         reply,
       ]);
     } catch {
+      // 재시도 때 파일을 다시 보낼 수 있도록 남겨둔다
+      if (payload.file) pendingFilesRef.current.set(localId, payload.file);
       setMessages((prev) =>
         prev.map((m) => (m.id === localId ? { ...m, status: 'failed' as const } : m)),
       );
@@ -132,10 +146,17 @@ export function useChatRoom(goalId: string) {
     }
   };
 
-  /** 실패한 메시지를 목록에서 빼고 같은 내용으로 다시 보낸다 */
+  /**
+   * 실패한 메시지를 목록에서 빼고 같은 내용으로 다시 보낸다.
+   * 같은 id(=전송 키)를 그대로 써서 서버에 중복 저장되지 않게 한다.
+   */
   const retry = (failed: ChatMessage) => {
     setMessages((prev) => prev.filter(({ id }) => id !== failed.id));
-    void send({ content: failed.content });
+    void send({
+      content: failed.content,
+      file: pendingFilesRef.current.get(failed.id),
+      localId: failed.id,
+    });
   };
 
   const reload = () => {

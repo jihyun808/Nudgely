@@ -141,10 +141,13 @@ function parseStreamEvent(raw: string): StreamEvent | null {
  * 다만 화면에는 카톡처럼 한 번에 띄우기로 했으므로, delta를 흘리지 않고
  * 전부 모았다가 done 시점에 완성된 메시지 하나로 돌려준다.
  * (타이핑 효과를 넣고 싶어지면 이 함수에 onDelta 콜백만 더하면 된다)
+ *
+ * payload.clientId: 전송 키(멱등키). 재시도 때 같은 값을 다시 보내면
+ * 서버가 내 메시지를 중복 저장하지 않고 AI 응답만 새로 만들어 준다.
  */
 export async function sendMessage(
   goalId: string,
-  payload: { content?: string; file?: File },
+  payload: { content?: string; file?: File; clientId?: string },
 ): Promise<ChatMessage> {
   if (!goalId) throw new Error('GOAL_NOT_FOUND');
 
@@ -153,15 +156,18 @@ export async function sendMessage(
   const headers: Record<string, string> = { Accept: 'text/event-stream' };
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  // clientId는 전송 키(멱등키)다. 재시도가 같은 값으로 오면 서버가 내 메시지를
+  // 새로 만들지 않고 기존 것을 재사용해, 같은 말이 두 번 쌓이지 않는다.
   let body: BodyInit;
   if (payload.file) {
     const form = new FormData();
     if (payload.content) form.append('content', payload.content);
+    if (payload.clientId) form.append('clientId', payload.clientId);
     form.append('file', payload.file);
     body = form; // Content-Type은 브라우저가 boundary와 함께 붙인다
   } else {
     headers['Content-Type'] = 'application/json';
-    body = JSON.stringify({ content: payload.content ?? '' });
+    body = JSON.stringify({ content: payload.content ?? '', clientId: payload.clientId });
   }
 
   const response = await fetch(`${API_BASE_URL}/goals/${goalId}/messages`, {

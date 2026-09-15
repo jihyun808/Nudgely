@@ -6,7 +6,7 @@
 
 from datetime import UTC, date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, Date, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, UtcDateTime
@@ -56,6 +56,9 @@ class Goal(Base):
 
 class Message(Base):
     __tablename__ = "messages"
+    # 같은 채팅방에서 한 client_id 는 한 번만. 재시도가 같은 키로 와도 두 번 저장되지 않는다.
+    # (assistant 메시지와 과거 데이터는 NULL 이고, NULL 은 유니크 제약에 걸리지 않는다.)
+    __table_args__ = (UniqueConstraint("goal_id", "client_id", name="uq_messages_goal_client"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("m"))
     goal_id: Mapped[str] = mapped_column(
@@ -63,6 +66,7 @@ class Message(Base):
     )
     role: Mapped[str] = mapped_column(String, nullable=False)  # user | assistant
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    client_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now, index=True)
 
     goal: Mapped["Goal"] = relationship(back_populates="messages")

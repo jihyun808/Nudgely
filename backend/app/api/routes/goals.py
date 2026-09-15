@@ -338,11 +338,36 @@ async def list_messages(
     return MessagePage(messages=messages, next_cursor=next_cursor)
 
 
-async def _parse_send_body(request: Request) -> tuple[str, tuple[bytes, str | None] | None]:
-    """전송 본문에서 (content, (파일 바이트, 파일명)) 을 뽑는다.
+async def _find_by_client_id(
+    db: AsyncSession, goal_id: str, client_id: str | None
+) -> Message | None:
+    """이미 저장된 전송인지 확인한다(멱등키). clientId 가 없으면 항상 새 메시지."""
+    if not client_id:
+        return None
+    return (
+        await db.execute(
+            select(Message).where(Message.goal_id == goal_id, Message.client_id == client_id)
+        )
+    ).scalar_one_or_none()
 
-    - multipart/form-data: content(선택) + file(선택)
-    - 그 외(JSON): {content}
+
+async def _attachment_name(db: AsyncSession, message_id: str) -> str | None:
+    """메시지에 붙은 첨부의 표시 이름(AI 히스토리에 넣을 용도)."""
+    return (
+        await db.execute(select(Attachment.name).where(Attachment.message_id == message_id))
+    ).scalar_one_or_none()
+
+
+async def _parse_send_body(
+    request: Request,
+) -> tuple[str, tuple[bytes, str | None] | None, str | None]:
+    """전송 본문에서 (content, (파일 바이트, 파일명), clientId) 를 뽑는다.
+
+    - multipart/form-data: content(선택) + file(선택) + clientId(선택)
+    - 그 외(JSON): {content, clientId?}
+
+    clientId 는 프론트가 만든 전송 키(멱등키)다. 재시도가 같은 값으로 오면
+    메시지를 새로 만들지 않고 기존 것을 재사용한다.
     """
     ctype = request.headers.get("content-type", "")
     if ctype.startswith("multipart/form-data"):
@@ -352,9 +377,13 @@ async def _parse_send_body(request: Request) -> tuple[str, tuple[bytes, str | No
         file = None
         if upload is not None and hasattr(upload, "read"):
             file = (await upload.read(), upload.filename)
-        return content, file
+        return content, file, str(form.get("clientId") or "") or None
     data = await request.json()
-    return str(data.get("content") or "").strip(), None
+    return (
+        str(data.get("content") or "").strip(),
+        None,
+        str(data.get("clientId") or "") or None,
+    )
 
 
 @router.post("/goals/{goal_id}/messages")
@@ -372,23 +401,30 @@ async def send_message(
     """
     goal = await get_owned_goal(db, user.id, goal_id)
 
-    content, file = await _parse_send_body(request)
+    content, file, client_id = await _parse_send_body(request)
     if len(content) > MESSAGE_CONTENT_MAX:
         raise AppError("VALIDATION_ERROR", "메시지가 너무 깁니다.", status_code=422)
     if not content and file is None:
         raise AppError("VALIDATION_ERROR", "내용이나 파일이 필요합니다.", status_code=422)
 
     # 1) 내 메시지 저장 (+ 첨부)
-    user_msg = Message(goal_id=goal.id, role="user", content=content)
-    db.add(user_msg)
-    await db.flush()
+    existing = await _find_by_client_id(db, goal.id, client_id)
+    if existing is not None:
+        user_msg = existing
+        file_note = await _attachment_name(db, user_msg.id)
+    else:
+        user_msg = Message(goal_id=goal.id, role="user", content=content, client_id=client_id)
+        db.add(user_msg)
+        await db.flush()
 
-    file_note = None
-    if file is not None:
-        saved = save_upload(file[0], file[1], allowed_exts=CHAT_ALLOWED, max_bytes=chat_max_bytes())
-        await create_attachment(db, goal.id, user_msg.id, saved)
-        file_note = saved.display_name
-    await db.commit()
+        file_note = None
+        if file is not None:
+            saved = save_upload(
+                file[0], file[1], allowed_exts=CHAT_ALLOWED, max_bytes=chat_max_bytes()
+            )
+            await create_attachment(db, goal.id, user_msg.id, saved)
+            file_note = saved.display_name
+        await db.commit()
 
     # 2) AI 에 넘길 히스토리(오래된 → 최신, 최근 N개)
     rows = (
