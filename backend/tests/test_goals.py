@@ -1,5 +1,6 @@
 """목표(=채팅방) · 메시지 흐름 테스트."""
 
+import base64
 from datetime import UTC, datetime, timedelta
 
 from httpx import AsyncClient
@@ -14,6 +15,12 @@ async def _token(client: AsyncClient, email: str = "a@b.com") -> str:
         json={"nickname": "지수", "email": email, "password": "password123"},
     )
     return res.json()["accessToken"]
+
+
+# 1x1 PNG (multipart 경로 확인용)
+_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+)
 
 
 def _h(token: str) -> dict:
@@ -197,3 +204,83 @@ async def test_clear_messages(client: AsyncClient, session_factory):
     got = await client.get(f"/api/goals/{g['id']}/messages", headers=_h(token))
     assert got.json()["messages"] == []
     assert got.json()["nextCursor"] is None
+
+
+async def test_due_date_set_and_clear(client: AsyncClient):
+    """기한은 None 이 '지움'. 보내지 않은 것과 구분해야 한다."""
+    token = await _token(client)
+    goal_id = (await client.post("/api/goals", headers=_h(token), data={"name": "Buddy"})).json()[
+        "id"
+    ]
+
+    res = await client.patch(
+        f"/api/goals/{goal_id}", headers=_h(token), json={"dueDate": "2026-12-01"}
+    )
+    assert res.json()["dueDate"] == "2026-12-01"
+
+    # 다른 필드만 보내면 기한은 그대로
+    res = await client.patch(f"/api/goals/{goal_id}", headers=_h(token), json={"title": "T"})
+    assert res.json()["dueDate"] == "2026-12-01"
+
+    # null 을 보내면 지워진다
+    res = await client.patch(f"/api/goals/{goal_id}", headers=_h(token), json={"dueDate": None})
+    assert res.json()["dueDate"] is None
+
+
+async def test_due_date_clear_via_form(client: AsyncClient):
+    """폼(urlencoded·multipart)에서 날짜를 비워 보내면 기한이 지워진다."""
+    token = await _token(client)
+    goal_id = (await client.post("/api/goals", headers=_h(token), data={"name": "Buddy"})).json()[
+        "id"
+    ]
+    await client.patch(f"/api/goals/{goal_id}", headers=_h(token), json={"dueDate": "2026-12-01"})
+
+    res = await client.patch(f"/api/goals/{goal_id}", headers=_h(token), data={"dueDate": ""})
+    assert res.status_code == 200
+    assert res.json()["dueDate"] is None
+
+    # multipart(사진과 함께 보내는 경로)도 같아야 한다
+    await client.patch(f"/api/goals/{goal_id}", headers=_h(token), json={"dueDate": "2026-12-01"})
+    res = await client.patch(
+        f"/api/goals/{goal_id}",
+        headers=_h(token),
+        data={"dueDate": ""},
+        files={"image": ("cover.png", _PNG, "image/png")},
+    )
+    assert res.status_code == 200
+    assert res.json()["dueDate"] is None
+    assert res.json()["imageUrl"].startswith("http://test/static/")
+
+
+async def test_patch_validation_errors_are_422_not_500(client: AsyncClient):
+    """라우터가 손으로 검증하는 본문도 422 로 떨어져야 한다(전에는 500)."""
+    token = await _token(client)
+    goal_id = (await client.post("/api/goals", headers=_h(token), data={"name": "Buddy"})).json()[
+        "id"
+    ]
+
+    for payload in ({"name": ""}, {"name": "가나다라마바사아자차카"}, {"dueDate": "잘못된날짜"}):
+        res = await client.patch(f"/api/goals/{goal_id}", headers=_h(token), json=payload)
+        assert res.status_code == 422, payload
+        assert res.json()["code"] == "VALIDATION_ERROR"
+
+    # 프로필도 같은 경로(손 파싱)라 함께 확인한다
+    res = await client.patch(
+        "/api/me", headers=_h(token), json={"nickname": "가나다라마바사아자차카"}
+    )
+    assert res.status_code == 422
+    assert res.json()["code"] == "VALIDATION_ERROR"
+
+
+async def test_broken_json_body_is_400_not_500(client: AsyncClient):
+    token = await _token(client)
+    goal_id = (await client.post("/api/goals", headers=_h(token), data={"name": "Buddy"})).json()[
+        "id"
+    ]
+    res = await client.patch(
+        f"/api/goals/{goal_id}",
+        headers={**_h(token), "Content-Type": "application/json"},
+        content=b"{not json",
+    )
+    assert res.status_code == 400
+    assert res.json()["code"] == "INVALID_JSON"
