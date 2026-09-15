@@ -1,105 +1,87 @@
 // api/goal.ts
 // 목표(=채팅방) 하나를 다루는 API. 채팅 탭과 홈의 '진행 중인 목표'가 함께 쓴다.
-import { delay } from '@/mocks/delay';
-import { MOCK_GOALS } from '@/mocks/goals';
-import { MOCK_MESSAGES } from '@/mocks/messages';
+import api, { API_BASE_URL, MULTIPART, handleUnauthorized } from './axios';
+import { dataUrlToFile, isDataUrl } from './form';
+import { getToken } from '@/lib/auth';
 import type { ChatMessage } from '@/types/chat';
 import type { CreateGoalInput, Goal, GoalDetail, UpdateGoalInput } from '@/types/goal';
 
-/**
- * 목표 목록 조회 (채팅 목록 · 홈의 진행 중인 목표 공용).
- * TODO: `api.get<Goal[]>('/goals')`로 교체.
- */
+/** 목표 목록 조회 (채팅 목록 · 홈의 진행 중인 목표 공용) */
 export async function fetchGoals(): Promise<Goal[]> {
-  await delay(600);
-  // 숨긴 목표는 목록에서 빠진다
-  return MOCK_GOALS.filter(({ isHidden }) => !isHidden);
+  const { data } = await api.get<Goal[]>('/goals');
+  return data;
 }
 
-/**
- * 숨긴 목표 목록 (설정 > 히스토리).
- * TODO: `api.get<Goal[]>('/goals', { params: { hidden: true } })`로 교체.
- */
+/** 숨긴 목표 목록 (설정 > 히스토리) */
 export async function fetchHiddenGoals(): Promise<Goal[]> {
-  await delay(400);
-  return MOCK_GOALS.filter(({ isHidden }) => isHidden);
+  const { data } = await api.get<Goal[]>('/goals', { params: { hidden: true } });
+  return data;
 }
 
-/**
- * 완주한 목표 목록 (마이페이지).
- * TODO: `api.get<Goal[]>('/goals', { params: { completed: true } })`로 교체.
- */
+/** 완주한 목표 목록 (마이페이지) */
 export async function fetchCompletedGoals(): Promise<Goal[]> {
-  await delay(400);
-  return MOCK_GOALS.filter(({ completedAt }) => completedAt).sort(
-    (a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime(),
-  );
+  const { data } = await api.get<Goal[]>('/goals', { params: { completed: true } });
+  return data;
 }
 
-/**
- * 목표 단건 조회 (채팅 상세 헤더 · 설정 화면).
- * TODO: `api.get<GoalDetail>(`/goals/${goalId}`)`로 교체.
- */
+/** 목표 단건 조회 (채팅 상세 헤더 · 설정 화면) */
 export async function fetchGoal(goalId: string): Promise<GoalDetail> {
-  await delay(300);
-  const goal = MOCK_GOALS.find(({ id }) => id === goalId);
-  if (!goal) throw new Error('GOAL_NOT_FOUND');
-  return goal;
+  const { data } = await api.get<GoalDetail>(`/goals/${goalId}`);
+  return data;
 }
 
-/**
- * 목표 생성 (= 채팅방 개설).
- * TODO: 사진은 FormData로 업로드하고 서버가 준 URL을 사용한다.
- */
+/** 목표 생성 (= 채팅방 개설). 사진은 multipart로 올리고 서버가 준 URL을 받는다 */
 export async function createGoal(input: CreateGoalInput): Promise<GoalDetail> {
-  await delay(300);
-  return {
-    id: crypto.randomUUID(),
-    name: input.name,
-    imageUrl: input.imageUrl,
-    title: input.title || undefined,
-    persona: input.persona,
-    lastMessage: '새로운 목표가 만들어졌어요',
-    lastMessageAt: new Date().toISOString(),
-    unreadCount: 0,
-  };
+  const form = new FormData();
+  form.append('name', input.name);
+  form.append('title', input.title);
+  form.append('prompt', input.prompt);
+  if (input.persona) form.append('persona', input.persona);
+  if (isDataUrl(input.imageUrl)) {
+    form.append('image', dataUrlToFile(input.imageUrl, 'goal'));
+  }
+
+  const { data } = await api.post<GoalDetail>('/goals', form, MULTIPART);
+  return data;
 }
 
 /**
- * 목표 수정 (이름·목표 이름·사진·프롬프트·기한·알림 끄기).
- * TODO: `api.patch<GoalDetail>(`/goals/${goalId}`, input)`으로 교체. 사진은 FormData로 보낸다.
+ * 목표 수정 (이름·목표 이름·사진·프롬프트·기한·알림 끄기·숨기기).
+ *
+ * 새로 고른 사진은 data URL로 들어오므로 multipart로 올린다.
+ * 사진을 바꾸지 않았으면 imageUrl은 이미 서버에 있는 주소라 되돌려 보낼 필요가 없다.
  */
 export async function updateGoal(goalId: string, input: UpdateGoalInput): Promise<GoalDetail> {
-  const goal = await fetchGoal(goalId);
-  return { ...goal, ...input };
+  if (isDataUrl(input.imageUrl)) {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(input)) {
+      // 폼은 문자열만 실을 수 있어 불리언도 'true'/'false'로 보낸다(서버가 되돌린다)
+      if (key !== 'imageUrl' && value !== undefined) form.append(key, String(value));
+    }
+    form.append('image', dataUrlToFile(input.imageUrl, 'goal'));
+    const { data } = await api.patch<GoalDetail>(`/goals/${goalId}`, form, MULTIPART);
+    return data;
+  }
+
+  const patch = { ...input };
+  delete patch.imageUrl;
+  const { data } = await api.patch<GoalDetail>(`/goals/${goalId}`, patch);
+  return data;
 }
 
-/**
- * 목표 완료 처리. 진도가 100%가 되고 모아보기에 완주 표시가 뜬다.
- * TODO: `api.post(`/goals/${goalId}/complete`)`로 교체.
- */
+/** 목표 완료 처리. 진도가 100%가 되고 모아보기에 완주 표시가 뜬다 */
 export async function completeGoal(goalId: string): Promise<void> {
-  if (!goalId) throw new Error('GOAL_NOT_FOUND');
-  await delay(400);
+  await api.post(`/goals/${goalId}/complete`);
 }
 
-/**
- * 대화 내용만 삭제. 목표와 기록은 남는다.
- * TODO: `api.delete(`/goals/${goalId}/messages`)`로 교체.
- */
+/** 대화 내용만 삭제. 목표와 기록은 남는다 */
 export async function clearGoalMessages(goalId: string): Promise<void> {
-  if (!goalId) throw new Error('GOAL_NOT_FOUND');
-  await delay(400);
+  await api.delete(`/goals/${goalId}/messages`);
 }
 
-/**
- * 목표 삭제.
- * TODO: `api.delete(`/goals/${goalId}`)`로 교체.
- *       대화·투두·플래너 기록을 함께 지울지는 백엔드와 합의가 필요하다.
- */
+/** 목표 삭제 */
 export async function deleteGoal(goalId: string): Promise<void> {
-  if (!goalId) throw new Error('GOAL_NOT_FOUND');
-  await delay(500);
+  await api.delete(`/goals/${goalId}`);
 }
 
 /** 한 번에 불러오는 메시지 수 */
@@ -116,51 +98,129 @@ export interface MessagePage {
 /**
  * 메시지 목록 조회 (커서 페이지네이션).
  * 커서가 없으면 최신 페이지를, 있으면 그 메시지보다 더 과거를 돌려준다.
- * TODO: `api.get<MessagePage>(`/goals/${goalId}/messages`, { params: { cursor, limit } })`로 교체.
  */
 export async function fetchMessages(goalId: string, cursor?: string): Promise<MessagePage> {
-  await delay(600);
-  // mock 단계에서는 첫 번째 목표에만 대화 기록이 있다
-  if (goalId !== '1') return { messages: [], nextCursor: null };
+  const { data } = await api.get<MessagePage>(`/goals/${goalId}/messages`, {
+    params: { cursor, limit: MESSAGE_PAGE_SIZE },
+  });
+  return data;
+}
 
-  // MOCK_MESSAGES는 오래된 것 → 최신 순. 커서 위치 바로 앞에서 한 페이지를 떼어낸다
-  const cursorIndex = cursor ? MOCK_MESSAGES.findIndex(({ id }) => id === cursor) : -1;
-  const endIndex = cursorIndex >= 0 ? cursorIndex : MOCK_MESSAGES.length;
-  const startIndex = Math.max(0, endIndex - MESSAGE_PAGE_SIZE);
-  const page = MOCK_MESSAGES.slice(startIndex, endIndex);
+/** SSE 이벤트 한 덩어리 */
+interface StreamEvent {
+  name: string;
+  data: Record<string, unknown>;
+}
 
-  return {
-    messages: [...page].reverse(),
-    // 이번 페이지에서 가장 오래된 메시지가 다음 커서가 된다
-    nextCursor: startIndex > 0 ? page[0].id : null,
-  };
+/** "event: delta\ndata: {...}" 한 덩어리를 파싱한다. data가 JSON이 아니면 건너뛴다 */
+function parseStreamEvent(raw: string): StreamEvent | null {
+  let name = 'message';
+  const dataLines: string[] = [];
+
+  for (const line of raw.split('\n')) {
+    const trimmed = line.replace(/\r$/, '');
+    if (trimmed.startsWith('event:')) name = trimmed.slice(6).trim();
+    else if (trimmed.startsWith('data:')) dataLines.push(trimmed.slice(5).trim());
+  }
+  if (dataLines.length === 0) return null;
+
+  try {
+    return { name, data: JSON.parse(dataLines.join('\n')) as Record<string, unknown> };
+  } catch {
+    return null;
+  }
 }
 
 /**
  * 메시지 전송 후 AI 응답 받기.
- * TODO: SSE 스트리밍으로 교체 (docs/api.md 4.2 참고).
+ *
+ * 서버는 SSE(message_start → delta* → done)로만 응답하므로 스트림을 끝까지 읽는다.
+ * 다만 화면에는 카톡처럼 한 번에 띄우기로 했으므로, delta를 흘리지 않고
+ * 전부 모았다가 done 시점에 완성된 메시지 하나로 돌려준다.
+ * (타이핑 효과를 넣고 싶어지면 이 함수에 onDelta 콜백만 더하면 된다)
  */
 export async function sendMessage(
   goalId: string,
   payload: { content?: string; file?: File },
 ): Promise<ChatMessage> {
   if (!goalId) throw new Error('GOAL_NOT_FOUND');
-  await delay(900);
+
+  // SSE는 axios로 못 읽어서 fetch를 쓴다. 토큰·401 처리는 인터셉터와 같게 맞춘다
+  const token = getToken();
+  const headers: Record<string, string> = { Accept: 'text/event-stream' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let body: BodyInit;
+  if (payload.file) {
+    const form = new FormData();
+    if (payload.content) form.append('content', payload.content);
+    form.append('file', payload.file);
+    body = form; // Content-Type은 브라우저가 boundary와 함께 붙인다
+  } else {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify({ content: payload.content ?? '' });
+  }
+
+  const response = await fetch(`${API_BASE_URL}/goals/${goalId}/messages`, {
+    method: 'POST',
+    headers,
+    body,
+  });
+
+  if (response.status === 401) {
+    handleUnauthorized();
+    throw new Error('UNAUTHORIZED');
+  }
+  if (!response.ok || !response.body) {
+    throw new Error(`SEND_FAILED_${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let content = '';
+  let messageId: string | undefined;
+  let createdAt: string | undefined;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // 이벤트는 빈 줄로 구분된다. 덜 온 꼬리는 buffer에 남겨 다음 청크와 이어 붙인다
+    let boundary = buffer.indexOf('\n\n');
+    while (boundary !== -1) {
+      const event = parseStreamEvent(buffer.slice(0, boundary));
+      buffer = buffer.slice(boundary + 2);
+      boundary = buffer.indexOf('\n\n');
+      if (!event) continue;
+
+      if (event.name === 'error') {
+        throw new Error(String(event.data.message ?? 'AI_ERROR'));
+      }
+      if (event.name === 'message_start') {
+        messageId = String(event.data.messageId);
+      }
+      if (event.name === 'delta') {
+        content += String(event.data.text ?? '');
+      }
+      if (event.name === 'done') {
+        // TODO: done의 goalCompleted 신호로 완주 축하 연출을 띄운다(화면 쪽 작업)
+        messageId = String(event.data.messageId ?? messageId);
+        createdAt = String(event.data.createdAt ?? '');
+      }
+    }
+  }
+
   return {
-    id: crypto.randomUUID(),
+    id: messageId ?? crypto.randomUUID(),
     role: 'assistant',
-    content: payload.file
-      ? `${payload.file.name} 잘 받았어! 내용 확인해볼게.`
-      : '좋아, 바로 시작해보자!',
-    createdAt: new Date().toISOString(),
+    content,
+    createdAt: createdAt || new Date().toISOString(),
   };
 }
 
-/**
- * 읽음 처리.
- * TODO: `api.post(`/goals/${goalId}/read`)`로 교체.
- */
+/** 읽음 처리 */
 export async function markGoalAsRead(goalId: string): Promise<void> {
-  if (!goalId) throw new Error('GOAL_NOT_FOUND');
-  await delay(100);
+  await api.post(`/goals/${goalId}/read`);
 }
