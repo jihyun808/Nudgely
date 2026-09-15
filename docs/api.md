@@ -104,7 +104,13 @@ GET /goals/{goalId}        # 단건 → GoalDetail
 - **숨긴 목표는 기본 목록에서 제외**한다.
 - 정렬·검색은 프론트가 처리한다.
 - `GoalDetail` = `Goal` + `prompt`, `persona`, `dueDate`, `isNotificationMuted`, `isHidden`, `completedAt`
-- ⚠️ **`progress` 스키마 미확정.** 진도를 무엇으로 셀지는 AI가 받을 정보와 함께 정해야 한다.
+- ✅ **`progress` 스키마 확정** — `{ current, total, unit }` (셋 다 필수, 없으면 `progress` 자체가 `null`).
+  - `unit`: 세는 단위를 AI가 대화에서 정한다. 예: `강` / `페이지` / `회차`
+  - `total`·`unit`은 **AI가 `set_progress` 툴로** 세운다 (목표를 파악한 뒤, 보통 첫 대화).
+  - `current`는 두 경로로 바뀐다.
+    1. 투두 항목에 붙은 `progressDelta`가 **체크될 때 자동 증감** (해제하면 되돌린다)
+    2. 사용자가 "30강까지 했어"처럼 말하면 AI가 `set_progress`로 **절대값 보정**
+  - 서버가 `0 ≤ current ≤ total`로 잘라낸다. `progress`가 아직 없으면(AI가 `set_progress`를 안 했으면) `progressDelta`는 무시된다.
 
 ### 3.2 생성 · 수정 · 삭제
 
@@ -453,7 +459,7 @@ PATCH  /settings     # 바뀐 항목만
 | 3-1 | **첨부 다운로드 경로** — 외부 도메인 직링크면 `Content-Disposition` 필요 (3.6) | ✅ `<a download>` 연결 완료 |
 | 3-2 | 사진 **썸네일 URL 분리** 여부 (`thumbnailUrl`)                 | ✅ 필드만 늘면 바로 사용            |
 | 4   | SSE 스트리밍 가능 여부 (프록시 버퍼링·타임아웃)                | 🔧 스펙 확정 후 구현                |
-| 5   | **목표 진도(`progress`) 스키마** — AI가 받을 정보와 함께       | 🔧 스키마 확정 후 진도 편집         |
+| 5   | ~~목표 진도(`progress`) 스키마~~ → **확정** (3.1)              | ✅ `{current,total,unit}`, 진도는 AI가 쓴다 |
 | 6   | 목표 삭제·회원 탈퇴 시 데이터 처리 (딸린 데이터·보관 기간)     | ✅ 호출·화면 완료                   |
 | 7   | **집중 세션에 목표 id 추가** — 목표별 집중 시간 집계에 필요    | 🔧 집중 화면에 목표 선택 UI 없음    |
 | 8   | 마일스톤 쓰기 API와 목표 완료 판정 주체 (AI / 자동)            | ✅                                  |
