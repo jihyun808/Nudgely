@@ -1,5 +1,5 @@
 // pages/settings/components/AppInfoSection.tsx
-import { APP_VERSION } from '@/mocks/settings';
+import { APP_VERSION } from '@/constants/app';
 import Chevron from '@/pages/settings/components/Chevron';
 import SettingsRow from '@/pages/settings/components/SettingsRow';
 import SettingsSection from '@/pages/settings/components/SettingsSection';
