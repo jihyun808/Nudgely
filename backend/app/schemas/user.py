@@ -1,5 +1,7 @@
 """사용자 관련 스키마."""
 
+from datetime import datetime
+
 from pydantic import Field
 
 from app.schemas.common import CamelModel
@@ -16,6 +18,8 @@ class UserOut(CamelModel):
     email: str
     nickname: str | None = None
     image_url: str | None = None
+    # 가입일. 마이페이지 집중 히트맵이 이 날부터 오늘까지를 그린다.
+    created_at: datetime
 
 
 class UpdateProfileIn(CamelModel):

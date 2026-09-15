@@ -45,6 +45,19 @@ export async function fetchWeeklyFocus(weekOffset: number): Promise<WeeklyFocus>
   return data;
 }
 
+/**
+ * 기간별 집중 시간 조회 (마이페이지 히트맵).
+ * 서버는 기록이 있는 날만 주므로, 날짜로 바로 찾을 수 있게 맵으로 바꿔 돌려준다.
+ * @param from 'YYYY-MM-DD' 시작일 (포함)
+ * @param to   'YYYY-MM-DD' 종료일 (포함)
+ */
+export async function fetchDailyFocus(from: string, to: string): Promise<Record<string, number>> {
+  const { data } = await api.get<{ days: { date: string; seconds: number }[] }>('/focus/daily', {
+    params: { from, to },
+  });
+  return Object.fromEntries(data.days.map(({ date, seconds }) => [date, seconds]));
+}
+
 /** 집중 세션 저장. 타이머를 멈추거나 뽀모도로 한 판이 끝났을 때 보낸다 */
 export async function saveFocusSession(input: FocusSessionInput): Promise<void> {
   // TODO: 목표별 집중 집계를 하려면 goalId가 필요하다(api.md §8-7).

@@ -7,6 +7,8 @@ export interface User {
   nickname?: string;
   /** 프로필 사진. 없으면 회색 원만 보여준다 */
   imageUrl?: string;
+  /** 가입일 (ISO 8601). 집중 히트맵이 이 날부터 오늘까지를 그린다 */
+  createdAt: string;
 }
 
 /** 이메일 로그인 입력값 */

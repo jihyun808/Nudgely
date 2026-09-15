@@ -1,6 +1,7 @@
 // pages/my/components/FocusHeatmap.tsx
-import { useEffect, useMemo, useRef } from 'react';
-import { MOCK_HEATMAP_PATTERN, MOCK_JOINED_AT } from '@/mocks/my';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { fetchDailyFocus } from '@/api/focus';
+import { formatDateKey } from '@/utils/date';
 
 /** 집중량 5단계 색. 0단계는 기록 없음 */
 const LEVEL_COLORS = [
@@ -13,12 +14,21 @@ const LEVEL_COLORS = [
 
 const DAY = 24 * 60 * 60 * 1000;
 
+/** 색 단계를 가르는 집중 시간(초). 0분 / ~30분 / ~1시간 / ~2시간 / 2시간+ */
+const LEVEL_THRESHOLDS = [30 * 60, 60 * 60, 2 * 60 * 60] as const;
+
+/** 하루 집중 시간(초) → 0~4단계 */
+function toLevel(seconds: number) {
+  if (seconds <= 0) return 0;
+  return LEVEL_THRESHOLDS.filter((threshold) => seconds > threshold).length + 1;
+}
+
 /** 월요일을 0으로 두는 요일 인덱스 */
 const toMondayFirst = (date: Date) => (date.getDay() + 6) % 7;
 
 interface FocusHeatmapProps {
   /** 가입일 (ISO 문자열). 히트맵은 이 날부터 오늘까지를 그린다 */
-  joinedAt?: string;
+  joinedAt: string;
 }
 
 /**
@@ -26,12 +36,11 @@ interface FocusHeatmapProps {
  * 가입일부터 오늘까지를 세로 7칸(월~일) × 가로 주 단위로 그린다.
  * 왼쪽이 오래된 날, 오른쪽 끝이 오늘이며, 쓸수록 오른쪽으로 늘어난다.
  * 위에는 달이 바뀌는 주에 월 표시를, 오른쪽 아래에는 색 기준표를 둔다.
- *
- * 값은 하드코딩이다.
- * TODO: 집중 탭 구현 후 날짜별 집중량 API로 교체
  */
-export default function FocusHeatmap({ joinedAt = MOCK_JOINED_AT }: FocusHeatmapProps) {
+export default function FocusHeatmap({ joinedAt }: FocusHeatmapProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** 날짜별 집중 시간(초). 기록이 없는 날은 키 자체가 없다 */
+  const [secondsByDate, setSecondsByDate] = useState<Record<string, number>>({});
 
   /** 주 단위 열. 각 열은 월~일 7칸이고, 기간 밖은 null이다 */
   const weeks = useMemo(() => {
@@ -49,11 +58,23 @@ export default function FocusHeatmap({ joinedAt = MOCK_JOINED_AT }: FocusHeatmap
       const days = Array.from({ length: 7 }, (_, dayIndex) => {
         const date = new Date(columnStart.getTime() + dayIndex * DAY);
         if (date < start || date > today) return null;
-        const dayOffset = Math.round((date.getTime() - start.getTime()) / DAY);
-        return MOCK_HEATMAP_PATTERN[dayOffset % MOCK_HEATMAP_PATTERN.length];
+        return toLevel(secondsByDate[formatDateKey(date)] ?? 0);
       });
       return { columnStart, days };
     });
+  }, [joinedAt, secondsByDate]);
+
+  // 가입일부터 오늘까지의 집중 기록을 한 번에 받아온다. 실패해도 빈 잔디로 그린다
+  useEffect(() => {
+    let isStale = false;
+    fetchDailyFocus(formatDateKey(new Date(joinedAt)), formatDateKey(new Date()))
+      .then((byDate) => {
+        if (!isStale) setSecondsByDate(byDate);
+      })
+      .catch(() => {});
+    return () => {
+      isStale = true;
+    };
   }, [joinedAt]);
 
   // 기록이 길어지면 가로로 넘치므로, 처음에는 가장 최근(오른쪽 끝)이 보이게 둔다

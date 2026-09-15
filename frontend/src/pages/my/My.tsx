@@ -140,7 +140,7 @@ export default function My() {
           </div>
 
           <div className="mt-4">
-            <FocusHeatmap />
+            <FocusHeatmap joinedAt={profile.createdAt} />
           </div>
 
           <CompletedGoalList goals={completedGoals} />
