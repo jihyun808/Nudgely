@@ -9,10 +9,10 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db import Base
+from app.core.db import Base, UtcDateTime
 from app.core.ids import new_id
 
 
@@ -29,9 +29,9 @@ class User(Base):
     nickname: Mapped[str | None] = mapped_column(String, nullable=True)
     image_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)
     # 회원 탈퇴 시각. NULL 이면 활성 계정. (탈퇴 데이터 처리 정책은 미확정, api.md §8-7)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
     settings: Mapped["UserSettings"] = relationship(
         back_populates="user",

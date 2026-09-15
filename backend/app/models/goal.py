@@ -6,10 +6,10 @@
 
 from datetime import UTC, date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, Date, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db import Base
+from app.core.db import Base, UtcDateTime
 from app.core.ids import new_id
 
 
@@ -35,8 +35,8 @@ class Goal(Base):
     persona: Mapped[str | None] = mapped_column(String, nullable=True)  # teacher|instructor|friend
 
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=_now)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime, default=_now)
+    completed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False)
     is_notification_muted: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -45,7 +45,7 @@ class Goal(Base):
     # (api.md §3.1 — AI 가 받을 정보와 함께 확정 예정)
     progress: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)
 
     messages: Mapped[list["Message"]] = relationship(
         back_populates="goal",
@@ -63,7 +63,7 @@ class Message(Base):
     )
     role: Mapped[str] = mapped_column(String, nullable=False)  # user | assistant
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now, index=True)
 
     goal: Mapped["Goal"] = relationship(back_populates="messages")
 

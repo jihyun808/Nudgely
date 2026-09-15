@@ -6,10 +6,10 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base
+from app.core.db import Base, UtcDateTime
 from app.core.ids import new_id
 
 # 진행 상태 (types/archive.ts ProgressMilestone.status)
@@ -31,4 +31,4 @@ class Milestone(Base):
     status: Mapped[str] = mapped_column(String, default="upcoming")  # done|current|upcoming
     # 타임라인 정렬용 순서
     order: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)

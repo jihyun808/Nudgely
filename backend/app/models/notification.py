@@ -10,10 +10,10 @@ link_to: 프론트가 바로 이동할 경로 문자열(예: /chat/g_01H, /recor
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base
+from app.core.db import Base, UtcDateTime
 from app.core.ids import new_id
 
 NOTIFICATION_TYPES = (
@@ -41,4 +41,4 @@ class Notification(Base):
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
     link_to: Mapped[str | None] = mapped_column(String, nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, index=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now, index=True)

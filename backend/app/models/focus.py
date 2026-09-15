@@ -9,10 +9,10 @@ goal_id: 목표별 집중 시간 집계용(api.md §8-7). 현재 집중 화면�
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base
+from app.core.db import Base, UtcDateTime
 from app.core.ids import new_id
 
 FOCUS_MODES = ("stopwatch", "pomodoro")
@@ -35,7 +35,5 @@ class FocusSession(Base):
     )
     mode: Mapped[str] = mapped_column(String, nullable=False)  # stopwatch | pomodoro
     seconds: Mapped[int] = mapped_column(Integer, nullable=False)
-    started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    started_at: Mapped[datetime] = mapped_column(UtcDateTime, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)
