@@ -12,6 +12,12 @@ export interface FocusSummary {
   focusedSeconds: number;
   /** 오늘 목표 시간(분). 텐미닛 플래너의 계획 시간 합계로 정한다 */
   targetMinutes: number;
+  /** 연속 달성일. 투두가 체크된 날을 세며 서버가 계산한다 */
+  streakDays: number;
+  /** 지금까지의 최고 연속 기록(일) */
+  bestStreakDays: number;
+  /** 지금 연속 기록이 최고 기록인지 */
+  isBestStreak: boolean;
 }
 
 /** 서버에 남기는 집중 세션 한 건 */
