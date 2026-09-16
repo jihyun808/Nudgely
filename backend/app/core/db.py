@@ -4,8 +4,9 @@
 - 라우터는 `Depends(get_db)` 로 세션을 주입받는다.
 - 모든 ORM 모델은 `Base` 를 상속한다.
 
-개발(SQLite)에서는 앱 시작 시 `init_models()` 로 테이블을 생성한다.
-운영에서는 Alembic 마이그레이션으로 관리한다. (TODO: alembic 셋업)
+개발(SQLite)에서는 `AUTO_CREATE_TABLES=true` 로 두면 앱 시작 시 `init_models()` 가
+테이블을 만든다. 운영에서는 이 값을 false 로 두고 Alembic 마이그레이션으로 관리한다.
+(`alembic upgrade head` — 자세한 건 README 의 'DB 마이그레이션' 참고)
 """
 
 from collections.abc import AsyncIterator

@@ -93,16 +93,19 @@ ruff check .      # 린트
 ruff format .     # 포맷
 ```
 
-## MVP 로드맵 (구체화 예정)
+## AI 기능 현황
 
-`app/ai/service.py` 에 자리를 잡아둔 4대 기능:
+대화 중 **도구 호출(function calling)** 로 동작한다. 별도 엔드포인트는 없고,
+`POST /api/goals/{goalId}/messages` 한 곳에서 모델이 필요한 도구를 부른다.
 
-| 기능 | 서비스 메서드(예정) | 상태 |
-|------|--------------------|------|
-| 학습 계획 세우기 | `create_study_plan` | TODO |
-| 퀴즈 내기 | `generate_quiz` | TODO |
-| to-do 만들기 | `create_todos` | TODO |
-| 예습·복습 돕기 | `review_helper` | TODO |
+| 기능 | 도구 | 상태 |
+|------|------|------|
+| to-do 만들기 | `create_todos` · `check_todo_item` | 구현 |
+| 학습 계획 세우기 | `create_planner` · `set_milestones` | 구현 |
+| 진도 갱신 · 완주 판정 | `set_progress` · `complete_goal` | 구현 |
+| 퀴즈 내기 | — | 미구현 |
+| 예습·복습 돕기 | — | 미구현 |
 
-각 기능마다 (1) 입출력 스키마 → `schemas.py`, (2) 프롬프트 → `prompts.py`,
-(3) 로직 → `service.py`, (4) 엔드포인트 → `routes/` 순으로 추가하면 됩니다.
+도구를 추가할 땐 (1) 정의·실행 → `ai/tools.py`, (2) 프롬프트 → `ai/prompts.py`,
+(3) 저장 로직 → `services/` 순으로 붙이면 된다. 화면에 새로 그릴 게 생기면
+프론트 계약(`docs/api.md`)부터 맞추고 시작한다.
