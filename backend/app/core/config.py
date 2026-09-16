@@ -41,7 +41,8 @@ class Settings(BaseSettings):
 
     # ── 스케줄러(밤 11시 점검) ──
     scheduler_enabled: bool = True
-    # 점검 실행 시각(시, UTC 기준). ⚠️ 사용자 로컬 타임존 반영은 후속.
+    # 점검 실행 시각(시). **사용자 로컬 시각 기준** — 스케줄러가 매시간 깨어나
+    # 지금 로컬로 이 시각인 사용자만 처리한다. 타임존은 UserSettings.timezone.
     nightly_hour: int = 23
 
     # ── 파일 스토리지 ──

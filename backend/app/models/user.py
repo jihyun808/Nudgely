@@ -14,6 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
 from app.core.ids import new_id
+from app.core.timezones import DEFAULT_TIMEZONE
 
 
 def _now() -> datetime:
@@ -63,6 +64,10 @@ class UserSettings(Base):
     planner_start_hour: Mapped[int] = mapped_column(Integer, default=6)
     planner_end_hour: Mapped[int] = mapped_column(Integer, default=24)
 
+    # IANA 타임존. 밤 11시 점검·방해금지·"오늘 집중 시간" 이 전부 이 값 기준이다.
+    # api.md 에는 없는 필드 — 프론트가 안 보내면 기본값을 쓴다.
+    timezone: Mapped[str] = mapped_column(String, default=DEFAULT_TIMEZONE)
+
     user: Mapped["User"] = relationship(back_populates="settings")
 
     @classmethod
@@ -83,4 +88,5 @@ class UserSettings(Base):
             dnd_end_hour=7,
             planner_start_hour=6,
             planner_end_hour=24,
+            timezone=DEFAULT_TIMEZONE,
         )
