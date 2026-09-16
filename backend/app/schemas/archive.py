@@ -3,9 +3,7 @@
 프론트 types/archive.ts GoalProgress 와 1:1 (camelCase).
 """
 
-from datetime import datetime
-
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, UtcDatetime
 
 
 class AttachmentOut(CamelModel):
@@ -18,7 +16,7 @@ class AttachmentOut(CamelModel):
     kind: str  # file | image
     name: str
     size_bytes: int
-    uploaded_at: datetime
+    uploaded_at: UtcDatetime
     url: str | None = None
 
 
@@ -33,8 +31,8 @@ class GoalProgressOut(CamelModel):
 
     goal_id: str
     goal_title: str
-    started_at: datetime
-    completed_at: datetime | None = None
+    started_at: UtcDatetime
+    completed_at: UtcDatetime | None = None
     milestones: list[ProgressMilestoneOut]
 
     # 집계 3종. 없으면 프론트가 해당 칸을 그리지 않는다(초기엔 생략 가능).

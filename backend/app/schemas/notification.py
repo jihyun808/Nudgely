@@ -1,8 +1,6 @@
 """알림 스키마 (types/notification.ts)."""
 
-from datetime import datetime
-
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, UtcDatetime
 
 
 class NotificationOut(CamelModel):
@@ -10,6 +8,6 @@ class NotificationOut(CamelModel):
     type: str
     title: str
     body: str
-    created_at: datetime
+    created_at: UtcDatetime
     is_read: bool
     link_to: str | None = None
