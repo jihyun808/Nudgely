@@ -3,11 +3,11 @@
 프론트 types/goal.ts · types/chat.ts 와 1:1 로 맞춘다(camelCase).
 """
 
-from datetime import date, datetime
+from datetime import date
 
 from pydantic import Field
 
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, UtcDatetime
 
 NAME_MAX = 10
 TITLE_MAX = 50
@@ -30,12 +30,12 @@ class GoalOut(CamelModel):
     image_url: str | None = None
 
     last_message: str
-    last_message_at: datetime
+    last_message_at: UtcDatetime
     unread_count: int
 
-    started_at: datetime | None = None
+    started_at: UtcDatetime | None = None
     remaining_days: int | None = None
-    completed_at: datetime | None = None
+    completed_at: UtcDatetime | None = None
     progress: Progress | None = None
 
 
@@ -79,7 +79,7 @@ class MessageOut(CamelModel):
     id: str
     role: str
     content: str
-    created_at: datetime
+    created_at: UtcDatetime
     file: MessageFile | None = None
 
 

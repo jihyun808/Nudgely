@@ -33,6 +33,7 @@ from app.models.attachment import Attachment
 from app.models.goal import Goal, Message, ReadState
 from app.models.user import User
 from app.schemas.archive import AttachmentOut, GoalProgressOut
+from app.schemas.common import to_utc_iso
 from app.schemas.goal import (
     MESSAGE_CONTENT_MAX,
     NAME_MAX,
@@ -394,7 +395,7 @@ async def send_message(
         # 이번 턴에 AI 가 완주 처리했으면 프론트 축하 연출 신호를 얹는다(api.md §3.2).
         done_data = {
             "messageId": assistant_id,
-            "createdAt": assistant_msg.created_at.isoformat(),
+            "createdAt": to_utc_iso(assistant_msg.created_at),
         }
         if not was_completed and goal.completed_at is not None:
             done_data["goalCompleted"] = True
