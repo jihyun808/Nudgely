@@ -40,4 +40,4 @@ class GoalProgressOut(CamelModel):
     # 집계 3종. 없으면 프론트가 해당 칸을 그리지 않는다(초기엔 생략 가능).
     focused_seconds: int | None = None  # 집중 세션에 goal_id 필요(4단계)
     completed_todo_count: int | None = None
-    best_month: str | None = None  # 집중 집계(4단계)
+    best_month: str | None = None  # 완료한 할 일이 가장 많았던 달 'YYYY-MM'
