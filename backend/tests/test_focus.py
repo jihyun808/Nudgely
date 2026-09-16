@@ -146,3 +146,70 @@ async def test_goal_focused_seconds_in_progress(
 
     res = await client.get(f"/api/goals/{goal_id}/progress", headers=_h(token))
     assert res.json()["focusedSeconds"] == 5040
+
+
+# ── 사용자 로컬 날짜 기준 집계 ──
+
+
+async def _summary(client: AsyncClient, token: str, on: str) -> dict:
+    return (await client.get(f"/api/focus/summary?date={on}", headers=_h(token))).json()
+
+
+async def test_session_just_after_local_midnight_counts_as_the_new_day(client: AsyncClient):
+    """한국 9/17 00:30 == UTC 9/16 15:30.
+
+    UTC 로 자르면 9월 16일 기록으로 붙어버린다.
+    """
+    token = await _token(client)
+    await _save(client, token, seconds=600, started_at="2026-09-16T15:30:00+00:00")
+
+    assert (await _summary(client, token, "2026-09-16"))["focusedSeconds"] == 0
+    assert (await _summary(client, token, "2026-09-17"))["focusedSeconds"] == 600
+
+
+async def test_session_late_at_night_stays_on_the_same_local_day(client: AsyncClient):
+    """한국 9/16 23:30 == UTC 9/16 14:30. 날짜가 앞당겨지면 안 된다."""
+    token = await _token(client)
+    await _save(client, token, seconds=900, started_at="2026-09-16T14:30:00+00:00")
+
+    assert (await _summary(client, token, "2026-09-16"))["focusedSeconds"] == 900
+    assert (await _summary(client, token, "2026-09-17"))["focusedSeconds"] == 0
+
+
+async def test_same_instant_lands_on_different_days_per_timezone(client: AsyncClient):
+    """같은 순간이라도 사는 곳에 따라 '무슨 날' 이 다르다."""
+    moment = "2026-09-16T15:30:00+00:00"  # 서울 9/17 00:30 / 뉴욕 9/16 11:30
+
+    seoul = await _token(client, "seoul@b.com")
+    await _save(client, seoul, seconds=600, started_at=moment)
+
+    ny = await _token(client, "ny@b.com")
+    await client.patch("/api/settings", headers=_h(ny), json={"timezone": "America/New_York"})
+    await _save(client, ny, seconds=600, started_at=moment)
+
+    assert (await _summary(client, seoul, "2026-09-17"))["focusedSeconds"] == 600
+    assert (await _summary(client, ny, "2026-09-16"))["focusedSeconds"] == 600
+
+
+async def test_heatmap_groups_by_local_date(client: AsyncClient):
+    token = await _token(client)
+    await _save(client, token, seconds=600, started_at="2026-09-16T15:30:00+00:00")  # 한국 9/17
+    await _save(client, token, seconds=300, started_at="2026-09-16T01:00:00+00:00")  # 한국 9/16
+
+    body = (
+        await client.get("/api/focus/daily?from=2026-09-01&to=2026-09-30", headers=_h(token))
+    ).json()
+    assert body["days"] == [
+        {"date": "2026-09-16", "seconds": 300},
+        {"date": "2026-09-17", "seconds": 600},
+    ]
+
+
+async def test_weekly_buckets_use_local_dates(client: AsyncClient):
+    token = await _token(client)
+    # 2026-09-14 는 월요일. 한국 9/17(목) 00:30 에 해당하는 시각
+    await _save(client, token, seconds=3600, started_at="2026-09-16T15:30:00+00:00")
+
+    body = (await client.get("/api/focus/weekly?weekStart=2026-09-14", headers=_h(token))).json()
+    # 목요일(index 3) 에 잡혀야 한다. UTC 기준이면 수요일로 밀린다
+    assert body["hours"] == [0, 0, 0, 1.0, 0, 0, 0]
