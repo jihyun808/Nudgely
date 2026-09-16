@@ -4,10 +4,11 @@
 """
 
 from collections.abc import AsyncIterator
+from datetime import date, datetime
 
 from httpx import AsyncClient
 
-from app.ai.prompts import build_chat_messages
+from app.ai.prompts import APP_TIMEZONE, build_chat_messages
 from app.ai.streaming import get_reply_streamer
 from app.main import app
 
@@ -214,3 +215,31 @@ async def test_no_client_id_still_works(client: AsyncClient):
         assert [m["role"] for m in page["messages"]].count("user") == 2
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)
+
+
+def test_prompt_tells_model_today():
+    """모델에 오늘 날짜를 알려줘야 create_todos 의 date 를 엉뚱하게 찍지 않는다.
+
+    (실제로 2023-10-01 로 저장돼 기록 화면에 안 보이던 버그의 회귀 방지)
+    """
+    msgs = build_chat_messages(
+        persona="friend",
+        user_prompt=None,
+        goal_title="UIUX 완주",
+        history=[("user", "오늘 할 일 정해줘")],
+        today=date(2026, 9, 17),
+    )
+    dated = [m for m in msgs if "2026-09-17" in m["content"]]
+    assert dated and dated[0]["role"] == "system"
+    assert "목요일" in dated[0]["content"]
+    # 날짜 안내는 히스토리보다 앞에 온다
+    assert msgs.index(dated[0]) < len(msgs) - 1
+
+
+def test_prompt_defaults_to_seoul_today():
+    """today 를 안 주면 서비스 타임존(KST)의 오늘이 들어간다."""
+    msgs = build_chat_messages(
+        persona=None, user_prompt=None, goal_title=None, history=[]
+    )
+    expected = datetime.now(APP_TIMEZONE).date().isoformat()
+    assert any(expected in m["content"] for m in msgs)

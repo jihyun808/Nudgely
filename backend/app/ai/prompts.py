@@ -9,6 +9,19 @@
 """
 
 from collections.abc import Iterable
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
+
+# 서비스 기준 타임존. 투두·플래너의 '날짜'는 UTC 가 아니라 사용자가 보는 이 날짜다.
+APP_TIMEZONE = ZoneInfo("Asia/Seoul")
+
+_WEEKDAYS_KO = ("월", "화", "수", "목", "금", "토", "일")
+
+
+def today_in_app_tz() -> date:
+    """서비스 기준 타임존의 오늘."""
+    return datetime.now(APP_TIMEZONE).date()
+
 
 # 모든 페르소나의 공통 토대
 _BASE = """\
@@ -49,18 +62,36 @@ def build_chat_messages(
     user_prompt: str | None,
     goal_title: str | None,
     history: Iterable[tuple[str, str]],
+    today: date | None = None,
 ) -> list[dict[str, str]]:
     """OpenAI 형식 messages 를 조립한다.
 
     순서:
       1) 페르소나 시스템 프롬프트 (서버 소유)
-      2) 목표 컨텍스트 (제목 등)
-      3) 사용자 커스텀 프롬프트 — 신뢰도 낮은 참고 자료로 격리 (주입 방어)
-      4) 대화 히스토리 (오래된 → 최신)
+      2) 오늘 날짜 (도구의 date 인자 기준점)
+      3) 목표 컨텍스트 (제목 등)
+      4) 사용자 커스텀 프롬프트 — 신뢰도 낮은 참고 자료로 격리 (주입 방어)
+      5) 대화 히스토리 (오래된 → 최신)
 
     history: (role, content) 튜플의 순회 가능 객체. role 은 'user' | 'assistant'.
+    today:   기준 날짜. 생략하면 서비스 타임존의 오늘(테스트에서 고정용으로 주입).
     """
     messages: list[dict[str, str]] = [{"role": "system", "content": _system_for(persona)}]
+
+    # 모델은 오늘이 며칠인지 모른다. 알려주지 않으면 create_todos/create_planner 의
+    # date 를 학습 시점 기준으로 찍어 화면에 영영 안 보이는 날짜에 저장된다.
+    on = today or today_in_app_tz()
+    messages.append(
+        {
+            "role": "system",
+            "content": (
+                f"오늘은 {on.isoformat()}({_WEEKDAYS_KO[on.weekday()]}요일)이다. "
+                "날짜를 받는 도구(create_todos, create_planner)를 쓸 때는 반드시 "
+                "이 날짜를 기준으로 계산해라. 사용자가 날짜를 따로 말하지 않으면 오늘로 둔다. "
+                "추측한 날짜를 쓰지 마라."
+            ),
+        }
+    )
 
     if goal_title:
         messages.append({"role": "system", "content": f"사용자의 현재 목표: '{goal_title}'."})
