@@ -77,6 +77,15 @@
 }
 
 @layer components {
+  /*
+   * 화면 맨 위에서 시작하는 영역의 상단 여백.
+   * pt-6(1.5rem)에 노치·상태바 높이를 더해, 아이폰에서 제목이 상태바에 가리지 않게 한다.
+   * 안전 영역이 없는 기기에서는 env()가 0이라 pt-6과 같아진다.
+   */
+  .pt-safe {
+    padding-top: calc(env(safe-area-inset-top) + 1.5rem);
+  }
+
   .petal-pop {
     animation: petal-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
   }

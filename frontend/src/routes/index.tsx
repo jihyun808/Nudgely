@@ -1,6 +1,7 @@
 // routes/index.tsx
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import Layout from '@/layouts/Layout';
+import AuthFrame from '@/layouts/AuthFrame';
 import Home from '@/pages/home/Home';
 import Chat from '@/pages/chat/Chat';
 import Focus from '@/pages/focus/Focus';
@@ -24,9 +25,15 @@ export const router = createBrowserRouter([
     element: <Navigate to={isAuthenticated() ? '/home' : '/landing'} replace />,
   },
 
-  { path: '/landing', element: <Landing /> },
-  { path: '/signin', element: <Signin /> },
-  { path: '/signup', element: <Signup /> },
+  // 로그인 전 화면도 내부 화면과 같은 모바일 폭으로 감싼다
+  {
+    element: <AuthFrame />,
+    children: [
+      { path: '/landing', element: <Landing /> },
+      { path: '/signin', element: <Signin /> },
+      { path: '/signup', element: <Signup /> },
+    ],
+  },
   { path: '/auth/callback/:provider', element: <SocialCallback /> },
 
   // 채팅방 상세·설정은 하단 탭바 없이 전체 화면을 쓴다

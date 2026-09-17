@@ -3,6 +3,7 @@
 import api, { API_BASE_URL, MULTIPART, handleUnauthorized } from './axios';
 import { dataUrlToFile, isDataUrl } from './form';
 import { getToken } from '@/lib/auth';
+import { createId } from '@/utils/uuid';
 import type { ChatMessage } from '@/types/chat';
 import type { CreateGoalInput, Goal, GoalDetail, UpdateGoalInput } from '@/types/goal';
 
@@ -229,7 +230,7 @@ export async function sendMessage(
   if (!isComplete) throw new Error('STREAM_INCOMPLETE');
 
   return {
-    id: messageId ?? crypto.randomUUID(),
+    id: messageId ?? createId(),
     role: 'assistant',
     content,
     createdAt: createdAt || new Date().toISOString(),

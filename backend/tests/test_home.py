@@ -49,14 +49,33 @@ def test_should_notify_respects_toggles():
 
 
 def test_should_notify_dnd_window():
-    s = UserSettings.defaults("u1")
+    s = UserSettings.defaults("u1")  # timezone = Asia/Seoul
     s.dnd_enabled = True
     s.dnd_start_hour = 23
     s.dnd_end_hour = 7  # 자정 넘김
-    assert should_notify(s, "todoIncomplete", now_hour=2) is False  # DnD 안
-    assert should_notify(s, "todoIncomplete", now_hour=12) is True  # DnD 밖
-    # now_hour 를 안 주면 DnD 무시(즉시 알림)
+
+    # 한국 새벽 2시 == UTC 전날 17시
+    assert should_notify(s, "todoIncomplete", datetime(2026, 8, 2, 17, tzinfo=UTC)) is False
+    # 한국 낮 12시 == UTC 새벽 3시
+    assert should_notify(s, "todoIncomplete", datetime(2026, 8, 3, 3, tzinfo=UTC)) is True
+    # now_utc 를 안 주면 DnD 무시(즉시 알림)
     assert should_notify(s, "todoIncomplete") is True
+
+
+def test_should_notify_dnd_uses_the_users_timezone():
+    """UTC 로 판단하면 엉뚱한 시간대가 막힌다."""
+    utc_3am = datetime(2026, 8, 3, 3, tzinfo=UTC)
+
+    seoul = UserSettings.defaults("u1")  # 한국 기준 낮 12시
+    seoul.dnd_enabled = True
+    seoul.dnd_start_hour, seoul.dnd_end_hour = 23, 7
+    assert should_notify(seoul, "todoIncomplete", utc_3am) is True
+
+    new_york = UserSettings.defaults("u2")  # 같은 순간, 뉴욕은 밤 11시
+    new_york.timezone = "America/New_York"
+    new_york.dnd_enabled = True
+    new_york.dnd_start_hour, new_york.dnd_end_hour = 23, 7
+    assert should_notify(new_york, "todoIncomplete", utc_3am) is False
 
 
 # ── 홈 미리보기 ──

@@ -61,10 +61,11 @@ export default function ToastViewport() {
 
   if (toasts.length === 0) return null;
 
+  // pt: 노치·상태바 밑으로 깔리지 않도록 안전 영역만큼 더 내린다
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 top-0 z-[60] mx-auto flex max-w-md flex-col gap-2 px-4 pt-3"
+      className="pointer-events-none fixed inset-x-0 top-0 z-[60] mx-auto flex max-w-md flex-col gap-2 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)]"
     >
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} />

@@ -7,9 +7,8 @@ async 엔진(aiosqlite/asyncpg)을 지원하고, SQLite ALTER 를 위해 batch �
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy.ext.asyncio import create_async_engine
-
 from alembic import context
+from sqlalchemy.ext.asyncio import create_async_engine
 
 # 모든 모델을 등록해 autogenerate 가 인식하도록 한다.
 import app.models  # noqa: F401

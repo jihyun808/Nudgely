@@ -1,5 +1,6 @@
 // lib/oauth.ts
 import type { AuthProvider } from '@/types/auth';
+import { createId } from '@/utils/uuid';
 
 /**
  * 소셜 로그인 인가 요청.
@@ -47,7 +48,7 @@ export function startSocialLogin(provider: AuthProvider) {
   if (!clientId) return false;
 
   // 돌아왔을 때 우리가 보낸 요청이 맞는지 확인하려고 state를 저장해둔다
-  const state = crypto.randomUUID();
+  const state = createId();
   sessionStorage.setItem(STATE_KEY, state);
 
   const params = new URLSearchParams({

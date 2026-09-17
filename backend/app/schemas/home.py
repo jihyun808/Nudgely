@@ -1,8 +1,6 @@
 """홈 미리보기 스키마 (types/home.ts)."""
 
-from datetime import datetime
-
-from app.schemas.common import CamelModel
+from app.schemas.common import CamelModel, UtcDatetime
 
 
 class HomePreviewOut(CamelModel):
@@ -11,5 +9,5 @@ class HomePreviewOut(CamelModel):
     title: str
     subtitle: str | None = None
     content: str
-    received_at: datetime
+    received_at: UtcDatetime
     link_to: str | None = None

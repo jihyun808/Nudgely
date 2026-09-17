@@ -76,7 +76,7 @@ export default function Archive() {
   }, [goalId, reloadKey]);
 
   return (
-    <div className="mx-auto min-h-dvh max-w-md bg-background px-6 pt-6 pb-10">
+    <div className="mx-auto min-h-dvh max-w-md bg-background px-6 pt-safe pb-10">
       <DetailHeader
         title="모아보기"
         subtitle={goal ? `${goal.name}와의 학습 기록` : undefined}

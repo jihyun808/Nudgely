@@ -1,5 +1,6 @@
 // stores/toastStore.ts
 import { create } from 'zustand';
+import { createId } from '@/utils/uuid';
 
 /** 토스트 종류. 색과 아이콘이 달라진다 */
 export type ToastVariant = 'info' | 'success' | 'warning';
@@ -30,7 +31,7 @@ export const useToastStore = create<ToastState>((set) => ({
       toasts: [
         ...state.toasts,
         {
-          id: crypto.randomUUID(),
+          id: createId(),
           message,
           variant: options?.variant ?? 'info',
           durationMs: options?.durationMs ?? 3000,

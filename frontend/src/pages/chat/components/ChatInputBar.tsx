@@ -66,7 +66,8 @@ export default function ChatInputBar({ onSend, onAttach, disabled }: ChatInputBa
   };
 
   return (
-    <footer className="shrink-0 border-t border-border bg-background px-3 py-2.5">
+    // pb: 입력창이 iOS 홈 인디케이터에 걸치지 않게 안전 영역만큼 띄운다
+    <footer className="shrink-0 border-t border-border bg-background px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+0.625rem)]">
       {fileError && (
         <p role="alert" className="mb-1.5 px-1 text-xs text-destructive">
           {fileError}

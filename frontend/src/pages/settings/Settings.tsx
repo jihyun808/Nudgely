@@ -82,7 +82,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="mx-auto min-h-dvh max-w-md bg-background px-6 pt-6 pb-10">
+    <div className="mx-auto min-h-dvh max-w-md bg-background px-6 pt-safe pb-10">
       <DetailHeader title="설정" className="-mx-6 px-6" />
 
       {isLoading ? (

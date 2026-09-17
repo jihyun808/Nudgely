@@ -13,7 +13,7 @@ interface AuthLayoutProps {
  */
 const AuthLayout = ({ title, subtitle, children }: AuthLayoutProps) => {
   return (
-    <div className="min-h-screen bg-background px-6 pt-6">
+    <div className="min-h-screen bg-background px-6 pt-safe">
       <BackButton />
 
       <div className="mt-8">

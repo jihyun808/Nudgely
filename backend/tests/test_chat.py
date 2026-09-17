@@ -238,8 +238,6 @@ def test_prompt_tells_model_today():
 
 def test_prompt_defaults_to_seoul_today():
     """today 를 안 주면 서비스 타임존(KST)의 오늘이 들어간다."""
-    msgs = build_chat_messages(
-        persona=None, user_prompt=None, goal_title=None, history=[]
-    )
+    msgs = build_chat_messages(persona=None, user_prompt=None, goal_title=None, history=[])
     expected = datetime.now(APP_TIMEZONE).date().isoformat()
     assert any(expected in m["content"] for m in msgs)

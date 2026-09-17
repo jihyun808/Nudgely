@@ -4,6 +4,7 @@
 ORM(UserSettings)의 평면 컬럼 ↔ 프론트의 중첩 구조를 서로 변환한다.
 """
 
+from app.core.timezones import DEFAULT_TIMEZONE, is_valid_zone
 from app.models.user import UserSettings
 from app.schemas.common import CamelModel
 
@@ -31,6 +32,9 @@ class AppSettings(CamelModel):
     do_not_disturb: DoNotDisturbSettings
     planner: PlannerSettings
     linked_providers: list[str] = []
+    # api.md 에 없는 추가 필드. 방해금지·밤 11시 점검·"오늘 집중 시간" 을
+    # 그 사람 시각으로 판단하려면 필요하다. 프론트가 무시해도 동작한다.
+    timezone: str = DEFAULT_TIMEZONE
 
     @classmethod
     def from_orm_settings(
@@ -50,6 +54,7 @@ class AppSettings(CamelModel):
             ),
             planner=PlannerSettings(start_hour=s.planner_start_hour, end_hour=s.planner_end_hour),
             linked_providers=linked_providers or [],
+            timezone=s.timezone or DEFAULT_TIMEZONE,
         )
 
 
@@ -77,6 +82,7 @@ class UpdateSettingsIn(CamelModel):
     notifications: UpdateNotificationSettings | None = None
     do_not_disturb: UpdateDoNotDisturbSettings | None = None
     planner: UpdatePlannerSettings | None = None
+    timezone: str | None = None
 
     def apply_to(self, s: UserSettings) -> None:
         """보내진 값만 ORM 객체에 반영한다."""
@@ -104,3 +110,6 @@ class UpdateSettingsIn(CamelModel):
                 s.planner_start_hour = p.start_hour
             if p.end_hour is not None:
                 s.planner_end_hour = p.end_hour
+        if self.timezone is not None:
+            # 모르는 타임존 하나 때문에 설정 저장 전체를 막지는 않는다
+            s.timezone = self.timezone if is_valid_zone(self.timezone) else DEFAULT_TIMEZONE
