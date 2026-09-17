@@ -22,6 +22,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.prompts import today_for
 from app.ai.streaming import ReplyStreamer, get_reply_streamer
 from app.ai.tools import dispatch_tool_call
 from app.api.deps import get_current_user
@@ -31,7 +32,7 @@ from app.core.ids import new_id
 from app.core.storage import CHAT_ALLOWED, chat_max_bytes, image_max_bytes, save_upload
 from app.models.attachment import Attachment
 from app.models.goal import Goal, Message, ReadState
-from app.models.user import User
+from app.models.user import User, UserSettings
 from app.schemas.archive import AttachmentOut, GoalProgressOut
 from app.schemas.common import to_utc_iso
 from app.schemas.goal import (
@@ -445,6 +446,10 @@ async def send_message(
         history.append(("user", f"[사용자가 파일을 첨부했습니다: {file_note}]"))
 
     persona, prompt, title = goal.persona, goal.prompt, goal.title
+    # AI 가 create_todos/create_planner 의 date 를 찍으려면 '오늘'을 알아야 한다.
+    # 서버 UTC 가 아니라 그 사람 타임존 기준이어야 기록 화면과 같은 날에 들어간다.
+    user_settings = await db.get(UserSettings, goal.user_id)
+    today = today_for(user_settings.timezone if user_settings else None)
     assistant_id = new_id("m")
     was_completed = goal.completed_at is not None  # 이번 턴 완주 감지용
 
@@ -462,6 +467,7 @@ async def send_message(
                 goal_title=title,
                 history=history,
                 dispatch=_dispatch,
+                today=today,
             ):
                 full += text
                 yield _sse("delta", {"text": text})

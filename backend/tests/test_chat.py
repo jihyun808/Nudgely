@@ -4,12 +4,13 @@
 """
 
 from collections.abc import AsyncIterator
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from httpx import AsyncClient
 
-from app.ai.prompts import APP_TIMEZONE, build_chat_messages
+from app.ai.prompts import build_chat_messages, today_for
 from app.ai.streaming import get_reply_streamer
+from app.core.timezones import local_date_of, zone_of
 from app.main import app
 
 
@@ -237,7 +238,19 @@ def test_prompt_tells_model_today():
 
 
 def test_prompt_defaults_to_seoul_today():
-    """today 를 안 주면 서비스 타임존(KST)의 오늘이 들어간다."""
+    """today 를 안 주면 기본 타임존(Asia/Seoul)의 오늘이 들어간다."""
     msgs = build_chat_messages(persona=None, user_prompt=None, goal_title=None, history=[])
-    expected = datetime.now(APP_TIMEZONE).date().isoformat()
+    expected = local_date_of(datetime.now(UTC), zone_of(None)).isoformat()
     assert any(expected in m["content"] for m in msgs)
+
+
+def test_today_follows_user_timezone():
+    """'오늘'은 서버 UTC 가 아니라 그 사람 타임존 기준이다.
+
+    한국 새벽 1시는 UTC 로는 아직 전날이다. 서버 날짜를 쓰면 투두가 어제로 들어간다.
+    """
+    seoul = today_for("Asia/Seoul")
+    honolulu = today_for("Pacific/Honolulu")
+    assert (seoul - honolulu).days in (0, 1)
+    # 모르는 타임존은 기본값으로 떨어진다(친구 쪽 zone_of 규칙)
+    assert today_for("Mars/Olympus") == seoul

@@ -10,6 +10,7 @@
 """
 
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
+from datetime import date
 from typing import Protocol
 
 from app.ai.prompts import build_chat_messages
@@ -35,6 +36,7 @@ class ReplyStreamer(Protocol):
         goal_title: str | None,
         history: Iterable[tuple[str, str]],
         dispatch: Dispatch | None = None,
+        today: date | None = None,
     ) -> AsyncIterator[str]: ...
 
 
@@ -53,6 +55,7 @@ class OpenAIReplyStreamer:
         goal_title: str | None,
         history: Iterable[tuple[str, str]],
         dispatch: Dispatch | None = None,
+        today: date | None = None,
     ) -> AsyncIterator[str]:
         import json
 
@@ -66,6 +69,7 @@ class OpenAIReplyStreamer:
             user_prompt=user_prompt,
             goal_title=goal_title,
             history=history,
+            today=today,
         )
 
         # 1) 도구 호출 라운드: 모델이 도구를 요청하면 실행하고 결과를 다시 넣는다.

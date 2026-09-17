@@ -9,18 +9,16 @@
 """
 
 from collections.abc import Iterable
-from datetime import date, datetime
-from zoneinfo import ZoneInfo
+from datetime import UTC, date, datetime
 
-# 서비스 기준 타임존. 투두·플래너의 '날짜'는 UTC 가 아니라 사용자가 보는 이 날짜다.
-APP_TIMEZONE = ZoneInfo("Asia/Seoul")
+from app.core.timezones import local_date_of, zone_of
 
 _WEEKDAYS_KO = ("월", "화", "수", "목", "금", "토", "일")
 
 
-def today_in_app_tz() -> date:
-    """서비스 기준 타임존의 오늘."""
-    return datetime.now(APP_TIMEZONE).date()
+def today_for(timezone: str | None) -> date:
+    """그 사용자 기준의 오늘. 타임존이 없거나 이상하면 기본값(Asia/Seoul)으로 떨어진다."""
+    return local_date_of(datetime.now(UTC), zone_of(timezone))
 
 
 # 모든 페르소나의 공통 토대
@@ -74,13 +72,13 @@ def build_chat_messages(
       5) 대화 히스토리 (오래된 → 최신)
 
     history: (role, content) 튜플의 순회 가능 객체. role 은 'user' | 'assistant'.
-    today:   기준 날짜. 생략하면 서비스 타임존의 오늘(테스트에서 고정용으로 주입).
+    today:   기준 날짜. 생략하면 기본 타임존의 오늘(테스트에서 고정용으로 주입).
     """
     messages: list[dict[str, str]] = [{"role": "system", "content": _system_for(persona)}]
 
     # 모델은 오늘이 며칠인지 모른다. 알려주지 않으면 create_todos/create_planner 의
     # date 를 학습 시점 기준으로 찍어 화면에 영영 안 보이는 날짜에 저장된다.
-    on = today or today_in_app_tz()
+    on = today or today_for(None)
     messages.append(
         {
             "role": "system",
