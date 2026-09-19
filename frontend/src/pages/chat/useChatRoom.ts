@@ -22,6 +22,8 @@ export function useChatRoom(goalId: string) {
   const [hasError, setHasError] = useState(false);
   /** AI 응답 대기 중 (입력 잠금 + 타이핑 표시) */
   const [isReplying, setIsReplying] = useState(false);
+  /** 내 메시지를 보내는 중(서버가 받아주기 전). 입력창을 잠그는 데 쓴다 */
+  const [isSending, setIsSending] = useState(false);
   /** 방금 이 대화에서 목표를 완주했는지. 축하 연출을 한 번 띄우고 내린다 */
   const [hasJustCompleted, setHasJustCompleted] = useState(false);
   /** 다음(더 과거) 페이지 커서. null이면 더 불러올 과거가 없다 */
@@ -100,6 +102,15 @@ export function useChatRoom(goalId: string) {
       .finally(() => setIsLoadingOlder(false));
   };
 
+  // 방을 떠날 때도 읽음으로 찍는다. 아직 저장되지 않은(생성 중인) 답은
+  // 대상이 아니므로, 나간 뒤 도착한 답은 그대로 '안 읽음' 으로 남는다.
+  useEffect(
+    () => () => {
+      void markGoalAsRead(goalId).catch(() => {});
+    },
+    [goalId],
+  );
+
   /**
    * 낙관적으로 내 메시지를 먼저 그리고, 응답을 받아 확정한다.
    *
@@ -123,20 +134,31 @@ export function useChatRoom(goalId: string) {
       status: 'sending',
     };
     setMessages((prev) => [...prev, myMessage]);
-    setIsReplying(true);
+    setIsSending(true);
+
+    // 내 말이 '전송 중' 인 동안에는 상대가 입력할 수 없다.
+    // 서버가 받아준 뒤에야(message_start) 전송 중을 걷고 '입력 중...' 으로 넘어간다.
+    const handleAccepted = () => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === localId ? { ...m, status: undefined } : m)),
+      );
+      setIsSending(false);
+      setIsReplying(true);
+    };
 
     try {
-      const { message, goalCompleted } = await sendMessage(goalId, {
-        content: payload.content,
-        file: payload.file,
-        clientId: localId,
-      });
+      const { message, goalCompleted } = await sendMessage(
+        goalId,
+        { content: payload.content, file: payload.file, clientId: localId },
+        handleAccepted,
+      );
       pendingFilesRef.current.delete(localId);
-      setMessages((prev) => [
-        // 전송 성공한 내 메시지는 status를 지워 확정 상태로 만든다
-        ...prev.map((m) => (m.id === localId ? { ...m, status: undefined } : m)),
-        message,
-      ]);
+      // 확정 처리는 handleAccepted 에서 이미 했다. 여기서는 답만 붙인다
+      setMessages((prev) => [...prev, message]);
+
+      // 방에서 보고 있는 중에 온 답이니 읽음으로 찍는다.
+      // 입장 때만 찍으면, 그 뒤에 온 답이 홈에 계속 '안 읽음' 으로 남는다.
+      void markGoalAsRead(goalId).catch(() => {});
 
       // AI 가 이번 턴에 완주 처리했으면 그 자리에서 축하한다.
       // 헤더·모아보기가 완주 상태를 반영하도록 목표도 다시 받아온다.
@@ -156,6 +178,7 @@ export function useChatRoom(goalId: string) {
       );
       showToast('메시지를 보내지 못했어요', { variant: 'warning' });
     } finally {
+      setIsSending(false);
       setIsReplying(false);
     }
   };
@@ -185,6 +208,7 @@ export function useChatRoom(goalId: string) {
     isLoading,
     hasError,
     isReplying,
+    isSending,
     isLoadingOlder,
     listRef,
     bottomRef,

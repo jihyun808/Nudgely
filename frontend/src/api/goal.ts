@@ -160,6 +160,11 @@ function parseStreamEvent(raw: string): StreamEvent | null {
 export async function sendMessage(
   goalId: string,
   payload: { content?: string; file?: File; clientId?: string },
+  /**
+   * 서버가 내 메시지를 받아 저장하고 답을 만들기 시작한 시점(SSE message_start).
+   * 화면은 이때 '전송 중' 을 걷고 '입력 중...' 으로 넘어간다.
+   */
+  onAccepted?: () => void,
 ): Promise<SendResult> {
   if (!goalId) throw new Error('GOAL_NOT_FOUND');
 
@@ -225,6 +230,7 @@ export async function sendMessage(
       }
       if (event.name === 'message_start') {
         messageId = String(event.data.messageId);
+        onAccepted?.();
       }
       if (event.name === 'delta') {
         content += String(event.data.text ?? '');

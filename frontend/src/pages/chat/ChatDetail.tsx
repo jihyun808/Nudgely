@@ -98,7 +98,7 @@ export default function ChatDetail() {
         goalId={goalId}
         onSend={chat.onSend}
         onAttach={chat.onAttach}
-        disabled={chat.isReplying}
+        disabled={chat.isSending || chat.isReplying}
       />
 
       {/* AI 가 방금 완주 처리했을 때. 모아보기까지 들어가지 않아도 바로 축하한다 */}
