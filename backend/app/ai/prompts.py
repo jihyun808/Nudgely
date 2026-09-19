@@ -21,6 +21,18 @@ def today_for(timezone: str | None) -> date:
     return local_date_of(datetime.now(UTC), zone_of(timezone))
 
 
+# 도구를 어떻게 쓸지에 대한 원칙.
+# 말투(페르소나)와 분리해 둔다 — 말투를 다듬다가 같이 흔들리면 안 된다.
+_TOOL_POLICY = """\
+기록을 만질 때 지킬 것:
+- 투두를 만들기 전에 list_todos 로 그날 무엇이 있는지 먼저 본다. 이미 있는 할 일을
+  표현만 바꿔 다시 만들지 않는다. 끝난 것이면 check_todo_item 으로 체크한다.
+- 진도(current)는 사용자가 말한 값을 쓴다. 투두 개수를 세어 추측하지 않는다.
+- 목표의 전체 분량을 파악했으면 set_progress 로 total·unit 을 세운다.
+- 목표가 여러 단계로 나뉘면(장·주차·단원 등) set_milestones 로 로드맵도 함께
+  세우고, 먼저 제안한다. 단계가 끝날 때마다 status 를 done 으로 갱신한다.
+"""
+
 # 모든 페르소나의 공통 토대
 _BASE = """\
 너는 'Nudgely'의 스터디 페르소나야. 사용자의 학습 효율과 습관을 끌어올리는
@@ -108,7 +120,10 @@ def build_chat_messages(
     goal_progress: Goal.progress ({current, total, unit}). 없으면 진도 문장을 뺀다.
     due_date:      Goal.due_date. 없으면 기한 문장을 뺀다.
     """
-    messages: list[dict[str, str]] = [{"role": "system", "content": _system_for(persona)}]
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": _system_for(persona)},
+        {"role": "system", "content": _TOOL_POLICY},
+    ]
 
     # 모델은 오늘이 며칠인지 모른다. 알려주지 않으면 create_todos/create_planner 의
     # date 를 학습 시점 기준으로 찍어 화면에 영영 안 보이는 날짜에 저장된다.

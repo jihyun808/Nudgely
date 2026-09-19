@@ -326,3 +326,20 @@ def test_goal_context_omits_missing_parts():
     context = _context_of(msgs)
     assert "진도" not in context
     assert "기한" not in context
+
+
+def test_tool_policy_is_separate_from_persona():
+    """도구 원칙은 말투와 분리돼 있어야 한다.
+
+    페르소나 문구를 다듬다가 '먼저 list_todos 로 확인한다' 같은 규칙이
+    같이 흔들리면, AI 가 다시 중복 투두를 만든다.
+    """
+    for persona in ("teacher", "instructor", "friend", None):
+        msgs = build_chat_messages(persona=persona, user_prompt=None, goal_title="T", history=[])
+        policy = [m for m in msgs if "list_todos" in m["content"]]
+        assert policy, f"{persona}: 도구 원칙이 없다"
+        assert policy[0]["role"] == "system"
+        # 마일스톤 유도도 함께 들어간다
+        assert "set_milestones" in policy[0]["content"]
+        # 말투 프롬프트와 섞이지 않았는지
+        assert "말투" not in policy[0]["content"]
