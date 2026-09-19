@@ -91,6 +91,7 @@ async def build_goal_progress(db: AsyncSession, goal: Goal) -> GoalProgressOut:
         goal_title=_title_of(goal),
         started_at=goal.started_at,
         completed_at=goal.completed_at,
+        progress=goal.progress,
         milestones=[ProgressMilestoneOut(id=m.id, title=m.title, status=m.status) for m in ms_rows],
         # 집계: 없으면(0) 생략 → 프론트가 해당 칸을 그리지 않는다.
         completed_todo_count=completed or None,

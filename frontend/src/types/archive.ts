@@ -27,6 +27,13 @@ export interface ProgressMilestone {
   status: 'done' | 'current' | 'upcoming';
 }
 
+/** 분량 진도 ({current, total, unit}) */
+export interface GoalProgressCount {
+  current: number;
+  total: number;
+  unit: string;
+}
+
 /** 목표 하나의 진도 로드맵 */
 export interface GoalProgress {
   goalId: string;
@@ -36,6 +43,8 @@ export interface GoalProgress {
   startedAt: string;
   /** 목표를 끝낸 날. 아직 진행 중이면 없다 */
   completedAt?: string;
+  /** 분량 진도. 홈 목표 카드와 같은 값이다. AI가 아직 안 세웠으면 없다 */
+  progress?: GoalProgressCount;
   milestones: ProgressMilestone[];
 
   /** 이 목표에 쓴 집중 시간(초). 집중 세션에 목표 id가 붙어야 계산할 수 있다 */
