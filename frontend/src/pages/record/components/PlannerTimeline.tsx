@@ -1,9 +1,12 @@
 // pages/record/components/PlannerTimeline.tsx
 import { cn } from '@/lib/utils';
-import type { PlannerBlock, PlannerRecordKind } from '@/types/planner';
+import { PLANNER_BLOCK_MINUTES, type PlannerBlock, type PlannerRecordKind } from '@/types/planner';
 
 /** 한 줄이 담는 시간(분) */
 const ROW_MINUTES = 60;
+
+/** 한 줄에 들어가는 10분 칸 수 */
+const SLOTS_PER_ROW = ROW_MINUTES / PLANNER_BLOCK_MINUTES;
 
 /** 실제 기록 출처별 색 */
 const KIND_COLORS: Record<PlannerRecordKind, string> = {
@@ -19,49 +22,62 @@ function formatTime(minute: number) {
   return `${hour}:${rest}`;
 }
 
-/**
- * 한 줄(1시간)에서 블록들이 차지하는 시간과, 그 줄에 표시할 제목을 구한다.
- * 차지한 시간이 없으면 undefined (아무것도 그리지 않는다).
- */
-function getRowFill(blocks: PlannerBlock[], rowStart: number) {
-  const rowEnd = rowStart + ROW_MINUTES;
-  let coveredMinutes = 0;
-  let longest: { block: PlannerBlock; overlap: number } | undefined;
-
-  for (const block of blocks) {
-    const overlap =
-      Math.min(block.startMinutes + block.durationMinutes, rowEnd) -
-      Math.max(block.startMinutes, rowStart);
-    if (overlap <= 0) continue;
-
-    coveredMinutes += overlap;
-    // 제목·색은 그 줄을 가장 오래 차지한 블록 것을 쓴다
-    if (!longest || overlap > longest.overlap) longest = { block, overlap };
-  }
-
-  if (!longest) return undefined;
-
-  return {
-    title: longest.block.title,
-    kind: longest.block.kind,
-    ratio: Math.min(coveredMinutes / ROW_MINUTES, 1),
-  };
+/** 그 시각(분)을 덮는 블록. 없으면 undefined */
+function blockAt(blocks: PlannerBlock[], minute: number) {
+  return blocks.find(
+    ({ startMinutes, durationMinutes }) =>
+      minute >= startMinutes && minute < startMinutes + durationMinutes,
+  );
 }
 
-/** 한 칸: 얇은 막대 + 그 아래 작은 제목. 막대 길이가 그 1시간 중 차지한 시간이다 */
-function RowCell({ fill, isPlan }: { fill: ReturnType<typeof getRowFill>; isPlan: boolean }) {
-  if (!fill) return <div className="flex-1" />;
+/**
+ * 한 줄(1시간)을 10분 칸 6개로 쪼갠다.
+ *
+ * 칸이 채워지는 기준은 요약(plannerSummary.ts)이 세는 기준과 같다 — 칸의 시작 시각이
+ * 블록에 덮이면 채운다. 그래야 화면에서 센 칸 수와 '계획 N블록'이 어긋나지 않는다.
+ */
+function getRowSlots(blocks: PlannerBlock[], rowStart: number) {
+  return Array.from({ length: SLOTS_PER_ROW }, (_, i) =>
+    blockAt(blocks, rowStart + i * PLANNER_BLOCK_MINUTES),
+  );
+}
+
+/** 그 줄을 가장 오래 차지한 블록의 제목 (칸 아래에 한 줄로 붙인다) */
+function getRowTitle(slots: (PlannerBlock | undefined)[]) {
+  const counts = new Map<string, { title: string; count: number }>();
+  for (const block of slots) {
+    if (!block) continue;
+    const entry = counts.get(block.title) ?? { title: block.title, count: 0 };
+    entry.count += 1;
+    counts.set(block.title, entry);
+  }
+  if (counts.size === 0) return undefined;
+  return [...counts.values()].sort((a, b) => b.count - a.count)[0].title;
+}
+
+/** 한 칸: 10분짜리 칸 6개 + 그 아래 제목 */
+function RowCell({ slots, isPlan }: { slots: (PlannerBlock | undefined)[]; isPlan: boolean }) {
+  const title = getRowTitle(slots);
 
   return (
     <div className="min-w-0 flex-1">
-      <div
-        className={cn(
-          'h-2 rounded-full',
-          isPlan ? 'bg-primary/30' : KIND_COLORS[fill.kind ?? 'manual'],
-        )}
-        style={{ width: `${fill.ratio * 100}%` }}
-      />
-      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{fill.title}</p>
+      <div className="flex gap-px" aria-hidden>
+        {slots.map((block, i) => (
+          <div
+            key={i}
+            className={cn(
+              'h-2 flex-1 rounded-[2px]',
+              // 빈 칸도 옅게 그려야 '10분이 한 칸'이라는 게 눈에 보인다
+              block
+                ? isPlan
+                  ? 'bg-primary/40'
+                  : KIND_COLORS[block.kind ?? 'manual']
+                : 'bg-muted-foreground/10',
+            )}
+          />
+        ))}
+      </div>
+      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{title}</p>
     </div>
   );
 }
@@ -76,8 +92,10 @@ interface PlannerTimelineProps {
 
 /**
  * 텐미닛 플래너 표.
- * 세로로 1시간씩 한 줄이다.
- * 막대는 오른쪽으로 길어지며 그 줄(1시간) 중 차지한 시간을 나타내고, 제목은 막대 아래에 붙는다.
+ *
+ * 세로로 1시간씩 한 줄이고, 한 줄은 10분짜리 칸 6개로 나뉜다.
+ * 칸이 곧 '블록'이라 요약의 블록 수를 화면에서 그대로 셀 수 있고,
+ * 08:20~08:40 처럼 시간 중간에 걸친 계획도 제자리에 그려진다.
  * 설정한 범위(기본 06:00~24:00) 전체를 스크롤 없이 한 화면에 그린다.
  */
 export default function PlannerTimeline({
@@ -103,8 +121,8 @@ export default function PlannerTimeline({
           <span className="w-11 shrink-0 text-[11px] font-semibold text-muted-foreground">
             {formatTime(minute)}
           </span>
-          <RowCell fill={getRowFill(planned, minute)} isPlan />
-          <RowCell fill={getRowFill(actual, minute)} isPlan={false} />
+          <RowCell slots={getRowSlots(planned, minute)} isPlan />
+          <RowCell slots={getRowSlots(actual, minute)} isPlan={false} />
         </div>
       ))}
     </div>

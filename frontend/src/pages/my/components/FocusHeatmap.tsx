@@ -2,7 +2,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { formatDateKey } from '@/utils/date';
 
-/** 집중량 5단계 색. 0단계는 기록 없음 */
+/**
+ * 집중량 5단계 색.
+ *
+ * 기록이 없는 날은 이 5단계에 들어가지 않고 아예 칠하지 않는다(투명).
+ * 짧게라도 집중한 날과 안 한 날이 한눈에 갈리도록 한 것이다.
+ */
 const LEVEL_COLORS = [
   'bg-muted-foreground/10',
   'bg-primary/20',
@@ -13,10 +18,12 @@ const LEVEL_COLORS = [
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** 색 단계를 가르는 집중 시간(초). 0분 / ~30분 / ~1시간 / ~2시간 / 2시간+ */
-const LEVEL_THRESHOLDS = [30 * 60, 60 * 60, 2 * 60 * 60] as const;
+const HOUR = 60 * 60;
 
-/** 하루 집중 시간(초) → 0~4단계 */
+/** 색 단계를 가르는 집중 시간(초). ~1시간 / ~4시간 / ~7시간 / ~10시간 / 10시간+ */
+const LEVEL_THRESHOLDS = [1 * HOUR, 4 * HOUR, 7 * HOUR, 10 * HOUR] as const;
+
+/** 하루 집중 시간(초) → 0(기록 없음) 또는 1~5단계 */
 function toLevel(seconds: number) {
   if (seconds <= 0) return 0;
   return LEVEL_THRESHOLDS.filter((threshold) => seconds > threshold).length + 1;
@@ -98,12 +105,13 @@ export default function FocusHeatmap({ joinedAt, secondsByDate }: FocusHeatmapPr
             {weeks.map(({ columnStart, days }) => (
               <div key={columnStart.toISOString()} className="flex flex-col gap-1">
                 {days.map((level, dayIndex) =>
-                  level === null ? (
+                  // 기간 밖(null)과 기록 없는 날(0) 모두 빈 자리로 둔다
+                  level === null || level === 0 ? (
                     <span key={dayIndex} className="h-4 w-4" />
                   ) : (
                     <span
                       key={dayIndex}
-                      className={`h-4 w-4 rounded-[2px] ${LEVEL_COLORS[level]}`}
+                      className={`h-4 w-4 rounded-[2px] ${LEVEL_COLORS[level - 1]}`}
                     />
                   ),
                 )}
