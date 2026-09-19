@@ -42,22 +42,28 @@ function getRowSlots(blocks: PlannerBlock[], rowStart: number) {
   );
 }
 
-/** 그 줄을 가장 오래 차지한 블록의 제목 (칸 아래에 한 줄로 붙인다) */
-function getRowTitle(slots: (PlannerBlock | undefined)[]) {
-  const counts = new Map<string, { title: string; count: number }>();
+/** '1-1 소주제 공부 · 선대냥이'. 목표가 없거나 지워졌으면 제목만 */
+function labelOf(block: PlannerBlock) {
+  return block.goalName ? `${block.title} · ${block.goalName}` : block.title;
+}
+
+/** 그 줄을 가장 오래 차지한 블록의 이름표 (칸 아래에 한 줄로 붙인다) */
+function getRowLabel(slots: (PlannerBlock | undefined)[]) {
+  const counts = new Map<string, { label: string; count: number }>();
   for (const block of slots) {
     if (!block) continue;
-    const entry = counts.get(block.title) ?? { title: block.title, count: 0 };
+    const label = labelOf(block);
+    const entry = counts.get(label) ?? { label, count: 0 };
     entry.count += 1;
-    counts.set(block.title, entry);
+    counts.set(label, entry);
   }
   if (counts.size === 0) return undefined;
-  return [...counts.values()].sort((a, b) => b.count - a.count)[0].title;
+  return [...counts.values()].sort((a, b) => b.count - a.count)[0].label;
 }
 
 /** 한 칸: 10분짜리 칸 6개 + 그 아래 제목 */
 function RowCell({ slots, isPlan }: { slots: (PlannerBlock | undefined)[]; isPlan: boolean }) {
-  const title = getRowTitle(slots);
+  const label = getRowLabel(slots);
 
   return (
     <div className="min-w-0 flex-1">
@@ -77,7 +83,7 @@ function RowCell({ slots, isPlan }: { slots: (PlannerBlock | undefined)[]; isPla
           />
         ))}
       </div>
-      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{title}</p>
+      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{label}</p>
     </div>
   );
 }

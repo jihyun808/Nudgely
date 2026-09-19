@@ -10,10 +10,17 @@ interface CelebrationOverlayProps {
   description?: string;
   /** 스크린 리더가 읽을 이름. 기본값은 title */
   ariaLabel?: string;
+  /**
+   * 컨페티를 확인을 누를 때까지 계속 터뜨릴지.
+   *
+   * 집중 시간 달성은 그날 한 번뿐이라 계속 터뜨려도 되지만,
+   * 목표 완주처럼 오래 머무르게 되는 축하는 한 번이면 충분하다.
+   */
+  isLooping?: boolean;
 }
 
 /**
- * 축하 화면. 확인을 누를 때까지 컨페티가 계속 떨어진다.
+ * 축하 화면. 기본은 확인을 누를 때까지 컨페티가 계속 떨어진다.
  *
  * 집중 탭의 '오늘 목표 시간 달성'과 채팅방의 '목표 완주'가 함께 쓴다.
  * 기본 문구는 집중 탭 기준이고, 다른 축하는 문구만 바꿔 넘긴다.
@@ -24,6 +31,7 @@ export default function CelebrationOverlay({
   title = '오늘의 집중 시간 달성!',
   description = '목표한 시간을 모두 채웠어요. 오늘 정말 잘했어요!',
   ariaLabel,
+  isLooping = true,
 }: CelebrationOverlayProps) {
   return (
     <div
@@ -33,7 +41,7 @@ export default function CelebrationOverlay({
       className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 px-6"
       onClick={onClose}
     >
-      <ConfettiBurst isLooping />
+      <ConfettiBurst isLooping={isLooping} />
 
       <div
         onClick={(e) => e.stopPropagation()}
