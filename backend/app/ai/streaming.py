@@ -9,6 +9,8 @@
 반환 문자열이 도구 결과로 모델에 다시 전달된다. None 이면 도구 없이 동작.
 """
 
+import asyncio
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from datetime import date
 from typing import Protocol
@@ -16,10 +18,21 @@ from typing import Protocol
 from app.ai.prompts import build_chat_messages
 from app.ai.tools import TOOL_SCHEMAS
 
+logger = logging.getLogger(__name__)
+
 Dispatch = Callable[[str, dict], Awaitable[str]]
 
 # 도구 호출 루프 상한(무한 루프 방지)
 MAX_TOOL_ROUNDS = 5
+
+#: 도구 라운드 한 번에 허용하는 시간(초).
+#: settings.openai_timeout 은 요청 하나 기준이라, 라운드가 5번 돌면 그만큼 곱절이 된다.
+#: 사용자는 그 시간 내내 빈 화면을 본다.
+TOOL_ROUND_TIMEOUT = 25
+
+#: 도구 라운드 재시도 횟수. 일시적 오류(과부하·끊김)만 한 번 더 시도한다.
+TOOL_ROUND_RETRIES = 1
+RETRY_BACKOFF_SECONDS = 0.5
 
 
 class ReplyStreamer(Protocol):
@@ -80,21 +93,37 @@ class OpenAIReplyStreamer:
 
         # 1) 도구 호출 라운드: 모델이 도구를 요청하면 실행하고 결과를 다시 넣는다.
         if dispatch is not None:
-            for _ in range(MAX_TOOL_ROUNDS):
-                resp = await client.chat.completions.create(
-                    model=model, messages=messages, tools=TOOL_SCHEMAS
-                )
-                msg = resp.choices[0].message
+            for round_index in range(MAX_TOOL_ROUNDS):
+                msg = await _tool_round(client, model, messages)
+                if msg is None:
+                    # 도구 라운드가 끝내 실패했다. 도구 없이 답이라도 하게 둔다
+                    break
                 if not msg.tool_calls:
                     break
+
                 messages.append(msg.model_dump(exclude_none=True))
                 for tc in msg.tool_calls:
                     try:
                         args = json.loads(tc.function.arguments or "{}")
                     except json.JSONDecodeError:
-                        args = {}
-                    result = await dispatch(tc.function.name, args)
+                        # 인자가 JSON 이 아니면 빈 dict 대신 사유를 알려 고쳐 부르게 한다
+                        result = "도구 인자가 올바른 JSON 이 아니다. 다시 호출해라."
+                    else:
+                        result = await dispatch(tc.function.name, args)
                     messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+
+                if round_index == MAX_TOOL_ROUNDS - 1:
+                    # 상한에 걸려 멈춘 것을 모델에게 알린다. 안 그러면 도구가 덜 돈 채로
+                    # 다 끝난 것처럼 답한다.
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "도구 호출 한도에 도달했다. 더 호출하지 말고, "
+                                "지금까지 한 일만으로 사용자에게 답해라."
+                            ),
+                        }
+                    )
 
         # 2) 최종 사용자 응답을 스트리밍(도구 없이).
         stream = await client.chat.completions.create(model=model, messages=messages, stream=True)
@@ -102,6 +131,35 @@ class OpenAIReplyStreamer:
             delta = chunk.choices[0].delta.content
             if delta:
                 yield delta
+
+
+async def _tool_round(client, model: str, messages: list) -> object | None:
+    """도구 라운드 한 번. 실패하면 None (도구 없이 답을 이어가게 한다).
+
+    일시적 오류(과부하·연결 끊김·타임아웃)만 한 번 더 시도한다.
+    키가 틀렸거나 요청이 잘못된 경우는 다시 해도 같은 결과라 바로 포기한다.
+    """
+    from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
+
+    transient = (APIConnectionError, APITimeoutError, InternalServerError, RateLimitError)
+
+    for attempt in range(TOOL_ROUND_RETRIES + 1):
+        try:
+            resp = await asyncio.wait_for(
+                client.chat.completions.create(model=model, messages=messages, tools=TOOL_SCHEMAS),
+                timeout=TOOL_ROUND_TIMEOUT,
+            )
+            return resp.choices[0].message
+        except (*transient, TimeoutError) as exc:
+            if attempt >= TOOL_ROUND_RETRIES:
+                logger.warning("도구 라운드 포기(%s): %s", type(exc).__name__, exc)
+                return None
+            logger.info("도구 라운드 재시도(%s)", type(exc).__name__)
+            await asyncio.sleep(RETRY_BACKOFF_SECONDS)
+        except Exception:  # noqa: BLE001 - 도구를 못 써도 대화는 이어간다
+            logger.exception("도구 라운드 실패")
+            return None
+    return None
 
 
 def get_reply_streamer() -> ReplyStreamer:

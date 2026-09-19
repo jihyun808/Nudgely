@@ -8,6 +8,7 @@
   투두=record_service, 플래너=planner_service, 마일스톤·진도=progress/goal_service
 """
 
+import logging
 from datetime import UTC, date, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +20,8 @@ from app.services.notification_service import RECORD_LINK, create_notification
 from app.services.planner_service import add_block
 from app.services.progress_service import set_milestones
 from app.services.record_service import add_todo_items, set_item_done
+
+logger = logging.getLogger(__name__)
 
 # OpenAI tools 스키마 (chat.completions 의 tools 인자로 전달)
 TOOL_SCHEMAS: list[dict] = [
@@ -159,17 +162,80 @@ TOOL_SCHEMAS: list[dict] = [
 ]
 
 
-async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments: dict) -> str:
+# ── 인자 검증 ──────────────────────────────────────────────
+#
+# 모델이 보내는 인자는 신뢰할 수 없다. 실제로 create_todos 의 date 를
+# 2023-10-01 로 찍어 화면에 영영 안 보이는 날짜에 저장된 적이 있다.
+# 여기서 걸러 ToolArgError 를 던지면 대화를 끊지 않고 모델에게 사유를
+# 돌려주어 고쳐서 다시 부르게 한다.
+
+#: 한 번에 받을 수 있는 항목 수 상한(폭주 방지)
+MAX_ITEMS = 30
+#: 자정 기준 분. 24:00 == 1440
+DAY_MINUTES = 24 * 60
+MILESTONE_STATUSES = ("done", "current", "upcoming")
+
+
+class ToolArgError(ValueError):
+    """도구 인자가 잘못됐다. 메시지는 모델에게 그대로 전달된다."""
+
+
+def _req_date(args: dict, key: str) -> date:
+    raw = args.get(key)
+    if not isinstance(raw, str):
+        raise ToolArgError(f"{key} 는 'YYYY-MM-DD' 문자열이어야 한다.")
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        raise ToolArgError(
+            f"{key}='{raw}' 는 날짜 형식이 아니다. 'YYYY-MM-DD' 로 보내라."
+        ) from None
+
+
+def _req_text(value: object, field: str, *, max_len: int = 200) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ToolArgError(f"{field} 는 비어 있지 않은 문자열이어야 한다.")
+    text = value.strip()
+    if len(text) > max_len:
+        raise ToolArgError(f"{field} 가 너무 길다({len(text)}자). {max_len}자 이내로 줄여라.")
+    return text
+
+
+def _req_int(value: object, field: str, *, low: int, high: int, default: int | None = None) -> int:
+    if value is None and default is not None:
+        return default
+    # bool 은 int 의 하위형이라 따로 막는다. True 가 1 로 새어 들어간다
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ToolArgError(f"{field} 는 정수여야 한다(받은 값: {value!r}).")
+    if not low <= value <= high:
+        raise ToolArgError(f"{field} 는 {low}~{high} 사이여야 한다(받은 값: {value}).")
+    return value
+
+
+def _req_items(args: dict, key: str) -> list[dict]:
+    raw = args.get(key)
+    if not isinstance(raw, list) or not raw:
+        raise ToolArgError(f"{key} 는 비어 있지 않은 배열이어야 한다.")
+    if len(raw) > MAX_ITEMS:
+        raise ToolArgError(f"{key} 가 너무 많다({len(raw)}개). 한 번에 {MAX_ITEMS}개까지만 보내라.")
+    if not all(isinstance(item, dict) for item in raw):
+        raise ToolArgError(f"{key} 의 각 항목은 객체여야 한다.")
+    return raw
+
+
+async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) -> str:
     """도구 호출을 실제 동작으로. 반환 문자열은 모델에 tool 결과로 다시 전달된다."""
     if name == "create_todos":
-        on = date.fromisoformat(arguments["date"])
+        on = _req_date(arguments, "date")
         items = [
             {
-                "content": it["content"],
-                "tag": it.get("tag"),
-                "progress_delta": int(it.get("progressDelta", 0)),
+                "content": _req_text(it.get("content"), "items[].content"),
+                "tag": _req_text(it["tag"], "items[].tag", max_len=20) if it.get("tag") else None,
+                "progress_delta": _req_int(
+                    it.get("progressDelta"), "items[].progressDelta", low=0, high=1000, default=0
+                ),
             }
-            for it in arguments.get("items", [])
+            for it in _req_items(arguments, "items")
         ]
         await add_todo_items(db, goal, on, items)
         await create_notification(
@@ -185,13 +251,16 @@ async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments:
         return f"{on} 에 투두 {len(items)}개를 추가했다."
 
     if name == "check_todo_item":
-        item = await db.get(TodoItem, arguments["itemId"])
+        item = await db.get(TodoItem, _req_text(arguments.get("itemId"), "itemId", max_len=64))
         if item is None:
             return "해당 투두 항목을 찾을 수 없다."
         todo = await db.get(Todo, item.todo_id)
         if todo is None or todo.goal_id != goal.id:
             return "이 목표의 항목이 아니다."
-        done = bool(arguments.get("done", True))
+        raw_done = arguments.get("done", True)
+        if not isinstance(raw_done, bool):
+            raise ToolArgError("done 은 true/false 여야 한다.")
+        done = raw_done
         await set_item_done(db, item, done)
         if done:
             await create_notification(
@@ -206,16 +275,27 @@ async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments:
         return "투두 체크 상태를 갱신했다."
 
     if name == "create_planner":
-        on = date.fromisoformat(arguments["date"])
-        blocks = arguments.get("blocks", [])
+        on = _req_date(arguments, "date")
+        blocks = _req_items(arguments, "blocks")
         for b in blocks:
+            start = _req_int(
+                b.get("startMinutes"), "blocks[].startMinutes", low=0, high=DAY_MINUTES - 1
+            )
+            duration = _req_int(
+                b.get("durationMinutes"), "blocks[].durationMinutes", low=1, high=DAY_MINUTES
+            )
+            if start + duration > DAY_MINUTES:
+                raise ToolArgError(
+                    f"blocks[] 가 자정을 넘는다(시작 {start}분 + {duration}분). "
+                    "하루를 넘기려면 날짜별로 나눠서 보내라."
+                )
             await add_block(
                 db,
                 goal.user_id,
                 on,
-                title=b["title"],
-                start_minutes=int(b["startMinutes"]),
-                duration_minutes=int(b["durationMinutes"]),
+                title=_req_text(b.get("title"), "blocks[].title"),
+                start_minutes=start,
+                duration_minutes=duration,
                 # 계획은 그 목표의 채팅방에서 세우므로 목표가 분명하다
                 goal_id=goal.id,
             )
@@ -223,20 +303,30 @@ async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments:
         return f"{on} 플래너 계획 {len(blocks)}개를 세웠다."
 
     if name == "set_milestones":
-        ms = [
-            {"title": m["title"], "status": m.get("status", "upcoming")}
-            for m in arguments.get("milestones", [])
-        ]
+        ms = []
+        for m in _req_items(arguments, "milestones"):
+            status = m.get("status", "upcoming")
+            if status not in MILESTONE_STATUSES:
+                raise ToolArgError(
+                    f"milestones[].status 는 {'|'.join(MILESTONE_STATUSES)} 중 하나여야 한다"
+                    f"(받은 값: {status!r})."
+                )
+            ms.append({"title": _req_text(m.get("title"), "milestones[].title"), "status": status})
         await set_milestones(db, goal, ms)
         await db.commit()
         return f"마일스톤 {len(ms)}개로 갱신했다."
 
     if name == "set_progress":
+        unit = arguments.get("unit")
         set_progress(
             goal,
-            current=arguments.get("current"),
-            total=arguments.get("total"),
-            unit=arguments.get("unit"),
+            current=_req_int(arguments.get("current"), "current", low=0, high=100000, default=-1)
+            if arguments.get("current") is not None
+            else None,
+            total=_req_int(arguments.get("total"), "total", low=0, high=100000, default=-1)
+            if arguments.get("total") is not None
+            else None,
+            unit=_req_text(unit, "unit", max_len=10) if unit is not None else None,
         )
         await db.commit()
         return f"진도를 갱신했다: {goal.progress}."
@@ -249,3 +339,24 @@ async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments:
         return "목표를 완주로 기록했다. 사용자에게 축하를 전해라."
 
     return f"알 수 없는 도구: {name}"
+
+
+async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments: dict) -> str:
+    """도구 호출을 실제 동작으로. 반환 문자열은 모델에 tool 결과로 다시 전달된다.
+
+    인자가 잘못됐거나 도중에 터져도 **예외를 밖으로 내보내지 않는다.**
+    여기서 새어 나가면 라우터가 SSE error 로 감싸 대화 자체가 끊긴다.
+    사유를 문자열로 돌려주면 모델이 고쳐서 다시 부르거나 사용자에게 설명할 수 있다.
+    """
+    try:
+        return await _dispatch(db, goal, name, arguments)
+    except ToolArgError as exc:
+        await db.rollback()
+        return f"도구 인자가 잘못됐다: {exc}"
+    except Exception as exc:  # noqa: BLE001 - 도구 실패로 대화를 끊지 않는다
+        await db.rollback()
+        logger.exception("도구 실행 실패: %s(%r)", name, arguments)
+        return (
+            f"도구 실행에 실패했다({type(exc).__name__}). "
+            "사용자에게 잠시 후 다시 시도하라고 알려라."
+        )
