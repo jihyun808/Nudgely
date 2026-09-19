@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  (모델을 메타데이터에 등록)
 from app.core.config import settings
-from app.core.db import Base, get_db
+from app.core.db import Base, enable_sqlite_foreign_keys, get_db
 from app.main import app
 
 
@@ -32,6 +32,8 @@ async def engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    # 앱 엔진과 같은 조건으로 둔다. 안 켜면 ON DELETE 동작이 테스트에서만 조용히 빠진다
+    enable_sqlite_foreign_keys(eng)
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield eng

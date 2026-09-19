@@ -12,7 +12,7 @@
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, TypeDecorator
+from sqlalchemy import DateTime, TypeDecorator, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -50,6 +50,30 @@ class UtcDateTime(TypeDecorator):
 
 
 engine = create_async_engine(settings.database_url, echo=settings.db_echo, future=True)
+
+
+def enable_sqlite_foreign_keys(target) -> None:
+    """SQLite 연결마다 외래 키 제약을 켠다.
+
+    SQLite 는 `PRAGMA foreign_keys` 가 **연결마다 기본 꺼짐**이다. 켜지 않으면
+    ON DELETE CASCADE / SET NULL 이 선언만 되고 아무 일도 하지 않아,
+    목표를 지워도 집중 세션의 goal_id 가 사라진 목표를 계속 가리킨다.
+    (Postgres 는 항상 제약을 지키므로 SQLite 일 때만 건다.)
+
+    엔진을 만드는 쪽(앱·테스트)이 각자 한 번 불러준다.
+    """
+    if target.dialect.name != "sqlite":
+        return
+
+    @event.listens_for(target.sync_engine, "connect")
+    def _set_pragma(dbapi_connection, _record) -> None:  # pragma: no cover - 연결 훅
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
+enable_sqlite_foreign_keys(engine)
+
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
