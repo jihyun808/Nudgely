@@ -87,24 +87,44 @@ async def create_daily_todo(db: AsyncSession, goal: Goal, on: date, items: list[
     return todo
 
 
-async def add_todo_items(db: AsyncSession, goal: Goal, on: date, items: list[dict]) -> Todo:
-    """그날 투두 묶음에 항목을 추가(없으면 생성). 하루 한 목표 = 한 묶음 유지."""
-    existing = (
+async def add_todo_items(
+    db: AsyncSession, goal: Goal, on: date, items: list[dict]
+) -> tuple[Todo, list[TodoItem], int]:
+    """그날 투두 묶음에 항목을 추가(없으면 생성). 하루 한 목표 = 한 묶음 유지.
+
+    같은 날 같은 내용은 건너뛴다. AI 가 이미 만든 걸 못 보고 다시 부르는 일이
+    잦아서(읽기 도구가 없던 시절의 잔재) 같은 할 일이 그대로 쌓였다.
+
+    반환: (묶음, 새로 만든 항목들, 건너뛴 수)
+    """
+    todo = (
         await db.execute(select(Todo).where(Todo.goal_id == goal.id, Todo.date == on))
     ).scalar_one_or_none()
-    if existing is None:
-        return await create_daily_todo(db, goal, on, items)
+    if todo is None:
+        todo = Todo(goal_id=goal.id, date=on)
+        db.add(todo)
 
+    # 이미 있는 것과 이번 요청 안에서의 중복을 같은 집합으로 본다.
+    # (한 호출에 같은 내용을 두 번 넣어 보내는 경우도 있다)
+    seen = {i.content.strip() for i in todo.items}
+    created: list[TodoItem] = []
+    skipped = 0
     for it in items:
-        existing.items.append(
-            TodoItem(
-                content=it["content"],
-                tag=it.get("tag"),
-                progress_delta=int(it.get("progress_delta", 0)),
-            )
+        content = it["content"].strip()
+        if content in seen:
+            skipped += 1
+            continue
+        seen.add(content)
+        item = TodoItem(
+            content=content,
+            tag=it.get("tag"),
+            progress_delta=int(it.get("progress_delta", 0)),
         )
+        todo.items.append(item)
+        created.append(item)
+
     await db.flush()
-    return existing
+    return todo, created, skipped
 
 
 async def set_item_done(db: AsyncSession, item: TodoItem, done: bool) -> None:

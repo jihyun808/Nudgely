@@ -11,6 +11,7 @@
 import logging
 from datetime import UTC, date, datetime
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.goal import Goal
@@ -25,6 +26,22 @@ logger = logging.getLogger(__name__)
 
 # OpenAI tools 스키마 (chat.completions 의 tools 인자로 전달)
 TOOL_SCHEMAS: list[dict] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "list_todos",
+            "description": (
+                "특정 날짜에 이 목표로 잡혀 있는 투두를 읽는다. "
+                "항목을 체크하거나 새로 만들기 전에 먼저 불러 무엇이 이미 있는지, "
+                "itemId 가 무엇인지 확인해라."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"date": {"type": "string", "description": "YYYY-MM-DD"}},
+                "required": ["date"],
+            },
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -60,7 +77,8 @@ TOOL_SCHEMAS: list[dict] = [
             "name": "check_todo_item",
             "description": (
                 "투두 항목의 완료 여부를 바꾼다. "
-                "완료하면 목표 진도(current)가 항목의 progressDelta 만큼 자동 반영된다."
+                "완료하면 목표 진도(current)가 항목의 progressDelta 만큼 자동 반영된다. "
+                "itemId 는 반드시 list_todos 로 먼저 확인해라. 지어내지 마라."
             ),
             "parameters": {
                 "type": "object",
@@ -227,6 +245,20 @@ def _req_items(args: dict, key: str, *, allow_empty: bool = False) -> list[dict]
 
 async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) -> str:
     """도구 호출을 실제 동작으로. 반환 문자열은 모델에 tool 결과로 다시 전달된다."""
+    if name == "list_todos":
+        on = _req_date(arguments, "date")
+        todo = (
+            await db.execute(select(Todo).where(Todo.goal_id == goal.id, Todo.date == on))
+        ).scalar_one_or_none()
+        if todo is None or not todo.items:
+            return f"{on} 에 이 목표로 잡힌 투두가 없다."
+        lines = [
+            f"- itemId={i.id} | {i.content} | {'완료' if i.is_done else '미완료'}"
+            + (f" | 진도 +{i.progress_delta}" if i.progress_delta else "")
+            for i in todo.items
+        ]
+        return f"{on} 투두 {len(todo.items)}개:\n" + "\n".join(lines)
+
     if name == "create_todos":
         on = _req_date(arguments, "date")
         items = [
@@ -239,23 +271,35 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
             }
             for it in _req_items(arguments, "items")
         ]
-        await add_todo_items(db, goal, on, items)
+        _todo, created, skipped = await add_todo_items(db, goal, on, items)
+        if not created:
+            # 전부 이미 있는 것들이었다. 알림까지 보내면 사용자에게 두 번 알리게 된다
+            await db.rollback()
+            return (
+                f"{on} 에 이미 같은 할 일이 있어 새로 만들지 않았다"
+                f"({skipped}개 중복). list_todos 로 확인해라."
+            )
         await create_notification(
             db,
             goal.user_id,
             ntype="todoAdded",
             title=goal.name,
-            body=f"새 할 일 {len(items)}개가 추가됐어요.",
+            body=f"새 할 일 {len(created)}개가 추가됐어요.",
             # 투두 알림은 기록 탭으로 보낸다(features.md §4 — 독촉만 채팅방)
             link_to=RECORD_LINK,
         )
         await db.commit()
-        return f"{on} 에 투두 {len(items)}개를 추가했다."
+        made = ", ".join(f"itemId={i.id}({i.content})" for i in created)
+        note = f" 이미 있어 건너뛴 것 {skipped}개." if skipped else ""
+        return f"{on} 에 투두 {len(created)}개를 추가했다: {made}.{note}"
 
     if name == "check_todo_item":
         item = await db.get(TodoItem, _req_text(arguments.get("itemId"), "itemId", max_len=64))
         if item is None:
-            return "해당 투두 항목을 찾을 수 없다."
+            return (
+                "그 itemId 의 투두 항목이 없다. 지어내지 말고 list_todos 로 "
+                "그날의 itemId 를 먼저 확인해라. 새로 만들지도 마라."
+            )
         todo = await db.get(Todo, item.todo_id)
         if todo is None or todo.goal_id != goal.id:
             return "이 목표의 항목이 아니다."
