@@ -212,9 +212,11 @@ def _req_int(value: object, field: str, *, low: int, high: int, default: int | N
     return value
 
 
-def _req_items(args: dict, key: str) -> list[dict]:
+def _req_items(args: dict, key: str, *, allow_empty: bool = False) -> list[dict]:
     raw = args.get(key)
-    if not isinstance(raw, list) or not raw:
+    if not isinstance(raw, list):
+        raise ToolArgError(f"{key} 는 배열이어야 한다.")
+    if not raw and not allow_empty:
         raise ToolArgError(f"{key} 는 비어 있지 않은 배열이어야 한다.")
     if len(raw) > MAX_ITEMS:
         raise ToolArgError(f"{key} 가 너무 많다({len(raw)}개). 한 번에 {MAX_ITEMS}개까지만 보내라.")
@@ -304,7 +306,7 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
 
     if name == "set_milestones":
         ms = []
-        for m in _req_items(arguments, "milestones"):
+        for m in _req_items(arguments, "milestones", allow_empty=True):
             status = m.get("status", "upcoming")
             if status not in MILESTONE_STATUSES:
                 raise ToolArgError(
@@ -317,16 +319,18 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
         return f"마일스톤 {len(ms)}개로 갱신했다."
 
     if name == "set_progress":
-        unit = arguments.get("unit")
+        current, total, unit = (arguments.get(k) for k in ("current", "total", "unit"))
+        if current is None and total is None and unit is None:
+            raise ToolArgError(
+                "current·total·unit 중 최소 하나는 있어야 한다. "
+                "바꿀 게 없으면 이 도구를 부르지 마라."
+            )
         set_progress(
             goal,
-            current=_req_int(arguments.get("current"), "current", low=0, high=100000, default=-1)
-            if arguments.get("current") is not None
-            else None,
-            total=_req_int(arguments.get("total"), "total", low=0, high=100000, default=-1)
-            if arguments.get("total") is not None
-            else None,
-            unit=_req_text(unit, "unit", max_len=10) if unit is not None else None,
+            current=None if current is None else _req_int(current, "current", low=0, high=100000),
+            # total 은 '전체 분량' 이라 0 이면 의미가 없고, 상한 검사도 무력해진다
+            total=None if total is None else _req_int(total, "total", low=1, high=100000),
+            unit=None if unit is None else _req_text(unit, "unit", max_len=10),
         )
         await db.commit()
         return f"진도를 갱신했다: {goal.progress}."

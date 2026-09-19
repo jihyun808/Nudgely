@@ -154,3 +154,60 @@ async def test_unknown_tool_does_not_raise(
     goal = await _goal(client, session_factory)
     out = await _call(session_factory, goal, "지어낸_도구", {})
     assert "알 수 없는 도구" in out
+
+
+# ── set_progress 는 '없으면 null' 이어야 한다 (api.md §3.1) ──
+
+
+async def test_empty_set_progress_is_rejected(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """인자 없는 호출이 진도를 만들어내면 안 된다.
+
+    {current:0, total:0, unit:''} 은 프론트에서 truthy 라, 진도가 없던 목표의
+    카드가 '시작일 안내' 대신 '0 / 0 완료' 0% 막대로 바뀐다.
+    """
+    goal = await _goal(client, session_factory)
+    out = await _call(session_factory, goal, "set_progress", {})
+
+    assert "최소 하나는 있어야 한다" in out
+    async with session_factory() as db:
+        assert (await db.get(Goal, goal.id)).progress is None
+
+
+async def test_set_progress_rejects_zero_total(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """total=0 이면 상한 검사가 무력해져 '30강 중 45강' 이 생긴다."""
+    goal = await _goal(client, session_factory)
+    out = await _call(session_factory, goal, "set_progress", {"total": 0, "unit": "강"})
+
+    assert "1~100000" in out
+    async with session_factory() as db:
+        assert (await db.get(Goal, goal.id)).progress is None
+
+
+async def test_set_progress_partial_update_works(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """일부만 보내는 건 정상이다(진도 보정)."""
+    goal = await _goal(client, session_factory)
+    await _call(session_factory, goal, "set_progress", {"total": 30, "unit": "강"})
+    await _call(session_factory, goal, "set_progress", {"current": 3})
+
+    async with session_factory() as db:
+        assert (await db.get(Goal, goal.id)).progress == {
+            "current": 3,
+            "total": 30,
+            "unit": "강",
+        }
+
+
+async def test_milestones_can_be_cleared(client: AsyncClient, session_factory: async_sessionmaker):
+    """통째로 교체하는 도구라 빈 배열은 '전부 지우기' 다."""
+    goal = await _goal(client, session_factory)
+    await _call(session_factory, goal, "set_milestones", {"milestones": [{"title": "1장"}]})
+    out = await _call(session_factory, goal, "set_milestones", {"milestones": []})
+
+    assert "잘못됐다" not in out
+    assert "0개" in out

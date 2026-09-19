@@ -44,7 +44,15 @@ def set_progress(
     total: int | None = None,
     unit: str | None = None,
 ) -> None:
-    """AI 보정: 진도를 절대값으로 설정 (ai-plan §4.3b)."""
+    """AI 보정: 진도를 절대값으로 설정 (ai-plan §4.3b).
+
+    셋 다 None 이면 아무것도 하지 않는다. 빈 호출에도 dict 를 만들어 버리면
+    진도가 없던 목표의 progress 가 {0, 0, ""} 가 되고, 프론트는 이걸 진도가
+    "있다"고 보아 시작일 안내 대신 0% 막대를 그린다(api.md §3.1 — 없으면 null).
+    """
+    if current is None and total is None and unit is None:
+        return
+
     p = dict(goal.progress) if goal.progress else {"current": 0, "total": 0, "unit": ""}
     if total is not None:
         p["total"] = total
