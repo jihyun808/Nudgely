@@ -20,6 +20,9 @@ from app.core.scheduler import shutdown_scheduler, start_scheduler
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # 위험한 기본값을 달고 운영에 뜨지 않게 막는다(dev 는 통과)
+    settings.assert_production_ready()
+
     # 개발 편의: 앱 시작 시 테이블 생성(SQLite).
     # 운영에서는 auto_create_tables=False 로 두고 `alembic upgrade head` 를 쓴다.
     if settings.auto_create_tables:

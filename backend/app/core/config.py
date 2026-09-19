@@ -8,6 +8,12 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+#: 개발용 기본 JWT 비밀키. 소스에 있는 값이라 이걸로 서명하면 누구나 토큰을 위조할 수 있다.
+DEV_JWT_SECRET = "dev-insecure-change-me"
+
+#: HMAC-SHA256 권장 최소 길이(RFC 7518 §3.2)
+MIN_JWT_SECRET_BYTES = 32
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -39,7 +45,8 @@ class Settings(BaseSettings):
 
     # ── 인증(JWT) ──
     # ⚠️ 운영에서는 반드시 .env 로 강력한 비밀키를 주입할 것.
-    jwt_secret: str = "dev-insecure-change-me"
+    #: 아래 값 그대로면 운영에서 起動을 막는다(assert_production_ready)
+    jwt_secret: str = DEV_JWT_SECRET
     jwt_algorithm: str = "HS256"
     # 액세스 토큰 만료(분). 현재는 리프레시 토큰 없이 만료 시 재로그인(api.md §8-2).
     access_token_expire_minutes: int = 60 * 24 * 7  # 7일
@@ -57,6 +64,37 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:8000"
     max_chat_file_mb: int = 10  # 채팅 첨부(jpg·jpeg·png·pdf·txt)
     max_image_mb: int = 5  # 목표·프로필 이미지(jpg·png)
+
+    def assert_production_ready(self) -> None:
+        """운영에서 위험한 기본값이 남아 있으면 起動을 막는다.
+
+        경고만 남기면 아무도 안 본다. 특히 JWT 비밀키는 소스에 적힌 값이라
+        그대로 두면 누구나 남의 토큰을 만들 수 있어, 켜지지 않는 편이 낫다.
+        """
+        if self.app_env == "dev":
+            return
+
+        problems: list[str] = []
+        if self.jwt_secret == DEV_JWT_SECRET:
+            problems.append(
+                "JWT_SECRET 이 개발용 기본값입니다. 소스에 적힌 값이라 토큰을 위조할 수 있습니다."
+            )
+        elif len(self.jwt_secret.encode()) < MIN_JWT_SECRET_BYTES:
+            problems.append(
+                f"JWT_SECRET 이 너무 짧습니다({len(self.jwt_secret.encode())}바이트). "
+                f"{MIN_JWT_SECRET_BYTES}바이트 이상을 쓰세요."
+            )
+        if "*" in self.cors_origins_list:
+            problems.append(
+                "CORS_ORIGINS 에 '*' 는 쓸 수 없습니다(쿠키·인증 헤더가 함께 열립니다)."
+            )
+        if self.auto_create_tables:
+            problems.append(
+                "AUTO_CREATE_TABLES 는 운영에서 false 여야 합니다(마이그레이션으로 관리)."
+            )
+
+        if problems:
+            raise RuntimeError("운영 설정이 안전하지 않습니다:\n- " + "\n- ".join(problems))
 
     @property
     def cors_origins_list(self) -> list[str]:
