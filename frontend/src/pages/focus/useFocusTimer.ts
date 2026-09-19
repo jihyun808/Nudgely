@@ -9,6 +9,7 @@ import {
   POMODORO_LONG_BREAK_EVERY,
   POMODORO_LONG_BREAK_MINUTES,
   STOPWATCH_ROUND_MINUTES,
+  type FocusMode,
 } from '@/types/focus';
 import { requestNotificationPermission, showNotification } from '@/utils/notify';
 import { playBeep } from '@/utils/sound';
@@ -197,18 +198,35 @@ export function useFocusTimer() {
     start();
   };
 
-  /** 스톱워치를 멈추고 기록으로 남긴다 */
+  /**
+   * 아직 저장되지 않은 집중 시간을 기록으로 남긴다.
+   *
+   * 뽀모도로는 25분을 채울 때마다 저장되는데, 그 전에 끝내면 남은 시간이
+   * reset() 으로 그냥 사라졌다. 20분 집중하고 끝내면 20분이 통째로 날아갔다.
+   * 휴식 중에는 남길 집중이 없으므로 건너뛴다.
+   */
+  const flushElapsed = () => {
+    if (elapsedSeconds <= 0 || isBreak) return;
+    addTodayFocusedSeconds(elapsedSeconds);
+    void saveFocusSession({
+      mode,
+      seconds: elapsedSeconds,
+      startedAt: new Date(Date.now() - elapsedSeconds * 1000).toISOString(),
+      goalId,
+    }).catch(() => {});
+  };
+
+  /** 타이머를 멈추고 기록으로 남긴다 */
   const handleFinish = () => {
-    if (elapsedSeconds > 0 && mode === 'stopwatch') {
-      addTodayFocusedSeconds(elapsedSeconds);
-      void saveFocusSession({
-        mode: 'stopwatch',
-        seconds: elapsedSeconds,
-        startedAt: new Date(Date.now() - elapsedSeconds * 1000).toISOString(),
-        goalId,
-      }).catch(() => {});
-    }
+    flushElapsed();
     reset();
+  };
+
+  /** 방식을 바꾸면 타이머가 초기화되므로, 흐른 시간을 먼저 남긴다 */
+  const handleModeChange = (next: FocusMode) => {
+    if (next === mode) return;
+    flushElapsed();
+    setMode(next);
   };
 
   /** 다이얼 아래 문구 */
@@ -229,7 +247,7 @@ export function useFocusTimer() {
     goalId,
     selectGoal,
     mode,
-    setMode,
+    setMode: handleModeChange,
     isRunning,
     elapsedSeconds,
     displaySeconds,
