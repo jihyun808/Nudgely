@@ -14,6 +14,7 @@ from app.models.goal import Goal
 from app.models.todo import Todo, TodoItem
 from app.schemas.record import DailyTodoOut, TodoItemOut, TodoMark
 from app.services.goal_service import apply_progress_delta
+from app.services.progress_service import sync_milestones
 
 
 def _title_of(goal: Goal) -> str:
@@ -141,6 +142,4 @@ async def set_item_done(db: AsyncSession, item: TodoItem, done: bool) -> None:
     apply_progress_delta(goal, item.progress_delta if done else -item.progress_delta)
     # 진도가 움직였으면 로드맵 단계도 따라간다(체크 해제면 되돌아간다)
     if item.progress_delta:
-        from app.services.progress_service import sync_milestones
-
         await sync_milestones(db, goal)

@@ -182,3 +182,18 @@ async def test_progress_wins_over_ai_status(
         "current",
         "upcoming",
     ]
+
+
+async def test_target_cannot_exceed_total(client: AsyncClient, session_factory: async_sessionmaker):
+    """전체 분량을 넘는 target 은 그 단계를 영원히 못 끝내게 만든다."""
+    goal_id = await _goal(client, session_factory)
+    await _call(session_factory, goal_id, "set_progress", {"total": 24, "unit": "소주제"})
+
+    out = await _call(
+        session_factory,
+        goal_id,
+        "set_milestones",
+        {"milestones": [{"title": "1장", "target": 30}]},
+    )
+
+    assert "1~24" in out

@@ -362,6 +362,9 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
         return f"{on} 플래너 계획 {len(blocks)}개를 세웠다."
 
     if name == "set_milestones":
+        # target 은 진도 위의 지점이라 전체 분량을 넘을 수 없다.
+        # 넘으면 그 단계가 영원히 끝나지 않는다.
+        total = int((goal.progress or {}).get("total") or 0)
         ms = []
         for m in _req_items(arguments, "milestones", allow_empty=True):
             status = m.get("status", "upcoming")
@@ -377,7 +380,7 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
                     "status": status,
                     "target": None
                     if target is None
-                    else _req_int(target, "milestones[].target", low=1, high=100000),
+                    else _req_int(target, "milestones[].target", low=1, high=total or 100000),
                 }
             )
         await set_milestones(db, goal, ms)

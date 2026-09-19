@@ -58,9 +58,6 @@ PERSONA_SYSTEM_PROMPTS: dict[str, str] = {
 # 페르소나 미선택 시 기본값
 DEFAULT_SYSTEM_PROMPT = _BASE + "\n말투: 친근하지만 군더더기 없이 명확하게."
 
-# 하위호환(기존 /ai/chat 데모가 참조)
-STUDY_PERSONA_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
-
 
 def _progress_line(progress: dict | None) -> str | None:
     """진도 dict({current, total, unit}) → 한 문장. 쓸 만한 값이 없으면 None."""
