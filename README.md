@@ -9,3 +9,5 @@ VITE_BACKEND_ORIGIN=http://localhost:8001 npm run dev 프론트엔드
 자동 테스트
 cd backend && .venv/bin/python -m pytest -q
 cd frontend && npx tsc -b && npx eslint src && npm run build
+
+이후 프롬프트 수정은 prompts.py에서 \_TOOL_POLICY만 확인하기.

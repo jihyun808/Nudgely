@@ -18,4 +18,6 @@ def test_health():
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert "model" in body
+    # 모델 티어 두 개를 다 보여준다(어느 모델이 물려 있는지 배포 후 확인용)
+    assert "chatModel" in body
+    assert "batchModel" in body

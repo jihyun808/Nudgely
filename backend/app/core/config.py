@@ -18,7 +18,12 @@ class Settings(BaseSettings):
 
     # ── OpenAI ──
     openai_api_key: str = ""
-    openai_model: str = "gpt-4o-mini"
+    # 모델 티어. 나누는 기준은 '대화 vs 구조화 출력' 이 아니라
+    # **사용자가 기다리는가** 다. 채팅 한 턴은 도구를 고르는 판단까지 품질이
+    # 그대로 드러나서(엉뚱한 도구를 부르면 사용자가 바로 본다) 좋은 모델을 쓰고,
+    # 아무도 안 보는 배치(밤 11시 독촉 문구 등)는 싼 모델로 충분하다.
+    openai_chat_model: str = "gpt-4.1"
+    openai_batch_model: str = "gpt-4o-mini"
     openai_timeout: int = 60
 
     # ── App ──

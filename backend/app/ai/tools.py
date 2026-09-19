@@ -19,7 +19,7 @@ from app.models.todo import Todo, TodoItem
 from app.services.goal_service import set_progress
 from app.services.notification_service import RECORD_LINK, create_notification
 from app.services.planner_service import add_block
-from app.services.progress_service import set_milestones
+from app.services.progress_service import set_milestones, sync_milestones
 from app.services.record_service import add_todo_items, set_item_done
 
 logger = logging.getLogger(__name__)
@@ -127,7 +127,10 @@ TOOL_SCHEMAS: list[dict] = [
         "function": {
             "name": "set_milestones",
             "description": (
-                "목표의 진도 마일스톤(로드맵)을 통째로 교체한다. status: done|current|upcoming."
+                "목표의 진도 마일스톤(로드맵)을 통째로 교체한다. "
+                "각 단계에 target(그 단계가 끝나는 진도 지점)을 주면 진도에 따라 "
+                "status 가 자동으로 갱신된다. 예: 24소주제를 1~4장으로 나누면 6/12/18/24. "
+                "target 을 주면 status 는 서버가 정하므로 생략해도 된다."
             ),
             "parameters": {
                 "type": "object",
@@ -141,6 +144,10 @@ TOOL_SCHEMAS: list[dict] = [
                                 "status": {
                                     "type": "string",
                                     "enum": ["done", "current", "upcoming"],
+                                },
+                                "target": {
+                                    "type": "integer",
+                                    "description": "이 단계가 끝나는 진도 지점(누적값)",
                                 },
                             },
                             "required": ["title"],
@@ -363,7 +370,16 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
                     f"milestones[].status 는 {'|'.join(MILESTONE_STATUSES)} 중 하나여야 한다"
                     f"(받은 값: {status!r})."
                 )
-            ms.append({"title": _req_text(m.get("title"), "milestones[].title"), "status": status})
+            target = m.get("target")
+            ms.append(
+                {
+                    "title": _req_text(m.get("title"), "milestones[].title"),
+                    "status": status,
+                    "target": None
+                    if target is None
+                    else _req_int(target, "milestones[].target", low=1, high=100000),
+                }
+            )
         await set_milestones(db, goal, ms)
         await db.commit()
         return f"마일스톤 {len(ms)}개로 갱신했다."
@@ -382,6 +398,8 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
             total=None if total is None else _req_int(total, "total", low=1, high=100000),
             unit=None if unit is None else _req_text(unit, "unit", max_len=10),
         )
+        # 진도를 세우거나 고치면 로드맵 단계도 다시 맞춘다
+        await sync_milestones(db, goal)
         await db.commit()
         return f"진도를 갱신했다: {goal.progress}."
 

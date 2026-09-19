@@ -29,6 +29,9 @@ class Milestone(Base):
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, default="upcoming")  # done|current|upcoming
+    # 이 단계가 끝나는 진도 지점(goal.progress.current 기준). 없으면 균등 분할로 본다.
+    # 예: 24소주제를 1~4장으로 나누면 6/12/18/24.
+    target_progress: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 타임라인 정렬용 순서
     order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)

@@ -12,7 +12,8 @@ def health() -> dict[str, object]:
     return {
         "status": "ok",
         "env": settings.app_env,
-        "model": settings.openai_model,
+        "chatModel": settings.openai_chat_model,
+        "batchModel": settings.openai_batch_model,
         # 키가 실제로 노출되지 않도록 존재 여부만 반환
         "openai_key_configured": bool(settings.openai_api_key),
     }

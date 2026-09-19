@@ -11,6 +11,7 @@
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from datetime import date
 from typing import Protocol
@@ -80,7 +81,7 @@ class OpenAIReplyStreamer:
         from app.core.config import settings
 
         client = get_openai_client()
-        model = settings.openai_model
+        model = settings.openai_chat_model
         messages = build_chat_messages(
             persona=persona,
             user_prompt=user_prompt,
@@ -126,11 +127,44 @@ class OpenAIReplyStreamer:
                     )
 
         # 2) 최종 사용자 응답을 스트리밍(도구 없이).
-        stream = await client.chat.completions.create(model=model, messages=messages, stream=True)
+        started = time.monotonic()
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            stream=True,
+            # 스트리밍은 기본으로 사용량을 안 주므로 따로 요청한다(마지막 청크에 붙는다)
+            stream_options={"include_usage": True},
+        )
+        usage = None
         async for chunk in stream:
+            usage = getattr(chunk, "usage", None) or usage
+            # 사용량만 담긴 마지막 청크는 choices 가 비어 있다
+            if not chunk.choices:
+                continue
             delta = chunk.choices[0].delta.content
             if delta:
                 yield delta
+        log_usage("reply", model, started, usage)
+
+
+def log_usage(kind: str, model: str, started: float, usage: object | None) -> None:
+    """모델 호출 한 건의 비용·지연을 남긴다.
+
+    토큰 수를 남겨야 어느 쪽이 돈을 쓰는지 보인다. 이 앱은 한 턴에 히스토리 40개와
+    도구 스키마를 매번 실어 보내서 입력 토큰이 크고, 도구 라운드가 여러 번 돌면
+    그만큼 곱절이 된다. 지연도 같이 남겨 라운드가 몇 초씩 먹는지 보이게 한다.
+    """
+    elapsed_ms = round((time.monotonic() - started) * 1000)
+    prompt = getattr(usage, "prompt_tokens", None)
+    completion = getattr(usage, "completion_tokens", None)
+    logger.info(
+        "ai_call kind=%s model=%s elapsed_ms=%d prompt_tokens=%s completion_tokens=%s",
+        kind,
+        model,
+        elapsed_ms,
+        prompt if prompt is not None else "-",
+        completion if completion is not None else "-",
+    )
 
 
 async def _tool_round(client, model: str, messages: list) -> object | None:
