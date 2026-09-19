@@ -8,6 +8,8 @@ interface FocusGoalPickerProps {
   /** 고른 목표 id. 안 골랐으면 undefined */
   value?: string;
   onChange: (goalId: string | undefined) => void;
+  /** 아직 저장되지 않은 집중이 진행 중이면 잠근다 */
+  disabled?: boolean;
 }
 
 /**
@@ -17,7 +19,7 @@ interface FocusGoalPickerProps {
  * 고르지 않아도 오늘 집중 시간에는 그대로 들어가므로 선택은 어디까지나 선택이다.
  * 진행 중인 목표가 하나도 없으면 고를 게 없으니 아예 그리지 않는다.
  */
-export default function FocusGoalPicker({ value, onChange }: FocusGoalPickerProps) {
+export default function FocusGoalPicker({ value, onChange, disabled }: FocusGoalPickerProps) {
   const [goals, setGoals] = useState<Goal[]>([]);
 
   useEffect(() => {
@@ -43,10 +45,10 @@ export default function FocusGoalPicker({ value, onChange }: FocusGoalPickerProp
 
   return (
     <label className="mt-4 block">
-      <span className="text-xs text-muted-foreground">무엇에 집중하나요?</span>
       <Select
-        className="mt-1.5"
+        className="mt-1.5 shadow-none"
         value={value ?? ''}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value || undefined)}
       >
         <option value="">선택 안 함</option>
