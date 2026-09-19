@@ -50,6 +50,12 @@ class PlannerBlock(Base):
     planner_id: Mapped[str] = mapped_column(
         String, ForeignKey("planners.id", ondelete="CASCADE"), index=True
     )
+    # 어느 목표의 블록인지. 계획은 AI 가 그 목표 방에서 세우고,
+    # 실제 기록은 집중 타이머에서 고른 목표를 그대로 물려받는다.
+    # 목표가 지워져도 기록 자체는 남겨야 해서 SET NULL.
+    goal_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("goals.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     title: Mapped[str] = mapped_column(String, nullable=False)
     start_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)

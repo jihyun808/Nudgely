@@ -216,6 +216,8 @@ async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments:
                 title=b["title"],
                 start_minutes=int(b["startMinutes"]),
                 duration_minutes=int(b["durationMinutes"]),
+                # 계획은 그 목표의 채팅방에서 세우므로 목표가 분명하다
+                goal_id=goal.id,
             )
         await db.commit()
         return f"{on} 플래너 계획 {len(blocks)}개를 세웠다."
