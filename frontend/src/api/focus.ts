@@ -58,9 +58,10 @@ export async function fetchDailyFocus(from: string, to: string): Promise<Record<
   return Object.fromEntries(data.days.map(({ date, seconds }) => [date, seconds]));
 }
 
-/** 집중 세션 저장. 타이머를 멈추거나 뽀모도로 한 판이 끝났을 때 보낸다 */
+/**
+ * 집중 세션 저장. 타이머를 멈추거나 뽀모도로 한 판이 끝났을 때 보낸다.
+ * goalId 를 함께 보내면 그 목표의 집중 시간으로 집계된다(모아보기 진도 탭).
+ */
 export async function saveFocusSession(input: FocusSessionInput): Promise<void> {
-  // TODO: 목표별 집중 집계를 하려면 goalId가 필요하다(api.md §8-7).
-  //       집중 화면에 목표 선택 UI가 생기면 함께 보낸다.
   await api.post('/focus/sessions', input);
 }

@@ -1,10 +1,11 @@
 // pages/focus/Focus.tsx
+import CelebrationOverlay from '@/components/CelebrationOverlay';
 import PageHeader from '@/components/PageHeader';
 import SegmentedTabs from '@/components/SegmentedTabs';
-import CelebrationOverlay from '@/pages/focus/components/CelebrationOverlay';
 import CurrentPlanNotice from '@/pages/focus/components/CurrentPlanNotice';
 import FocusControls from '@/pages/focus/components/FocusControls';
 import FocusDial from '@/pages/focus/components/FocusDial';
+import FocusGoalPicker from '@/pages/focus/components/FocusGoalPicker';
 import FocusModeHint from '@/pages/focus/components/FocusModeHint';
 import FocusStats from '@/pages/focus/components/FocusStats';
 import { useCurrentPlan } from '@/pages/focus/useCurrentPlan';
@@ -46,6 +47,8 @@ export default function Focus() {
         onChange={timer.setMode}
         className="mt-4"
       />
+
+      <FocusGoalPicker value={timer.goalId} onChange={timer.selectGoal} />
 
       {currentPlan && (
         <div className="mt-6">

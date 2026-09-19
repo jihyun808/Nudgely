@@ -27,6 +27,11 @@ export interface FocusSessionInput {
   seconds: number;
   /** 시작 시각 (ISO 8601) */
   startedAt: string;
+  /**
+   * 무슨 목표에 집중했는지. 고르지 않았으면 생략한다.
+   * 이걸 붙여야 모아보기 진도 탭의 '집중 시간'이 목표별로 쌓인다(api.md §8-7).
+   */
+  goalId?: string;
 }
 
 /** 스톱워치 한 바퀴 = 60분 */

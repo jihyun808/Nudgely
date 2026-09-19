@@ -17,12 +17,41 @@ import { formatClock } from '@/utils/time';
 /** 화면 갱신 주기(ms). 초 단위 표시라 250ms면 충분하다 */
 const TICK_MS = 250;
 
+/** 마지막에 고른 집중 목표를 기억해 둘 키. 보통 같은 목표를 이어서 하기 때문 */
+const GOAL_STORAGE_KEY = 'nudgely.focus.goalId';
+
+function readStoredGoalId(): string | undefined {
+  try {
+    return localStorage.getItem(GOAL_STORAGE_KEY) ?? undefined;
+  } catch {
+    // 사파리 비공개 모드 등 저장소를 막아둔 환경
+    return undefined;
+  }
+}
+
+function storeGoalId(goalId: string | undefined): void {
+  try {
+    if (goalId) localStorage.setItem(GOAL_STORAGE_KEY, goalId);
+    else localStorage.removeItem(GOAL_STORAGE_KEY);
+  } catch {
+    // 못 적어도 이번 세션 동안은 상태로 유지된다
+  }
+}
+
 /**
  * 집중 타이머의 모든 동작을 모아둔 훅.
  * 시간 계산, 뽀모도로 단계 전환, 세션 저장, 목표 달성 축하, 탭 제목 갱신을 담당한다.
  * 화면(Focus.tsx)은 여기서 나온 값을 그리기만 한다.
  */
 export function useFocusTimer() {
+  /** 집중 세션에 붙일 목표. 안 고르면 오늘 집중 시간에만 들어간다 */
+  const [goalId, setGoalId] = useState<string | undefined>(readStoredGoalId);
+
+  const selectGoal = (next: string | undefined) => {
+    setGoalId(next);
+    storeGoalId(next);
+  };
+
   const {
     mode,
     phase,
@@ -109,6 +138,7 @@ export function useFocusTimer() {
         mode: 'pomodoro',
         seconds,
         startedAt: new Date(Date.now() - seconds * 1000).toISOString(),
+        goalId,
       }).catch(() => {});
 
       const nextBreakMinutes =
@@ -134,6 +164,7 @@ export function useFocusTimer() {
     completedCycles,
     switchPhase,
     addTodayFocusedSeconds,
+    goalId,
   ]);
 
   // 오늘 목표를 넘기면 한 번만 축하한다
@@ -174,6 +205,7 @@ export function useFocusTimer() {
         mode: 'stopwatch',
         seconds: elapsedSeconds,
         startedAt: new Date(Date.now() - elapsedSeconds * 1000).toISOString(),
+        goalId,
       }).catch(() => {});
     }
     reset();
@@ -194,6 +226,8 @@ export function useFocusTimer() {
         : `${completedCycles + 1}번째 뽀모도로`;
 
   return {
+    goalId,
+    selectGoal,
     mode,
     setMode,
     isRunning,
