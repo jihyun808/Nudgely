@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.goal import Goal
 from app.models.todo import Todo, TodoItem
 from app.services.goal_service import set_progress
-from app.services.notification_service import chat_link, create_notification
+from app.services.notification_service import RECORD_LINK, create_notification
 from app.services.planner_service import add_block
 from app.services.progress_service import set_milestones
 from app.services.record_service import add_todo_items, set_item_done
@@ -178,7 +178,8 @@ async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments:
             ntype="todoAdded",
             title=goal.name,
             body=f"새 할 일 {len(items)}개가 추가됐어요.",
-            link_to=chat_link(goal.id),
+            # 투두 알림은 기록 탭으로 보낸다(features.md §4 — 독촉만 채팅방)
+            link_to=RECORD_LINK,
         )
         await db.commit()
         return f"{on} 에 투두 {len(items)}개를 추가했다."
@@ -199,7 +200,7 @@ async def dispatch_tool_call(db: AsyncSession, goal: Goal, name: str, arguments:
                 ntype="todoDone",
                 title=goal.name,
                 body="할 일을 완료했어요!",
-                link_to=chat_link(goal.id),
+                link_to=RECORD_LINK,
             )
         await db.commit()
         return "투두 체크 상태를 갱신했다."

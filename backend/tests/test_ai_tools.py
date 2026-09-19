@@ -219,3 +219,32 @@ async def test_chat_dispatches_tool_and_streams(client: AsyncClient):
         assert todos.json()[0]["items"][0]["content"] == "오늘 3강"
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)
+
+
+# ── 알림 이동 대상 ──
+
+
+async def test_todo_notifications_link_to_record_tab(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """투두 알림은 기록 탭으로 보낸다.
+
+    features.md §4: '독촉은 채팅방, 투두·플래너는 기록 탭'.
+    '할 일 3개가 추가됐어요' 를 눌렀는데 채팅방이 열리면 할 일을 찾을 수 없다.
+    """
+    token = await _token(client)
+    goal_id = await _make_goal(client, token)
+
+    async with session_factory() as db:
+        goal = await db.get(Goal, goal_id)
+        await dispatch_tool_call(
+            db,
+            goal,
+            "create_todos",
+            {"date": "2026-09-20", "items": [{"content": "1강 듣기"}]},
+        )
+
+    notifs = (await client.get("/api/notifications", headers=_h(token))).json()
+    added = [n for n in notifs if n["type"] == "todoAdded"]
+    assert added, "todoAdded 알림이 없다"
+    assert added[0]["linkTo"] == "/record"

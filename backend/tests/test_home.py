@@ -203,7 +203,8 @@ async def test_ai_create_todos_makes_notification(
     body = res.json()
     assert len(body) == 1
     assert body[0]["type"] == "todoAdded"
-    assert body[0]["linkTo"] == chat_link(goal_id)
+    # 투두 알림은 기록 탭으로 (features.md §4 — 채팅방으로 보내면 할 일을 찾을 수 없다)
+    assert body[0]["linkTo"] == RECORD_LINK
 
 
 async def test_ai_todo_notification_suppressed_when_toggle_off(
