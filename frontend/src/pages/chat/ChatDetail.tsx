@@ -1,6 +1,7 @@
 // pages/chat/ChatDetail.tsx
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import CelebrationOverlay from '@/components/CelebrationOverlay';
 import ImageViewer from '@/components/ImageViewer';
 import { Button } from '@/components/ui/button';
 import DetailHeader from '@/components/DetailHeader';
@@ -92,6 +93,16 @@ export default function ChatDetail() {
       )}
 
       <ChatInputBar onSend={chat.onSend} onAttach={chat.onAttach} disabled={chat.isReplying} />
+
+      {/* AI 가 방금 완주 처리했을 때. 모아보기까지 들어가지 않아도 바로 축하한다 */}
+      {chat.hasJustCompleted && (
+        <CelebrationOverlay
+          onClose={chat.dismissCompletion}
+          emoji="🏆"
+          title="목표 완주!"
+          description={`'${chat.goal.title ?? chat.goal.name}' 를 끝까지 해냈어요. 정말 고생했어요!`}
+        />
+      )}
     </div>
   );
 }

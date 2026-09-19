@@ -110,6 +110,17 @@ export async function fetchMessages(goalId: string, cursor?: string): Promise<Me
   return data;
 }
 
+/** 메시지 전송 결과 */
+export interface SendResult {
+  /** 완성된 AI 답변 */
+  message: ChatMessage;
+  /**
+   * 이번 턴에 AI 가 목표를 완주 처리했는지 (SSE done 의 goalCompleted).
+   * 화면은 이 신호로 그 자리에서 축하 연출을 띄운다.
+   */
+  goalCompleted: boolean;
+}
+
 /** SSE 이벤트 한 덩어리 */
 interface StreamEvent {
   name: string;
@@ -149,7 +160,7 @@ function parseStreamEvent(raw: string): StreamEvent | null {
 export async function sendMessage(
   goalId: string,
   payload: { content?: string; file?: File; clientId?: string },
-): Promise<ChatMessage> {
+): Promise<SendResult> {
   if (!goalId) throw new Error('GOAL_NOT_FOUND');
 
   // SSE는 axios로 못 읽어서 fetch를 쓴다. 토큰·401 처리는 인터셉터와 같게 맞춘다
@@ -193,6 +204,8 @@ export async function sendMessage(
   let createdAt: string | undefined;
   /** done 을 받아야 완성된 답변이다. 중간에 끊긴 것과 구분한다 */
   let isComplete = false;
+  /** 이번 턴에 AI 가 완주 처리했는지 */
+  let goalCompleted = false;
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -217,7 +230,8 @@ export async function sendMessage(
         content += String(event.data.text ?? '');
       }
       if (event.name === 'done') {
-        // TODO: done의 goalCompleted 신호로 완주 축하 연출을 띄운다(화면 쪽 작업)
+        // 완주는 이번 턴에 막 일어났을 때만 온다(이미 완주한 방은 안 옴)
+        goalCompleted = event.data.goalCompleted === true;
         messageId = String(event.data.messageId ?? messageId);
         createdAt = String(event.data.createdAt ?? '');
         isComplete = true;
@@ -230,10 +244,13 @@ export async function sendMessage(
   if (!isComplete) throw new Error('STREAM_INCOMPLETE');
 
   return {
-    id: messageId ?? createId(),
-    role: 'assistant',
-    content,
-    createdAt: createdAt || new Date().toISOString(),
+    message: {
+      id: messageId ?? createId(),
+      role: 'assistant',
+      content,
+      createdAt: createdAt || new Date().toISOString(),
+    },
+    goalCompleted,
   };
 }
 

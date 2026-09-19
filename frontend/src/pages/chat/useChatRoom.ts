@@ -22,6 +22,8 @@ export function useChatRoom(goalId: string) {
   const [hasError, setHasError] = useState(false);
   /** AI 응답 대기 중 (입력 잠금 + 타이핑 표시) */
   const [isReplying, setIsReplying] = useState(false);
+  /** 방금 이 대화에서 목표를 완주했는지. 축하 연출을 한 번 띄우고 내린다 */
+  const [hasJustCompleted, setHasJustCompleted] = useState(false);
   /** 다음(더 과거) 페이지 커서. null이면 더 불러올 과거가 없다 */
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -124,7 +126,7 @@ export function useChatRoom(goalId: string) {
     setIsReplying(true);
 
     try {
-      const reply = await sendMessage(goalId, {
+      const { message, goalCompleted } = await sendMessage(goalId, {
         content: payload.content,
         file: payload.file,
         clientId: localId,
@@ -133,8 +135,19 @@ export function useChatRoom(goalId: string) {
       setMessages((prev) => [
         // 전송 성공한 내 메시지는 status를 지워 확정 상태로 만든다
         ...prev.map((m) => (m.id === localId ? { ...m, status: undefined } : m)),
-        reply,
+        message,
       ]);
+
+      // AI 가 이번 턴에 완주 처리했으면 그 자리에서 축하한다.
+      // 헤더·모아보기가 완주 상태를 반영하도록 목표도 다시 받아온다.
+      if (goalCompleted) {
+        setHasJustCompleted(true);
+        fetchGoal(goalId)
+          .then(setGoal)
+          .catch(() => {
+            // 못 받아도 축하 연출은 그대로 띄운다
+          });
+      }
     } catch {
       // 재시도 때 파일을 다시 보낼 수 있도록 남겨둔다
       if (payload.file) pendingFilesRef.current.set(localId, payload.file);
@@ -180,5 +193,7 @@ export function useChatRoom(goalId: string) {
     onAttach: (file: File) => void send({ file }),
     onRetry: retry,
     reload,
+    hasJustCompleted,
+    dismissCompletion: () => setHasJustCompleted(false),
   } as const;
 }
