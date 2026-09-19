@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  (모델을 메타데이터에 등록)
 from app.core.config import settings
-from app.core.db import Base, enable_sqlite_foreign_keys, get_db
+from app.core.db import Base, enable_sqlite_foreign_keys, get_db, get_session_factory
 from app.main import app
 
 
@@ -52,6 +52,8 @@ async def client(session_factory) -> AsyncClient:
             yield session
 
     app.dependency_overrides[get_db] = _override_get_db
+    # 백그라운드 응답 생성도 같은 인메모리 DB 를 보게 한다
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

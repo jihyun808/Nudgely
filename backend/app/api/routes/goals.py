@@ -20,21 +20,18 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, select, tuple_
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.ai.prompts import today_for
 from app.ai.streaming import ReplyStreamer, get_reply_streamer
-from app.ai.tools import dispatch_tool_call
 from app.api.deps import get_current_user
-from app.core.db import get_db
+from app.core.db import get_db, get_session_factory
 from app.core.errors import AppError
-from app.core.ids import new_id
 from app.core.storage import CHAT_ALLOWED, chat_max_bytes, image_max_bytes, save_upload
 from app.models.attachment import Attachment
 from app.models.goal import Goal, Message, ReadState
 from app.models.user import User, UserSettings
 from app.schemas.archive import AttachmentOut, GoalProgressOut
-from app.schemas.common import to_utc_iso
 from app.schemas.goal import (
     MESSAGE_CONTENT_MAX,
     NAME_MAX,
@@ -51,6 +48,7 @@ from app.schemas.goal import (
 from app.services.attachment_service import create_attachment, list_attachments
 from app.services.goal_service import build_goal_detail, build_goal_out, get_owned_goal
 from app.services.progress_service import build_goal_progress
+from app.services.reply_service import start_reply
 
 router = APIRouter()
 
@@ -395,6 +393,7 @@ async def send_message(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     streamer: ReplyStreamer = Depends(get_reply_streamer),
+    session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
 ) -> StreamingResponse:
     """메시지 전송 → AI 응답 SSE 스트리밍 (api.md §3.4).
 
@@ -445,53 +444,36 @@ async def send_message(
     if file_note:
         history.append(("user", f"[사용자가 파일을 첨부했습니다: {file_note}]"))
 
-    persona, prompt, title = goal.persona, goal.prompt, goal.title
-    goal_progress, due_date = goal.progress, goal.due_date
     # AI 가 create_todos/create_planner 의 date 를 찍으려면 '오늘'을 알아야 한다.
     # 서버 UTC 가 아니라 그 사람 타임존 기준이어야 기록 화면과 같은 날에 들어간다.
     user_settings = await db.get(UserSettings, goal.user_id)
     today = today_for(user_settings.timezone if user_settings else None)
-    assistant_id = new_id("m")
-    was_completed = goal.completed_at is not None  # 이번 턴 완주 감지용
 
-    async def _dispatch(name: str, arguments: dict) -> str:
-        # AI 도구 호출 → 실제 동작(투두·플래너·마일스톤·진도·완주 처리)
-        return await dispatch_tool_call(db, goal, name, arguments)
+    # 3) 응답 생성은 백그라운드로 돌린다.
+    #    사용자가 답이 오는 중에 채팅방을 나가면 이 SSE 는 끊기지만, 생성은 끝까지
+    #    돌아 메시지를 저장한다. 나갔다 와도 답이 와 있다(reply_service 주석 참고).
+    assistant_id, queue = start_reply(
+        session_factory=session_factory,
+        streamer=streamer,
+        goal_id=goal.id,
+        persona=goal.persona,
+        user_prompt=goal.prompt,
+        goal_title=goal.title,
+        history=history,
+        today=today,
+        goal_progress=goal.progress,
+        due_date=goal.due_date,
+    )
 
     async def event_stream():
+        """큐에 쌓이는 이벤트를 그대로 흘려보낸다(중계만 한다)."""
         yield _sse("message_start", {"messageId": assistant_id, "role": "assistant"})
-        full = ""
-        try:
-            async for text in streamer.stream(
-                persona=persona,
-                user_prompt=prompt,
-                goal_title=title,
-                history=history,
-                dispatch=_dispatch,
-                today=today,
-                goal_progress=goal_progress,
-                due_date=due_date,
-            ):
-                full += text
-                yield _sse("delta", {"text": text})
-        except Exception as exc:  # noqa: BLE001 - 외부 AI 오류를 error 이벤트로 감싼다
-            yield _sse("error", {"code": "AI_ERROR", "message": f"AI 응답 실패: {exc}"})
-            return
-
-        # 3) 완성된 assistant 메시지 저장
-        assistant_msg = Message(id=assistant_id, goal_id=goal.id, role="assistant", content=full)
-        db.add(assistant_msg)
-        await db.commit()
-        await db.refresh(assistant_msg)
-
-        # 이번 턴에 AI 가 완주 처리했으면 프론트 축하 연출 신호를 얹는다(api.md §3.2).
-        done_data = {
-            "messageId": assistant_id,
-            "createdAt": to_utc_iso(assistant_msg.created_at),
-        }
-        if not was_completed and goal.completed_at is not None:
-            done_data["goalCompleted"] = True
-        yield _sse("done", done_data)
+        while True:
+            event = await queue.get()
+            if event is None:
+                return
+            name, data = event
+            yield _sse(name, data)
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)

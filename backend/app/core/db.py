@@ -82,6 +82,16 @@ class Base(DeclarativeBase):
     """모든 ORM 모델의 공통 부모."""
 
 
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """백그라운드 작업이 쓸 세션 팩토리.
+
+    get_db 가 주는 세션은 응답이 끝나면 닫힌다. 응답 뒤에도 계속 도는 작업은
+    자기 세션을 따로 열어야 해서 팩토리 자체를 주입한다.
+    (의존성으로 둔 건 테스트가 테스트 DB 로 갈아끼우기 위해서다)
+    """
+    return async_session
+
+
 async def get_db() -> AsyncIterator[AsyncSession]:
     """요청마다 세션을 하나 열고, 끝나면 닫는다."""
     async with async_session() as session:
