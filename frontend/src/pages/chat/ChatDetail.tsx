@@ -92,13 +92,21 @@ export default function ChatDetail() {
         />
       )}
 
-      <ChatInputBar onSend={chat.onSend} onAttach={chat.onAttach} disabled={chat.isReplying} />
+      {/* key: 방을 옮기면 입력 바를 새로 만들어 그 방의 쓰다 만 글을 꺼내 오게 한다 */}
+      <ChatInputBar
+        key={goalId}
+        goalId={goalId}
+        onSend={chat.onSend}
+        onAttach={chat.onAttach}
+        disabled={chat.isReplying}
+      />
 
       {/* AI 가 방금 완주 처리했을 때. 모아보기까지 들어가지 않아도 바로 축하한다 */}
       {chat.hasJustCompleted && (
         <CelebrationOverlay
           onClose={chat.dismissCompletion}
           emoji="🏆"
+          isLooping={false}
           title="목표 완주!"
           description={`'${chat.goal.title ?? chat.goal.name}' 를 끝까지 해냈어요. 정말 고생했어요!`}
         />

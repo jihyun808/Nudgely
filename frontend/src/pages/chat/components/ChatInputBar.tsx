@@ -1,12 +1,41 @@
 // pages/chat/components/ChatInputBar.tsx
-import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { MESSAGE_MAX_LENGTH } from '@/types/chat';
 import { ATTACHMENT_ACCEPT, validateAttachmentFile } from '@/utils/file';
 
 /** 입력창이 늘어날 수 있는 최대 높이(px) */
 const MAX_TEXTAREA_HEIGHT = 120;
 
+/** 쓰다 만 메시지를 방별로 보관하는 키 앞머리 */
+const DRAFT_KEY = 'nudgely.chatDraft.';
+
+/**
+ * 쓰다 만 메시지 읽기/쓰기.
+ *
+ * 모아보기·목표 설정에 들렀다 오면 입력 바가 언마운트돼 쓰던 글이 사라졌다.
+ * sessionStorage 라 탭을 닫으면 정리되고, 방마다 키가 달라 여러 방을 오가도
+ * 각자 유지된다. 비공개 모드처럼 저장소가 막힌 환경에서는 조용히 포기한다.
+ */
+function readDraft(goalId: string): string {
+  try {
+    return sessionStorage.getItem(DRAFT_KEY + goalId) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function writeDraft(goalId: string, value: string): void {
+  try {
+    if (value) sessionStorage.setItem(DRAFT_KEY + goalId, value);
+    else sessionStorage.removeItem(DRAFT_KEY + goalId);
+  } catch {
+    // 저장은 못 해도 이번 화면에서는 상태로 유지된다
+  }
+}
+
 interface ChatInputBarProps {
+  /** 쓰다 만 메시지를 방별로 보관하기 위한 키 */
+  goalId: string;
   onSend: (content: string) => void;
   onAttach: (file: File) => void;
   /** 전송 중 등으로 입력을 막을 때 */
@@ -19,8 +48,8 @@ interface ChatInputBarProps {
  * 첨부는 JPG·PNG·PDF·TXT만 받는다.
  * Enter로 전송하고 Shift+Enter로 줄바꿈한다.
  */
-export default function ChatInputBar({ onSend, onAttach, disabled }: ChatInputBarProps) {
-  const [content, setContent] = useState('');
+export default function ChatInputBar({ goalId, onSend, onAttach, disabled }: ChatInputBarProps) {
+  const [content, setContent] = useState(() => readDraft(goalId));
   const [fileError, setFileError] = useState<string>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -34,8 +63,13 @@ export default function ChatInputBar({ onSend, onAttach, disabled }: ChatInputBa
     textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT)}px`;
   };
 
+  // 꺼내 온 글이 여러 줄이면 입력창도 그만큼 늘려 둔다.
+  // (방을 옮기면 ChatDetail 이 key 로 이 컴포넌트를 새로 만들므로 처음 한 번이면 된다)
+  useEffect(resizeTextarea, []);
+
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
+    writeDraft(goalId, e.target.value);
     resizeTextarea();
   };
 
@@ -43,6 +77,7 @@ export default function ChatInputBar({ onSend, onAttach, disabled }: ChatInputBa
     if (!canSend) return;
     onSend(content.trim());
     setContent('');
+    writeDraft(goalId, '');
     // 전송 후 한 줄 높이로 되돌린다
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
