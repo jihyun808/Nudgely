@@ -254,3 +254,75 @@ def test_today_follows_user_timezone():
     assert (seoul - honolulu).days in (0, 1)
     # 모르는 타임존은 기본값으로 떨어진다(친구 쪽 zone_of 규칙)
     assert today_for("Mars/Olympus") == seoul
+
+
+# ── 목표 컨텍스트(제목·진도·기한) 주입 ──
+
+
+def _context_of(msgs: list[dict]) -> str:
+    """목표 컨텍스트 system 메시지 한 줄을 찾아 돌려준다."""
+    found = [m["content"] for m in msgs if "사용자의 현재 목표" in m["content"]]
+    assert found, "목표 컨텍스트가 없다"
+    return found[0]
+
+
+def test_progress_is_injected():
+    """진도를 넣어주지 않으면 AI 가 set_progress 로 고친 값도 다음 턴에 못 읽는다."""
+    msgs = build_chat_messages(
+        persona="teacher",
+        user_prompt=None,
+        goal_title="UIUX 완주",
+        history=[],
+        today=date(2026, 9, 19),
+        goal_progress={"current": 3, "total": 30, "unit": "강"},
+    )
+    context = _context_of(msgs)
+    assert "30강 중 3강" in context
+    assert "10%" in context
+
+
+def test_progress_without_total_asks_to_set_it():
+    """total 이 아직 없으면 '모른다'는 사실과 할 일을 알려준다."""
+    msgs = build_chat_messages(
+        persona=None,
+        user_prompt=None,
+        goal_title="영어",
+        history=[],
+        goal_progress={"current": 0, "total": 0, "unit": ""},
+    )
+    context = _context_of(msgs)
+    assert "정해지지 않았다" in context
+    assert "set_progress" in context
+
+
+def test_deadline_counts_days_from_today():
+    msgs = build_chat_messages(
+        persona=None,
+        user_prompt=None,
+        goal_title="UIUX 완주",
+        history=[],
+        today=date(2026, 9, 19),
+        due_date=date(2026, 9, 25),
+    )
+    assert "6일 남았다" in _context_of(msgs)
+
+
+def test_overdue_deadline_is_stated_plainly():
+    """기한이 지난 걸 모르면 AI 가 태평하게 '아직 여유 있다'고 말한다."""
+    msgs = build_chat_messages(
+        persona=None,
+        user_prompt=None,
+        goal_title="UIUX 완주",
+        history=[],
+        today=date(2026, 9, 19),
+        due_date=date(2026, 9, 15),
+    )
+    assert "4일 지났다" in _context_of(msgs)
+
+
+def test_goal_context_omits_missing_parts():
+    """진도·기한이 없는 목표는 제목만 넣는다(빈 문장을 흘리지 않는다)."""
+    msgs = build_chat_messages(persona=None, user_prompt=None, goal_title="영어", history=[])
+    context = _context_of(msgs)
+    assert "진도" not in context
+    assert "기한" not in context

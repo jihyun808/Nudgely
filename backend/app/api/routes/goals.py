@@ -446,6 +446,7 @@ async def send_message(
         history.append(("user", f"[사용자가 파일을 첨부했습니다: {file_note}]"))
 
     persona, prompt, title = goal.persona, goal.prompt, goal.title
+    goal_progress, due_date = goal.progress, goal.due_date
     # AI 가 create_todos/create_planner 의 date 를 찍으려면 '오늘'을 알아야 한다.
     # 서버 UTC 가 아니라 그 사람 타임존 기준이어야 기록 화면과 같은 날에 들어간다.
     user_settings = await db.get(UserSettings, goal.user_id)
@@ -468,6 +469,8 @@ async def send_message(
                 history=history,
                 dispatch=_dispatch,
                 today=today,
+                goal_progress=goal_progress,
+                due_date=due_date,
             ):
                 full += text
                 yield _sse("delta", {"text": text})

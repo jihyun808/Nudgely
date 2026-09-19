@@ -37,6 +37,8 @@ class ReplyStreamer(Protocol):
         history: Iterable[tuple[str, str]],
         dispatch: Dispatch | None = None,
         today: date | None = None,
+        goal_progress: dict | None = None,
+        due_date: date | None = None,
     ) -> AsyncIterator[str]: ...
 
 
@@ -56,6 +58,8 @@ class OpenAIReplyStreamer:
         history: Iterable[tuple[str, str]],
         dispatch: Dispatch | None = None,
         today: date | None = None,
+        goal_progress: dict | None = None,
+        due_date: date | None = None,
     ) -> AsyncIterator[str]:
         import json
 
@@ -70,6 +74,8 @@ class OpenAIReplyStreamer:
             goal_title=goal_title,
             history=history,
             today=today,
+            goal_progress=goal_progress,
+            due_date=due_date,
         )
 
         # 1) 도구 호출 라운드: 모델이 도구를 요청하면 실행하고 결과를 다시 넣는다.

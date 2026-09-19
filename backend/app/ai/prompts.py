@@ -48,6 +48,36 @@ DEFAULT_SYSTEM_PROMPT = _BASE + "\n말투: 친근하지만 군더더기 없이 �
 STUDY_PERSONA_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
 
 
+def _progress_line(progress: dict | None) -> str | None:
+    """진도 dict({current, total, unit}) → 한 문장. 쓸 만한 값이 없으면 None."""
+    if not progress:
+        return None
+    total = int(progress.get("total") or 0)
+    current = int(progress.get("current") or 0)
+    unit = (progress.get("unit") or "").strip()
+    if total <= 0:
+        # 아직 total 을 못 세운 목표. 그 사실 자체가 AI 에게 필요한 정보다.
+        return (
+            "진도: 아직 전체 분량이 정해지지 않았다. "
+            "대화로 파악되면 set_progress 로 total 과 unit 을 세워라."
+        )
+    percent = round(current / total * 100)
+    suffix = f"{unit}" if unit else ""
+    return f"진도: {total}{suffix} 중 {current}{suffix} ({percent}%)."
+
+
+def _deadline_line(due_date: date | None, today: date) -> str | None:
+    """기한 → 한 문장. 기한이 없으면 None."""
+    if due_date is None:
+        return None
+    left = (due_date - today).days
+    if left > 0:
+        return f"기한: {due_date.isoformat()} 까지 {left}일 남았다."
+    if left == 0:
+        return f"기한: 오늘({due_date.isoformat()})이 마감이다."
+    return f"기한: {due_date.isoformat()} 로 {-left}일 지났다. 이미 기한을 넘겼다."
+
+
 def _system_for(persona: str | None) -> str:
     if persona and persona in PERSONA_SYSTEM_PROMPTS:
         return PERSONA_SYSTEM_PROMPTS[persona]
@@ -61,18 +91,22 @@ def build_chat_messages(
     goal_title: str | None,
     history: Iterable[tuple[str, str]],
     today: date | None = None,
+    goal_progress: dict | None = None,
+    due_date: date | None = None,
 ) -> list[dict[str, str]]:
     """OpenAI 형식 messages 를 조립한다.
 
     순서:
       1) 페르소나 시스템 프롬프트 (서버 소유)
       2) 오늘 날짜 (도구의 date 인자 기준점)
-      3) 목표 컨텍스트 (제목 등)
+      3) 목표 컨텍스트 (제목 · 진도 · 기한)
       4) 사용자 커스텀 프롬프트 — 신뢰도 낮은 참고 자료로 격리 (주입 방어)
       5) 대화 히스토리 (오래된 → 최신)
 
     history: (role, content) 튜플의 순회 가능 객체. role 은 'user' | 'assistant'.
     today:   기준 날짜. 생략하면 기본 타임존의 오늘(테스트에서 고정용으로 주입).
+    goal_progress: Goal.progress ({current, total, unit}). 없으면 진도 문장을 뺀다.
+    due_date:      Goal.due_date. 없으면 기한 문장을 뺀다.
     """
     messages: list[dict[str, str]] = [{"role": "system", "content": _system_for(persona)}]
 
@@ -91,8 +125,14 @@ def build_chat_messages(
         }
     )
 
-    if goal_title:
-        messages.append({"role": "system", "content": f"사용자의 현재 목표: '{goal_title}'."})
+    # 목표 컨텍스트. 진도·기한이 없으면 AI 가 매번 "어디까지 했어?" 를 되묻고,
+    # set_progress 로 고쳐놓은 값도 다음 턴에 못 읽어 조언이 겉돈다.
+    goal_lines = [f"사용자의 현재 목표: '{goal_title}'." if goal_title else None]
+    goal_lines.append(_progress_line(goal_progress))
+    goal_lines.append(_deadline_line(due_date, on))
+    context = " ".join(line for line in goal_lines if line)
+    if context:
+        messages.append({"role": "system", "content": context})
 
     if user_prompt and user_prompt.strip():
         messages.append(
