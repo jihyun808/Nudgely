@@ -54,7 +54,7 @@ def _sniff_ext(data: bytes) -> str | None:
     return None
 
 
-def _storage_root() -> Path:
+def storage_root() -> Path:
     root = Path(settings.storage_dir)
     root.mkdir(parents=True, exist_ok=True)
     return root
@@ -89,7 +89,7 @@ def save_upload(
     if ext is None or ext not in allowed_exts:
         raise AppError("UNSUPPORTED_FILE", "지원하지 않는 파일 형식입니다.", status_code=422)
 
-    root = _storage_root()
+    root = storage_root()
     stored_name = f"{new_id('f')}.{ext}"
     is_image = ext in _IMAGE_EXTS
     thumb_url = None
