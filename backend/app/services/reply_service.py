@@ -13,10 +13,12 @@ SSE 는 그 결과를 중계하기만 한다. 나갔다 와도 답이 와 있다
 
 import asyncio
 import logging
-from datetime import date
+import re
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.ai.attachments import AttachmentContent
 from app.ai.streaming import ReplyStreamer
 from app.ai.tools import dispatch_tool_call
 from app.core.ids import new_id
@@ -31,6 +33,23 @@ _running: set[asyncio.Task] = set()
 
 #: 중계할 이벤트 하나. (이벤트 이름, 데이터). None 이면 끝.
 Event = tuple[str, dict] | None
+
+#: 한 턴에 보낼 말풍선 수 상한. 넘치면 마지막 하나로 합친다.
+#: 사람이 카톡 보내듯 나눠 보내는 게 목적인데, 열 개씩 쏟아지면 도배가 된다.
+MAX_BUBBLES = 5
+
+
+def split_bubbles(text: str) -> list[str]:
+    """답변을 말풍선 단위로 나눈다. 빈 줄이 경계다.
+
+    프롬프트에서 '길어지면 빈 줄로 끊어라' 고 일러 두고, 여기서 그 약속대로 자른다.
+    한 덩어리로 다 보내면 카톡에 논문이 오는 것처럼 보인다.
+    """
+    parts = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    if len(parts) <= MAX_BUBBLES:
+        return parts
+    # 상한을 넘으면 남은 것을 마지막 말풍선에 몰아넣는다(내용을 버리지 않는다)
+    return parts[: MAX_BUBBLES - 1] + ["\n\n".join(parts[MAX_BUBBLES - 1 :])]
 
 
 async def _run(
@@ -47,6 +66,7 @@ async def _run(
     today: date | None,
     goal_progress: dict | None,
     due_date: date | None,
+    attachment: AttachmentContent | None,
 ) -> None:
     """응답을 끝까지 만들어 저장한다. 듣는 사람이 없어도 계속 돈다.
 
@@ -75,6 +95,7 @@ async def _run(
                 today=today,
                 goal_progress=goal_progress,
                 due_date=due_date,
+                attachment=attachment,
             ):
                 full += text
                 await queue.put(("delta", {"text": text}))
@@ -90,14 +111,36 @@ async def _run(
             await queue.put(None)
             return
 
-        message = Message(id=assistant_id, goal_id=goal_id, role="assistant", content=full)
-        db.add(message)
+        # 첫 말풍선은 message_start 로 이미 알린 id 를 쓴다
+        bubbles = split_bubbles(full)
+        now = datetime.now(UTC)
+        saved: list[Message] = []
+        for index, bubble in enumerate(bubbles):
+            saved.append(
+                Message(
+                    id=assistant_id if index == 0 else new_id("m"),
+                    goal_id=goal_id,
+                    role="assistant",
+                    content=bubble,
+                    # 같은 순간에 만들면 (created_at, id) 정렬에서 순서가 섞인다.
+                    # 1ms 씩 띄워 보낸 순서를 보존한다.
+                    created_at=now + timedelta(milliseconds=index),
+                )
+            )
+        db.add_all(saved)
         await db.commit()
-        await db.refresh(message)
+        for message in saved:
+            await db.refresh(message)
 
         done: dict = {
-            "messageId": assistant_id,
-            "createdAt": to_utc_iso(message.created_at),
+            "messages": [
+                {
+                    "messageId": m.id,
+                    "content": m.content,
+                    "createdAt": to_utc_iso(m.created_at),
+                }
+                for m in saved
+            ],
         }
         # 이번 턴에 AI 가 완주 처리했으면 프론트 축하 연출 신호를 얹는다(api.md §3.2).
         if not was_completed and goal.completed_at is not None:
@@ -119,6 +162,7 @@ def start_reply(
     today: date | None = None,
     goal_progress: dict | None = None,
     due_date: date | None = None,
+    attachment: AttachmentContent | None = None,
 ) -> tuple[str, "asyncio.Queue[Event]"]:
     """응답 생성을 백그라운드로 시작한다. (assistant 메시지 id, 이벤트 큐) 를 돌려준다.
 
@@ -142,6 +186,7 @@ def start_reply(
             today=today,
             goal_progress=goal_progress,
             due_date=due_date,
+            attachment=attachment,
         )
     )
     _running.add(task)

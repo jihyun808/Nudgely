@@ -12,23 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.goal import Goal, Message
 from app.schemas.common import to_utc_iso
-
-
-async def _token(client: AsyncClient, email: str = "a@b.com") -> str:
-    res = await client.post(
-        "/api/auth/signup",
-        json={"nickname": "지수", "email": email, "password": "password123"},
-    )
-    return res.json()["accessToken"]
-
-
-def _h(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}"}
-
-
-async def _make_goal(client: AsyncClient, token: str) -> str:
-    res = await client.post("/api/goals", headers=_h(token), data={"name": "Buddy", "title": "T"})
-    return res.json()["id"]
+from tests.helpers import auth, create_goal, token_for
 
 
 def _assert_utc(value: str | None, where: str) -> None:
@@ -61,39 +45,39 @@ def test_to_utc_iso_keeps_utc_as_is():
 
 
 async def test_goal_timestamps_are_utc(client: AsyncClient):
-    token = await _token(client)
-    goal_id = await _make_goal(client, token)
+    token = await token_for(client)
+    goal_id = await create_goal(client, token)
 
-    detail = (await client.get(f"/api/goals/{goal_id}", headers=_h(token))).json()
+    detail = (await client.get(f"/api/goals/{goal_id}", headers=auth(token))).json()
     _assert_utc(detail["lastMessageAt"], "goal.lastMessageAt")
     _assert_utc(detail["startedAt"], "goal.startedAt")
 
-    listed = (await client.get("/api/goals", headers=_h(token))).json()[0]
+    listed = (await client.get("/api/goals", headers=auth(token))).json()[0]
     _assert_utc(listed["lastMessageAt"], "goals[].lastMessageAt")
 
-    await client.post(f"/api/goals/{goal_id}/complete", headers=_h(token))
-    completed = (await client.get(f"/api/goals/{goal_id}", headers=_h(token))).json()
+    await client.post(f"/api/goals/{goal_id}/complete", headers=auth(token))
+    completed = (await client.get(f"/api/goals/{goal_id}", headers=auth(token))).json()
     _assert_utc(completed["completedAt"], "goal.completedAt")
 
 
 async def test_progress_timestamps_are_utc(client: AsyncClient):
-    token = await _token(client)
-    goal_id = await _make_goal(client, token)
+    token = await token_for(client)
+    goal_id = await create_goal(client, token)
 
-    body = (await client.get(f"/api/goals/{goal_id}/progress", headers=_h(token))).json()
+    body = (await client.get(f"/api/goals/{goal_id}/progress", headers=auth(token))).json()
     _assert_utc(body["startedAt"], "progress.startedAt")
 
 
 async def test_message_timestamps_are_utc(client: AsyncClient, session_factory: async_sessionmaker):
-    token = await _token(client)
-    goal_id = await _make_goal(client, token)
+    token = await token_for(client)
+    goal_id = await create_goal(client, token)
 
     async with session_factory() as s:
         goal = await s.get(Goal, goal_id)
         s.add(Message(goal_id=goal.id, role="assistant", content="안녕"))
         await s.commit()
 
-    page = (await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))).json()
+    page = (await client.get(f"/api/goals/{goal_id}/messages", headers=auth(token))).json()
     _assert_utc(page["messages"][0]["createdAt"], "message.createdAt")
 
 
@@ -102,8 +86,8 @@ async def test_home_and_notification_timestamps_are_utc(
 ):
     from app.services.notification_service import create_notification
 
-    token = await _token(client)
-    goal_id = await _make_goal(client, token)
+    token = await token_for(client)
+    goal_id = await create_goal(client, token)
 
     async with session_factory() as s:
         goal = await s.get(Goal, goal_id)
@@ -113,10 +97,10 @@ async def test_home_and_notification_timestamps_are_utc(
         )
         await s.commit()
 
-    previews = (await client.get("/api/home/previews", headers=_h(token))).json()
+    previews = (await client.get("/api/home/previews", headers=auth(token))).json()
     _assert_utc(previews[0]["receivedAt"], "preview.receivedAt")
 
-    notifs = (await client.get("/api/notifications", headers=_h(token))).json()
+    notifs = (await client.get("/api/notifications", headers=auth(token))).json()
     _assert_utc(notifs[0]["createdAt"], "notification.createdAt")
 
 
@@ -134,10 +118,10 @@ async def test_sse_done_created_at_is_utc(client: AsyncClient):
 
     app.dependency_overrides[get_reply_streamer] = lambda: _FakeStreamer()
     try:
-        token = await _token(client)
-        goal_id = await _make_goal(client, token)
+        token = await token_for(client)
+        goal_id = await create_goal(client, token)
         res = await client.post(
-            f"/api/goals/{goal_id}/messages", headers=_h(token), json={"content": "안녕"}
+            f"/api/goals/{goal_id}/messages", headers=auth(token), json={"content": "안녕"}
         )
 
         done = None
@@ -145,7 +129,10 @@ async def test_sse_done_created_at_is_utc(client: AsyncClient):
             if block.startswith("event: done"):
                 done = json.loads(block.split("data: ", 1)[1])
         assert done is not None, "done 이벤트가 없다"
-        _assert_utc(done["createdAt"], "sse done.createdAt")
+        # 말이 길면 여러 말풍선으로 나뉘어 온다. 전부 확인한다
+        assert done["messages"], "done 에 말풍선이 없다"
+        for index, message in enumerate(done["messages"]):
+            _assert_utc(message["createdAt"], f"sse done.messages[{index}].createdAt")
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)
 
@@ -177,18 +164,18 @@ async def test_attachment_uploaded_at_is_utc(client: AsyncClient):
 
     app.dependency_overrides[get_reply_streamer] = lambda: _FakeStreamer()
     try:
-        token = await _token(client)
-        goal_id = await _make_goal(client, token)
+        token = await token_for(client)
+        goal_id = await create_goal(client, token)
         await client.post(
             f"/api/goals/{goal_id}/messages",
-            headers=_h(token),
+            headers=auth(token),
             data={"content": "인증샷"},
             files={"file": ("proof.png", png(), "image/png")},
         )
 
         items = (
             await client.get(
-                f"/api/goals/{goal_id}/attachments", headers=_h(token), params={"kind": "image"}
+                f"/api/goals/{goal_id}/attachments", headers=auth(token), params={"kind": "image"}
             )
         ).json()
         assert items, "첨부가 저장되지 않았다"

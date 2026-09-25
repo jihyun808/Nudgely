@@ -147,14 +147,15 @@ export function useChatRoom(goalId: string) {
     };
 
     try {
-      const { message, goalCompleted } = await sendMessage(
+      const { messages: replies, goalCompleted } = await sendMessage(
         goalId,
         { content: payload.content, file: payload.file, clientId: localId },
         handleAccepted,
       );
       pendingFilesRef.current.delete(localId);
       // 확정 처리는 handleAccepted 에서 이미 했다. 여기서는 답만 붙인다
-      setMessages((prev) => [...prev, message]);
+      // (말이 길면 서버가 여러 말풍선으로 나눠 준다)
+      setMessages((prev) => [...prev, ...replies]);
 
       // 방에서 보고 있는 중에 온 답이니 읽음으로 찍는다.
       // 입장 때만 찍으면, 그 뒤에 온 답이 홈에 계속 '안 읽음' 으로 남는다.
