@@ -22,12 +22,19 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.ai.attachments import AttachmentContent, load_attachment
 from app.ai.prompts import today_for
 from app.ai.streaming import ReplyStreamer, get_reply_streamer
 from app.api.deps import get_current_user
 from app.core.db import get_db, get_session_factory
 from app.core.errors import AppError
-from app.core.storage import CHAT_ALLOWED, chat_max_bytes, image_max_bytes, save_upload
+from app.core.storage import (
+    CHAT_ALLOWED,
+    chat_max_bytes,
+    image_max_bytes,
+    save_upload,
+    storage_root,
+)
 from app.models.attachment import Attachment
 from app.models.goal import Goal, Message, ReadState
 from app.models.user import User, UserSettings
@@ -151,7 +158,8 @@ async def get_goal(
 
 # 폼은 값이 전부 문자열로 오므로 불리언 필드만 되돌린다
 _BOOL_FORM_FIELDS = ("isNotificationMuted", "isHidden", "is_notification_muted", "is_hidden")
-_DATE_FORM_FIELDS = ("dueDate", "due_date")
+#: 폼에서 빈 문자열로 오면 null 로 읽을 필드(폼은 null 을 실을 수 없다)
+_EMPTY_MEANS_NULL = ("dueDate", "due_date", "persona")
 
 
 async def _parse_goal_patch(
@@ -176,8 +184,10 @@ async def _parse_goal_patch(
     for key, value in form.items():
         if key == "image" or not isinstance(value, str):
             continue
-        if key in _DATE_FORM_FIELDS and value == "":
-            fields[key] = None  # 날짜 입력을 비운 것 = 기한 지움
+        if key in _EMPTY_MEANS_NULL and value == "":
+            # 폼은 null 을 못 싣는다. 빈 문자열을 '지움' 으로 읽는다
+            # (날짜를 비우면 기한 없음, AI 성격을 비우면 선택 안 함)
+            fields[key] = None
         elif key in _BOOL_FORM_FIELDS:
             fields[key] = value.lower() == "true"
         else:
@@ -212,7 +222,9 @@ async def update_goal(
         goal.title = body.title.strip() or None
     if body.prompt is not None:
         goal.prompt = body.prompt.strip() or None
-    if body.persona is not None:
+    # null 을 보내면 '선택 안 함' 으로 되돌린다(기한과 같은 방식).
+    # is not None 으로 보면 지울 수가 없어 설정 화면의 '선택 안 함' 이 먹지 않는다.
+    if "persona" in body.model_fields_set:
         goal.persona = body.persona
     if "due_date" in body.model_fields_set:
         goal.due_date = body.due_date
@@ -351,11 +363,19 @@ async def _find_by_client_id(
     ).scalar_one_or_none()
 
 
-async def _attachment_name(db: AsyncSession, message_id: str) -> str | None:
-    """메시지에 붙은 첨부의 표시 이름(AI 히스토리에 넣을 용도)."""
+async def _attachment_of(db: AsyncSession, message_id: str) -> Attachment | None:
+    """메시지에 붙은 첨부."""
     return (
-        await db.execute(select(Attachment.name).where(Attachment.message_id == message_id))
+        await db.execute(select(Attachment).where(Attachment.message_id == message_id))
     ).scalar_one_or_none()
+
+
+def _attachment_content(attachment: Attachment | None) -> AttachmentContent | None:
+    """첨부를 AI 가 읽을 형태로. url 마지막 조각이 디스크의 파일명이다."""
+    if attachment is None:
+        return None
+    stored_name = attachment.url.rsplit("/", 1)[-1]
+    return load_attachment(storage_root() / stored_name, attachment.name)
 
 
 async def _parse_send_body(
@@ -412,19 +432,19 @@ async def send_message(
     existing = await _find_by_client_id(db, goal.id, client_id)
     if existing is not None:
         user_msg = existing
-        file_note = await _attachment_name(db, user_msg.id)
+        saved_attachment = await _attachment_of(db, user_msg.id)
     else:
         user_msg = Message(goal_id=goal.id, role="user", content=content, client_id=client_id)
         db.add(user_msg)
         await db.flush()
 
-        file_note = None
+        saved_attachment = None
         if file is not None:
             saved = save_upload(
                 file[0], file[1], allowed_exts=CHAT_ALLOWED, max_bytes=chat_max_bytes()
             )
             await create_attachment(db, goal.id, user_msg.id, saved)
-            file_note = saved.display_name
+            saved_attachment = await _attachment_of(db, user_msg.id)
         await db.commit()
 
     # 2) AI 에 넘길 히스토리(오래된 → 최신, 최근 N개)
@@ -441,8 +461,8 @@ async def send_message(
         .all()
     )
     history = [(m.role, m.content) for m in reversed(rows)]
-    if file_note:
-        history.append(("user", f"[사용자가 파일을 첨부했습니다: {file_note}]"))
+    # 이번 턴 첨부는 내용까지 읽어 넘긴다(지난 첨부는 히스토리에 글로만 남는다)
+    attachment = _attachment_content(saved_attachment)
 
     # AI 가 create_todos/create_planner 의 date 를 찍으려면 '오늘'을 알아야 한다.
     # 서버 UTC 가 아니라 그 사람 타임존 기준이어야 기록 화면과 같은 날에 들어간다.
@@ -463,6 +483,7 @@ async def send_message(
         today=today,
         goal_progress=goal.progress,
         due_date=goal.due_date,
+        attachment=attachment,
     )
 
     async def event_stream():

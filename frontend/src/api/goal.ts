@@ -56,8 +56,14 @@ export async function updateGoal(goalId: string, input: UpdateGoalInput): Promis
   if (isDataUrl(input.imageUrl)) {
     const form = new FormData();
     for (const [key, value] of Object.entries(input)) {
-      // 폼은 문자열만 실을 수 있어 불리언도 'true'/'false'로 보낸다(서버가 되돌린다)
-      if (key !== 'imageUrl' && value !== undefined) form.append(key, String(value));
+      if (key === 'imageUrl') continue;
+      // 폼은 null 을 못 싣는다. 'AI 성격 선택 안 함'은 빈 문자열로 보내 서버가 되돌린다
+      if (value === undefined) {
+        if (key === 'persona' && 'persona' in input) form.append(key, '');
+        continue;
+      }
+      // 불리언도 'true'/'false' 문자열로 보낸다(서버가 되돌린다)
+      form.append(key, String(value));
     }
     form.append('image', dataUrlToFile(input.imageUrl, 'goal'));
     const { data } = await api.patch<GoalDetail>(`/goals/${goalId}`, form, MULTIPART);
@@ -68,6 +74,8 @@ export async function updateGoal(goalId: string, input: UpdateGoalInput): Promis
   delete patch.imageUrl;
   // 날짜 입력을 비우면 ''가 온다. 서버는 날짜 형식만 받으므로 '기한 없음'으로 바꿔 보낸다
   if (patch.dueDate === '') patch.dueDate = null;
+  // 'AI 성격 선택 안 함'도 마찬가지. undefined 는 JSON에서 통째로 빠져 서버가 못 본다
+  if ('persona' in input && !patch.persona) patch.persona = null;
 
   const { data } = await api.patch<GoalDetail>(`/goals/${goalId}`, patch);
   return data;
@@ -112,8 +120,11 @@ export async function fetchMessages(goalId: string, cursor?: string): Promise<Me
 
 /** 메시지 전송 결과 */
 export interface SendResult {
-  /** 완성된 AI 답변 */
-  message: ChatMessage;
+  /**
+   * 완성된 AI 답변. 말이 길면 서버가 빈 줄 기준으로 나눠 여러 개로 준다
+   * (카톡처럼 나눠 보내는 모양). 보낸 순서대로 들어 있다.
+   */
+  messages: ChatMessage[];
   /**
    * 이번 턴에 AI 가 목표를 완주 처리했는지 (SSE done 의 goalCompleted).
    * 화면은 이 신호로 그 자리에서 축하 연출을 띄운다.
@@ -206,7 +217,8 @@ export async function sendMessage(
   let buffer = '';
   let content = '';
   let messageId: string | undefined;
-  let createdAt: string | undefined;
+  /** done 에서 받은 확정 말풍선들 */
+  let bubbles: ChatMessage[] = [];
   /** done 을 받아야 완성된 답변이다. 중간에 끊긴 것과 구분한다 */
   let isComplete = false;
   /** 이번 턴에 AI 가 완주 처리했는지 */
@@ -238,8 +250,16 @@ export async function sendMessage(
       if (event.name === 'done') {
         // 완주는 이번 턴에 막 일어났을 때만 온다(이미 완주한 방은 안 옴)
         goalCompleted = event.data.goalCompleted === true;
-        messageId = String(event.data.messageId ?? messageId);
-        createdAt = String(event.data.createdAt ?? '');
+        const sent = Array.isArray(event.data.messages) ? event.data.messages : [];
+        bubbles = sent.map((raw) => {
+          const item = raw as Record<string, unknown>;
+          return {
+            id: String(item.messageId ?? createId()),
+            role: 'assistant' as const,
+            content: String(item.content ?? ''),
+            createdAt: String(item.createdAt ?? new Date().toISOString()),
+          };
+        });
         isComplete = true;
       }
     }
@@ -250,12 +270,17 @@ export async function sendMessage(
   if (!isComplete) throw new Error('STREAM_INCOMPLETE');
 
   return {
-    message: {
-      id: messageId ?? createId(),
-      role: 'assistant',
-      content,
-      createdAt: createdAt || new Date().toISOString(),
-    },
+    // done 이 말풍선을 못 실어 온 경우(구버전 서버 등)에는 모아둔 delta 로 한 개를 만든다
+    messages: bubbles.length
+      ? bubbles
+      : [
+          {
+            id: messageId ?? createId(),
+            role: 'assistant',
+            content,
+            createdAt: new Date().toISOString(),
+          },
+        ],
     goalCompleted,
   };
 }

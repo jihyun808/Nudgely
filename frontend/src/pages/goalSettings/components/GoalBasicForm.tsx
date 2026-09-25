@@ -2,14 +2,17 @@
 import FieldLabel from '@/components/FieldLabel';
 import ImagePicker from '@/components/ImagePicker';
 import InputField from '@/components/InputField';
+import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { GOAL_LIMITS } from '@/types/goal';
+import { GOAL_LIMITS, GOAL_PERSONAS, type GoalPersona } from '@/types/goal';
 
 export interface GoalBasicValues {
   name: string;
   title: string;
   prompt: string;
   imageUrl?: string;
+  /** AI 성격. 고르지 않으면 기본 말투로 답한다 */
+  persona?: GoalPersona;
 }
 
 interface GoalBasicFormProps {
@@ -40,6 +43,23 @@ export default function GoalBasicForm({ values, onChange }: GoalBasicFormProps) 
         value={values.name}
         onChange={(name) => update({ name })}
       />
+
+      {/* 개설 팝업과 같은 순서: 이름 다음에 AI 성격 */}
+      <div className="mt-4 flex flex-col gap-1.5">
+        <FieldLabel htmlFor="goal-setting-persona" label="AI 성격" />
+        <Select
+          id="goal-setting-persona"
+          value={values.persona ?? ''}
+          onChange={(e) => update({ persona: (e.target.value || undefined) as GoalPersona })}
+        >
+          <option value="">선택 안 함</option>
+          {GOAL_PERSONAS.map(({ value, label }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+      </div>
 
       <InputField
         className="mt-4"

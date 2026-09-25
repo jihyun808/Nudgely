@@ -190,14 +190,26 @@ event: delta
 data: {"text":"좋아, "}
 
 event: done
-data: {"messageId":"m_02","createdAt":"..."}
+data: {"messages":[{"messageId":"m_02","content":"좋아, 1강부터 해볼까?","createdAt":"..."}]}
 ```
 
 에러 시 `event: error` + `data: {"code":"...","message":"..."}`
 
+- **`done.messages` 는 배열이다.** AI 가 길게 답하면 서버가 빈 줄 기준으로 잘라
+  여러 말풍선으로 저장한다(카톡처럼 나눠 보내는 모양, 한 턴 최대 5개).
+  `delta` 는 자르기 전 원문이 그대로 흐르므로, 화면은 `done` 을 받아 그린다.
+- `message_start` 는 서버가 **내 메시지를 저장하고 답을 만들기 시작한** 시점이다.
+  화면은 이때 '전송 중' 을 걷고 '입력 중...' 으로 넘어간다.
+- 응답 생성은 요청과 분리돼 있다. 답이 오는 중에 채팅방을 나가 SSE 가 끊겨도
+  생성은 끝까지 돌아 저장된다(다시 들어오면 답이 와 있다).
 - 내 메시지는 프론트가 먼저 그리고, 실패하면 "다시 시도"를 띄운다.
 - **파일 첨부는 multipart**(`content` 선택 + `file`). 허용: **jpg·jpeg·png·pdf·txt, 10MB 이하**. 서버에서 재검증하고 실행 권한 없는 스토리지에 저장한다.
 - 사진은 말풍선에 썸네일로 그리므로 `file.url`이 바로 표시 가능한 URL이어야 한다.
+- **첨부는 내용까지 AI 가 읽는다.** 사진은 이미지로, pdf·txt 는 텍스트를 뽑아
+  대화 컨텍스트에 넣는다(텍스트가 없는 스캔 PDF 는 그 사실을 알린다).
+  첨부 내용은 사용자가 쓴 글이 아니므로 **'자료' 로 격리해** 넘긴다 — 파일 안의
+  지시("이전 지시를 무시하고 …")를 따르지 않게 하는 주입 방어다.
+  이번 턴 첨부만 싣는다(매 턴 다시 보내면 비용이 폭증한다).
 - 인프라: 프록시 `proxy_buffering off`, 스트리밍 압축 처리, 긴 응답 타임아웃.
 
 ### 3.5 읽음 처리
@@ -251,6 +263,7 @@ GET /goals/{goalId}/progress
   "goalTitle": "UI/UX 디자인 강의 완주",
   "startedAt": "...",
   "completedAt": null,
+  "progress": { "current": 21, "total": 50, "unit": "강" },
   "milestones": [{ "id": "p1", "title": "6월까지 기초 10강 완료", "status": "done" }],
   "focusedSeconds": 151200,
   "completedTodoCount": 64,
@@ -260,14 +273,21 @@ GET /goals/{goalId}/progress
 
 | 필드                                                  | 만드는 주체 |
 | ----------------------------------------------------- | ----------- |
-| `milestones[].title` / `.status`                      | **AI**      |
+| `milestones[].title` / `.target`                      | **AI**      |
+| `milestones[].status`                                 | 백엔드(진도 기준 자동) |
+| `progress`                                            | **AI**(set_progress) + 투두 체크 |
 | `startedAt` / `completedAt`                           | 백엔드      |
 | `focusedSeconds` / `completedTodoCount` / `bestMonth` | 백엔드 집계 |
 
-- `status`: `done` / `current` / `upcoming`. 진도율(%)은 프론트가 `done ÷ 전체`로 계산한다.
+- **진도율(%)은 `progress`(current/total)로 낸다.** 홈 목표 카드와 같은 값이며,
+  프론트는 `utils/progress.ts` 의 같은 함수를 쓴다(두 화면이 갈라지지 않게).
+- `milestones` 는 '몇 단계까지 왔나' 를 보여주는 **타임라인**이지 진행률이 아니다.
+  `status`(`done`/`current`/`upcoming`)는 **서버가 진도를 보고 자동으로 갱신**한다 —
+  경계는 AI 가 준 `target`(그 단계가 끝나는 진도 지점), 없으면 균등 분할이다.
+  진도가 아직 없으면(total 미설정) AI 가 준 status 를 그대로 둔다.
 - 집계 3종은 **없으면 해당 칸을 그리지 않는다.** 연동 초기엔 빼도 된다.
 - `completedAt`이 있으면 완료 화면(축하 연출 + 회고 지표)이 된다.
-- 백엔드 할 일: 마일스톤 쓰기 API, `completedAt` 판정 규칙, **집중 세션에 목표 id 추가**(없으면 `focusedSeconds`를 목표별로 집계 불가)
+- 집중 세션의 목표 id 는 집중 탭에서 고른다(선택). 안 고르면 `focusedSeconds` 가 비어 있다.
 
 ---
 

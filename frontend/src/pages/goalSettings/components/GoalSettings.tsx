@@ -28,6 +28,7 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
     title: goal.title ?? '',
     prompt: goal.prompt ?? '',
     imageUrl: goal.imageUrl,
+    persona: goal.persona,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [openDialog, setOpenDialog] = useState<GoalDialog>(null);
@@ -38,7 +39,8 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
     basic.name !== goal.name ||
     basic.title !== (goal.title ?? '') ||
     basic.prompt !== (goal.prompt ?? '') ||
-    basic.imageUrl !== goal.imageUrl;
+    basic.imageUrl !== goal.imageUrl ||
+    basic.persona !== goal.persona;
 
   const handleSave = async () => {
     if (!isDirty || !basic.name.trim() || isSaving) return;
@@ -50,6 +52,7 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
           title: basic.title.trim(),
           prompt: basic.prompt.trim(),
           imageUrl: basic.imageUrl,
+          persona: basic.persona,
         }),
       );
       showToast('목표 정보를 저장했어요', { variant: 'success' });
