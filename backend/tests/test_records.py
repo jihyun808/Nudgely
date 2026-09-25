@@ -9,6 +9,7 @@ from app.models.goal import Goal
 from app.models.todo import TodoItem
 from app.services.goal_service import apply_progress_delta, set_progress
 from app.services.record_service import create_daily_todo, set_item_done
+from tests.helpers import auth, token_for
 
 # ── 진도 순수 함수 (ai-plan §4.3b) ──
 
@@ -43,25 +44,15 @@ def test_delta_applies_and_clamps_low():
 # ── HTTP 통합 ──
 
 
-async def _token(client: AsyncClient, email: str = "a@b.com") -> str:
-    res = await client.post(
-        "/api/auth/signup",
-        json={"nickname": "지수", "email": email, "password": "password123"},
-    )
-    return res.json()["accessToken"]
-
-
-def _h(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}"}
-
-
 async def _make_goal(client: AsyncClient, token: str, title: str = "UI/UX 완주") -> str:
-    res = await client.post("/api/goals", headers=_h(token), data={"name": "Buddy", "title": title})
+    res = await client.post(
+        "/api/goals", headers=auth(token), data={"name": "Buddy", "title": title}
+    )
     return res.json()["id"]
 
 
 async def test_daily_todos_by_date(client: AsyncClient, session_factory: async_sessionmaker):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -78,7 +69,7 @@ async def test_daily_todos_by_date(client: AsyncClient, session_factory: async_s
         await create_daily_todo(s, goal, date(2026, 8, 4), [{"content": "다른 날"}])
         await s.commit()
 
-    got = await client.get("/api/todos", headers=_h(token), params={"date": "2026-08-03"})
+    got = await client.get("/api/todos", headers=auth(token), params={"date": "2026-08-03"})
     assert got.status_code == 200
     data = got.json()
     assert len(data) == 1
@@ -90,12 +81,12 @@ async def test_daily_todos_by_date(client: AsyncClient, session_factory: async_s
     assert card["items"][0]["tag"] == "강의"
 
     # 할 일 없는 날은 빈 목록
-    empty = await client.get("/api/todos", headers=_h(token), params={"date": "2026-08-05"})
+    empty = await client.get("/api/todos", headers=auth(token), params={"date": "2026-08-05"})
     assert empty.json() == []
 
 
 async def test_todo_marks(client: AsyncClient, session_factory: async_sessionmaker):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -111,7 +102,7 @@ async def test_todo_marks(client: AsyncClient, session_factory: async_sessionmak
         todo.items[1].is_done = True
         await s.commit()
 
-    res = await client.get("/api/todos/marks", headers=_h(token), params={"month": "2026-08"})
+    res = await client.get("/api/todos/marks", headers=auth(token), params={"month": "2026-08"})
     assert res.status_code == 200
     marks = res.json()["marks"]
     assert len(marks) == 1
@@ -120,8 +111,8 @@ async def test_todo_marks(client: AsyncClient, session_factory: async_sessionmak
 
 
 async def test_todo_marks_invalid_month(client: AsyncClient):
-    token = await _token(client)
-    res = await client.get("/api/todos/marks", headers=_h(token), params={"month": "2026/08"})
+    token = await token_for(client)
+    res = await client.get("/api/todos/marks", headers=auth(token), params={"month": "2026/08"})
     assert res.status_code == 422
     assert res.json()["code"] == "INVALID_MONTH"
 
@@ -129,7 +120,7 @@ async def test_todo_marks_invalid_month(client: AsyncClient):
 async def test_check_todo_updates_progress(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -161,8 +152,8 @@ async def test_check_todo_updates_progress(
 
 
 async def test_todos_isolated_by_user(client: AsyncClient, session_factory: async_sessionmaker):
-    t1 = await _token(client, "u1@b.com")
-    t2 = await _token(client, "u2@b.com")
+    t1 = await token_for(client, "u1@b.com")
+    t2 = await token_for(client, "u2@b.com")
     goal_id = await _make_goal(client, t1)
 
     async with session_factory() as s:
@@ -171,5 +162,5 @@ async def test_todos_isolated_by_user(client: AsyncClient, session_factory: asyn
         await s.commit()
 
     # 다른 사용자는 그 투두가 안 보인다
-    res = await client.get("/api/todos", headers=_h(t2), params={"date": "2026-08-03"})
+    res = await client.get("/api/todos", headers=auth(t2), params={"date": "2026-08-03"})
     assert res.json() == []

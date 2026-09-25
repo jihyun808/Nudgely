@@ -12,18 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.focus import FocusSession
 from app.models.goal import Message
-
-
-async def _token(client: AsyncClient) -> str:
-    res = await client.post(
-        "/api/auth/signup",
-        json={"nickname": "지수", "email": "fk@b.com", "password": "password123"},
-    )
-    return res.json()["accessToken"]
-
-
-def _h(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}"}
+from tests.helpers import auth, token_for
 
 
 async def test_pragma_is_on(session_factory: async_sessionmaker):
@@ -38,14 +27,14 @@ async def test_deleting_goal_clears_focus_session_link(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
     """목표를 지우면 집중 세션은 남고 goal_id 만 끊긴다 (ON DELETE SET NULL)."""
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = (
-        await client.post("/api/goals", headers=_h(token), data={"name": "Buddy", "title": "T"})
+        await client.post("/api/goals", headers=auth(token), data={"name": "Buddy", "title": "T"})
     ).json()["id"]
 
     res = await client.post(
         "/api/focus/sessions",
-        headers=_h(token),
+        headers=auth(token),
         json={
             "mode": "stopwatch",
             "seconds": 1800,
@@ -55,7 +44,7 @@ async def test_deleting_goal_clears_focus_session_link(
     )
     assert res.status_code == 204
 
-    assert (await client.delete(f"/api/goals/{goal_id}", headers=_h(token))).status_code == 204
+    assert (await client.delete(f"/api/goals/{goal_id}", headers=auth(token))).status_code == 204
 
     async with session_factory() as db:
         sessions = (await db.execute(select(FocusSession))).scalars().all()
@@ -68,16 +57,16 @@ async def test_deleting_goal_removes_its_messages(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
     """메시지는 목표와 함께 지워진다 (ON DELETE CASCADE)."""
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = (
-        await client.post("/api/goals", headers=_h(token), data={"name": "Buddy", "title": "T"})
+        await client.post("/api/goals", headers=auth(token), data={"name": "Buddy", "title": "T"})
     ).json()["id"]
 
     async with session_factory() as db:
         db.add(Message(goal_id=goal_id, role="user", content="안녕"))
         await db.commit()
 
-    assert (await client.delete(f"/api/goals/{goal_id}", headers=_h(token))).status_code == 204
+    assert (await client.delete(f"/api/goals/{goal_id}", headers=auth(token))).status_code == 204
 
     async with session_factory() as db:
         assert (await db.execute(select(Message))).scalars().all() == []

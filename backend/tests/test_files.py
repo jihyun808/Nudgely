@@ -11,6 +11,7 @@ from app.ai.streaming import get_reply_streamer
 from app.core.errors import AppError
 from app.core.storage import image_max_bytes, save_upload
 from app.main import app
+from tests.helpers import auth, create_goal, token_for
 
 
 def _png_bytes(color=(255, 0, 0)) -> bytes:
@@ -20,18 +21,6 @@ def _png_bytes(color=(255, 0, 0)) -> bytes:
 
 
 PDF_BYTES = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF"
-
-
-async def _token(client: AsyncClient, email: str = "a@b.com") -> str:
-    res = await client.post(
-        "/api/auth/signup",
-        json={"nickname": "지수", "email": email, "password": "password123"},
-    )
-    return res.json()["accessToken"]
-
-
-def _h(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}"}
 
 
 # ── 스토리지 코어 (단위) ──
@@ -81,34 +70,29 @@ class _Fake:
         yield "받았어!"
 
 
-async def _make_goal(client: AsyncClient, token: str) -> str:
-    res = await client.post("/api/goals", headers=_h(token), data={"name": "Buddy", "title": "T"})
-    return res.json()["id"]
-
-
 async def test_chat_image_attachment(client: AsyncClient):
     app.dependency_overrides[get_reply_streamer] = lambda: _Fake()
     try:
-        token = await _token(client)
-        goal_id = await _make_goal(client, token)
+        token = await token_for(client)
+        goal_id = await create_goal(client, token)
 
         res = await client.post(
             f"/api/goals/{goal_id}/messages",
-            headers=_h(token),
+            headers=auth(token),
             data={"content": "이 사진 봐줘"},
             files={"file": ("photo.png", _png_bytes(), "image/png")},
         )
         assert res.status_code == 200
 
         # 메시지에 file 이 붙는다
-        msgs = (await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))).json()
+        msgs = (await client.get(f"/api/goals/{goal_id}/messages", headers=auth(token))).json()
         user_msg = next(m for m in msgs["messages"] if m["role"] == "user")
         assert user_msg["file"]["name"] == "photo.png"
         assert user_msg["file"]["url"].startswith("http://test/static/")
 
         # 모아보기(사진)에 뜬다 — url 은 썸네일
         imgs = await client.get(
-            f"/api/goals/{goal_id}/attachments", headers=_h(token), params={"kind": "image"}
+            f"/api/goals/{goal_id}/attachments", headers=auth(token), params={"kind": "image"}
         )
         body = imgs.json()
         assert len(body) == 1
@@ -119,7 +103,7 @@ async def test_chat_image_attachment(client: AsyncClient):
 
         # 문서 탭은 비어 있음
         files = await client.get(
-            f"/api/goals/{goal_id}/attachments", headers=_h(token), params={"kind": "file"}
+            f"/api/goals/{goal_id}/attachments", headers=auth(token), params={"kind": "file"}
         )
         assert files.json() == []
     finally:
@@ -129,18 +113,18 @@ async def test_chat_image_attachment(client: AsyncClient):
 async def test_chat_pdf_attachment(client: AsyncClient):
     app.dependency_overrides[get_reply_streamer] = lambda: _Fake()
     try:
-        token = await _token(client)
-        goal_id = await _make_goal(client, token)
+        token = await token_for(client)
+        goal_id = await create_goal(client, token)
 
         res = await client.post(
             f"/api/goals/{goal_id}/messages",
-            headers=_h(token),
+            headers=auth(token),
             files={"file": ("note.pdf", PDF_BYTES, "application/pdf")},
         )
         assert res.status_code == 200
 
         files = await client.get(
-            f"/api/goals/{goal_id}/attachments", headers=_h(token), params={"kind": "file"}
+            f"/api/goals/{goal_id}/attachments", headers=auth(token), params={"kind": "file"}
         )
         body = files.json()
         assert len(body) == 1
@@ -153,11 +137,11 @@ async def test_chat_pdf_attachment(client: AsyncClient):
 async def test_chat_rejects_unsupported(client: AsyncClient):
     app.dependency_overrides[get_reply_streamer] = lambda: _Fake()
     try:
-        token = await _token(client)
-        goal_id = await _make_goal(client, token)
+        token = await token_for(client)
+        goal_id = await create_goal(client, token)
         res = await client.post(
             f"/api/goals/{goal_id}/messages",
-            headers=_h(token),
+            headers=auth(token),
             files={"file": ("evil.png", b"MZ\x00rubbish", "image/png")},
         )
         assert res.status_code == 422
@@ -167,10 +151,10 @@ async def test_chat_rejects_unsupported(client: AsyncClient):
 
 
 async def test_attachments_invalid_kind(client: AsyncClient):
-    token = await _token(client)
-    goal_id = await _make_goal(client, token)
+    token = await token_for(client)
+    goal_id = await create_goal(client, token)
     res = await client.get(
-        f"/api/goals/{goal_id}/attachments", headers=_h(token), params={"kind": "video"}
+        f"/api/goals/{goal_id}/attachments", headers=auth(token), params={"kind": "video"}
     )
     assert res.status_code == 422
     assert res.json()["code"] == "INVALID_KIND"
@@ -180,10 +164,10 @@ async def test_attachments_invalid_kind(client: AsyncClient):
 
 
 async def test_create_goal_with_image(client: AsyncClient):
-    token = await _token(client)
+    token = await token_for(client)
     res = await client.post(
         "/api/goals",
-        headers=_h(token),
+        headers=auth(token),
         data={"name": "Buddy", "title": "T"},
         files={"image": ("avatar.png", _png_bytes(), "image/png")},
     )
@@ -192,10 +176,10 @@ async def test_create_goal_with_image(client: AsyncClient):
 
 
 async def test_update_profile_image_multipart(client: AsyncClient):
-    token = await _token(client)
+    token = await token_for(client)
     res = await client.patch(
         "/api/me",
-        headers=_h(token),
+        headers=auth(token),
         data={"nickname": "새이름"},
         files={"image": ("me.png", _png_bytes(), "image/png")},
     )
@@ -207,14 +191,14 @@ async def test_update_profile_image_multipart(client: AsyncClient):
 
 async def test_update_goal_image_multipart(client: AsyncClient):
     """PATCH /goals 는 multipart 로 사진을 바꾸고, 같이 온 필드도 함께 반영한다."""
-    token = await _token(client)
-    created = await client.post("/api/goals", headers=_h(token), data={"name": "Buddy"})
+    token = await token_for(client)
+    created = await client.post("/api/goals", headers=auth(token), data={"name": "Buddy"})
     goal_id = created.json()["id"]
     assert created.json()["imageUrl"] is None
 
     res = await client.patch(
         f"/api/goals/{goal_id}",
-        headers=_h(token),
+        headers=auth(token),
         # 폼은 값이 전부 문자열이라 불리언도 'true' 로 온다
         data={"name": "새이름", "isHidden": "true"},
         files={"image": ("cover.png", _png_bytes(), "image/png")},
@@ -228,17 +212,19 @@ async def test_update_goal_image_multipart(client: AsyncClient):
 
 async def test_update_goal_json_still_works(client: AsyncClient):
     """기존 JSON PATCH 경로는 그대로여야 한다(사진은 건드리지 않는다)."""
-    token = await _token(client)
+    token = await token_for(client)
     created = await client.post(
         "/api/goals",
-        headers=_h(token),
+        headers=auth(token),
         data={"name": "Buddy"},
         files={"image": ("avatar.png", _png_bytes(), "image/png")},
     )
     goal_id = created.json()["id"]
     image_url = created.json()["imageUrl"]
 
-    res = await client.patch(f"/api/goals/{goal_id}", headers=_h(token), json={"title": "새 목표"})
+    res = await client.patch(
+        f"/api/goals/{goal_id}", headers=auth(token), json={"title": "새 목표"}
+    )
     assert res.status_code == 200
     assert res.json()["title"] == "새 목표"
     assert res.json()["imageUrl"] == image_url
@@ -246,13 +232,13 @@ async def test_update_goal_json_still_works(client: AsyncClient):
 
 async def test_update_goal_rejects_unsupported_image(client: AsyncClient):
     """확장자만 png 로 바꾼 파일은 서버가 매직 넘버로 걸러낸다."""
-    token = await _token(client)
-    created = await client.post("/api/goals", headers=_h(token), data={"name": "Buddy"})
+    token = await token_for(client)
+    created = await client.post("/api/goals", headers=auth(token), data={"name": "Buddy"})
     goal_id = created.json()["id"]
 
     res = await client.patch(
         f"/api/goals/{goal_id}",
-        headers=_h(token),
+        headers=auth(token),
         files={"image": ("fake.png", PDF_BYTES, "image/png")},
     )
     assert res.status_code == 422

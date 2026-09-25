@@ -12,6 +12,7 @@ from app.ai.prompts import build_chat_messages, today_for
 from app.ai.streaming import get_reply_streamer
 from app.core.timezones import local_date_of, zone_of
 from app.main import app
+from tests.helpers import auth, token_for
 
 
 class _FakeStreamer:
@@ -29,21 +30,9 @@ class _BoomStreamer:
         yield ""  # pragma: no cover - 제너레이터로 만들기 위한 코드
 
 
-async def _token(client: AsyncClient) -> str:
-    res = await client.post(
-        "/api/auth/signup",
-        json={"nickname": "지수", "email": "a@b.com", "password": "password123"},
-    )
-    return res.json()["accessToken"]
-
-
-def _h(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}"}
-
-
 async def _make_goal(client: AsyncClient, token: str) -> str:
     res = await client.post(
-        "/api/goals", headers=_h(token), data={"name": "Buddy", "title": "영어 완주"}
+        "/api/goals", headers=auth(token), data={"name": "Buddy", "title": "영어 완주"}
     )
     return res.json()["id"]
 
@@ -51,12 +40,12 @@ async def _make_goal(client: AsyncClient, token: str) -> str:
 async def test_send_message_streams_and_persists(client: AsyncClient):
     app.dependency_overrides[get_reply_streamer] = lambda: _FakeStreamer(["좋아, ", "시작!"])
     try:
-        token = await _token(client)
+        token = await token_for(client)
         goal_id = await _make_goal(client, token)
 
         res = await client.post(
             f"/api/goals/{goal_id}/messages",
-            headers=_h(token),
+            headers=auth(token),
             json={"content": "오늘 3시간 공부할래"},
         )
         assert res.status_code == 200
@@ -69,7 +58,7 @@ async def test_send_message_streams_and_persists(client: AsyncClient):
         assert "좋아, " in body and "시작!" in body
 
         # 내 메시지 + AI 메시지가 저장됐는지
-        listed = await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))
+        listed = await client.get(f"/api/goals/{goal_id}/messages", headers=auth(token))
         msgs = listed.json()["messages"]  # 최신 → 과거
         assert msgs[0]["role"] == "assistant"
         assert msgs[0]["content"] == "좋아, 시작!"
@@ -82,12 +71,12 @@ async def test_send_message_streams_and_persists(client: AsyncClient):
 async def test_send_message_ai_error_event(client: AsyncClient):
     app.dependency_overrides[get_reply_streamer] = lambda: _BoomStreamer()
     try:
-        token = await _token(client)
+        token = await token_for(client)
         goal_id = await _make_goal(client, token)
 
         res = await client.post(
             f"/api/goals/{goal_id}/messages",
-            headers=_h(token),
+            headers=auth(token),
             json={"content": "안녕"},
         )
         assert res.status_code == 200
@@ -95,7 +84,7 @@ async def test_send_message_ai_error_event(client: AsyncClient):
         assert "AI_ERROR" in res.text
 
         # 실패 시 AI 메시지는 저장되지 않고, 내 메시지만 남는다
-        listed = await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))
+        listed = await client.get(f"/api/goals/{goal_id}/messages", headers=auth(token))
         msgs = listed.json()["messages"]
         assert len(msgs) == 1
         assert msgs[0]["role"] == "user"
@@ -104,10 +93,10 @@ async def test_send_message_ai_error_event(client: AsyncClient):
 
 
 async def test_send_message_requires_content(client: AsyncClient):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
     res = await client.post(
-        f"/api/goals/{goal_id}/messages", headers=_h(token), json={"content": ""}
+        f"/api/goals/{goal_id}/messages", headers=auth(token), json={"content": ""}
     )
     assert res.status_code == 422
 
@@ -145,7 +134,7 @@ async def test_retry_with_same_client_id_does_not_duplicate(client: AsyncClient)
 
     같은 clientId 로 재시도하면 내 메시지는 그대로 하나고, AI 응답만 새로 생긴다.
     """
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     # 1차: AI 실패 → 내 메시지만 저장된다
@@ -153,14 +142,14 @@ async def test_retry_with_same_client_id_does_not_duplicate(client: AsyncClient)
     try:
         res = await client.post(
             f"/api/goals/{goal_id}/messages",
-            headers=_h(token),
+            headers=auth(token),
             json={"content": "안녕", "clientId": "c-1"},
         )
         assert "event: error" in res.text
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)
 
-    page = (await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))).json()
+    page = (await client.get(f"/api/goals/{goal_id}/messages", headers=auth(token))).json()
     assert [m["role"] for m in page["messages"]] == ["user"]
 
     # 2차: 같은 clientId 로 재시도 → 내 메시지는 늘지 않고 AI 응답만 붙는다
@@ -168,14 +157,14 @@ async def test_retry_with_same_client_id_does_not_duplicate(client: AsyncClient)
     try:
         res = await client.post(
             f"/api/goals/{goal_id}/messages",
-            headers=_h(token),
+            headers=auth(token),
             json={"content": "안녕", "clientId": "c-1"},
         )
         assert "event: done" in res.text
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)
 
-    page = (await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))).json()
+    page = (await client.get(f"/api/goals/{goal_id}/messages", headers=auth(token))).json()
     roles = [m["role"] for m in page["messages"]]
     assert roles == ["assistant", "user"], roles  # 최신 → 과거 순
     assert [m["content"] for m in page["messages"] if m["role"] == "user"] == ["안녕"]
@@ -185,16 +174,16 @@ async def test_different_client_id_creates_new_message(client: AsyncClient):
     """다른 clientId 는 별개의 전송이다(같은 내용을 두 번 보낸 경우)."""
     app.dependency_overrides[get_reply_streamer] = lambda: _FakeStreamer(["응"])
     try:
-        token = await _token(client)
+        token = await token_for(client)
         goal_id = await _make_goal(client, token)
         for client_id in ("c-1", "c-2"):
             await client.post(
                 f"/api/goals/{goal_id}/messages",
-                headers=_h(token),
+                headers=auth(token),
                 json={"content": "안녕", "clientId": client_id},
             )
 
-        page = (await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))).json()
+        page = (await client.get(f"/api/goals/{goal_id}/messages", headers=auth(token))).json()
         assert [m["role"] for m in page["messages"]].count("user") == 2
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)
@@ -204,15 +193,15 @@ async def test_no_client_id_still_works(client: AsyncClient):
     """clientId 를 안 보내는 클라이언트도 그대로 동작한다(멱등성만 없음)."""
     app.dependency_overrides[get_reply_streamer] = lambda: _FakeStreamer(["응"])
     try:
-        token = await _token(client)
+        token = await token_for(client)
         goal_id = await _make_goal(client, token)
         for _ in range(2):
             res = await client.post(
-                f"/api/goals/{goal_id}/messages", headers=_h(token), json={"content": "안녕"}
+                f"/api/goals/{goal_id}/messages", headers=auth(token), json={"content": "안녕"}
             )
             assert "event: done" in res.text
 
-        page = (await client.get(f"/api/goals/{goal_id}/messages", headers=_h(token))).json()
+        page = (await client.get(f"/api/goals/{goal_id}/messages", headers=auth(token))).json()
         assert [m["role"] for m in page["messages"]].count("user") == 2
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)

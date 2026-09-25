@@ -8,30 +8,21 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.models.goal import Goal
 from app.services.progress_service import set_milestones
 from app.services.record_service import create_daily_todo
-
-
-async def _token(client: AsyncClient, email: str = "a@b.com") -> str:
-    res = await client.post(
-        "/api/auth/signup",
-        json={"nickname": "지수", "email": email, "password": "password123"},
-    )
-    return res.json()["accessToken"]
-
-
-def _h(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}"}
+from tests.helpers import auth, token_for
 
 
 async def _make_goal(client: AsyncClient, token: str, title: str = "UI/UX 완주") -> str:
-    res = await client.post("/api/goals", headers=_h(token), data={"name": "Buddy", "title": title})
+    res = await client.post(
+        "/api/goals", headers=auth(token), data={"name": "Buddy", "title": title}
+    )
     return res.json()["id"]
 
 
 async def test_progress_empty(client: AsyncClient):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
-    res = await client.get(f"/api/goals/{goal_id}/progress", headers=_h(token))
+    res = await client.get(f"/api/goals/{goal_id}/progress", headers=auth(token))
     assert res.status_code == 200
     body = res.json()
     assert body["goalId"] == goal_id
@@ -47,7 +38,7 @@ async def test_progress_empty(client: AsyncClient):
 async def test_progress_with_milestones_and_counts(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -67,7 +58,7 @@ async def test_progress_with_milestones_and_counts(
         todo.items[0].is_done = True  # 완료 1개
         await s.commit()
 
-    res = await client.get(f"/api/goals/{goal_id}/progress", headers=_h(token))
+    res = await client.get(f"/api/goals/{goal_id}/progress", headers=auth(token))
     body = res.json()
 
     titles = [m["title"] for m in body["milestones"]]
@@ -78,20 +69,20 @@ async def test_progress_with_milestones_and_counts(
 
 
 async def test_progress_completed_goal(client: AsyncClient):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
-    await client.post(f"/api/goals/{goal_id}/complete", headers=_h(token))
+    await client.post(f"/api/goals/{goal_id}/complete", headers=auth(token))
 
-    res = await client.get(f"/api/goals/{goal_id}/progress", headers=_h(token))
+    res = await client.get(f"/api/goals/{goal_id}/progress", headers=auth(token))
     assert res.json()["completedAt"] is not None
 
 
 async def test_progress_other_user_404(client: AsyncClient):
-    t1 = await _token(client, "u1@b.com")
-    t2 = await _token(client, "u2@b.com")
+    t1 = await token_for(client, "u1@b.com")
+    t2 = await token_for(client, "u2@b.com")
     goal_id = await _make_goal(client, t1)
 
-    res = await client.get(f"/api/goals/{goal_id}/progress", headers=_h(t2))
+    res = await client.get(f"/api/goals/{goal_id}/progress", headers=auth(t2))
     assert res.status_code == 404
     assert res.json()["code"] == "GOAL_NOT_FOUND"
 
@@ -113,14 +104,14 @@ async def _seed(session_factory, goal_id: str, per_day: dict) -> None:
 
 
 async def _best_month(client: AsyncClient, token: str, goal_id: str) -> str | None:
-    res = await client.get(f"/api/goals/{goal_id}/progress", headers=_h(token))
+    res = await client.get(f"/api/goals/{goal_id}/progress", headers=auth(token))
     return res.json()["bestMonth"]
 
 
 async def test_best_month_picks_the_month_with_most_done(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
     await _seed(
         session_factory,
@@ -138,7 +129,7 @@ async def test_best_month_ignores_unfinished_items(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
     """할 일을 많이 만든 달이 아니라, 많이 '끝낸' 달이어야 한다."""
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
     await _seed(
         session_factory,
@@ -154,7 +145,7 @@ async def test_best_month_ignores_unfinished_items(
 async def test_best_month_is_none_without_any_completion(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
     await _seed(session_factory, goal_id, {date(2026, 7, 10): (3, 0)})
     assert await _best_month(client, token, goal_id) is None
@@ -163,7 +154,7 @@ async def test_best_month_is_none_without_any_completion(
 async def test_best_month_breaks_ties_with_the_recent_month(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
     await _seed(
         session_factory,
@@ -176,7 +167,7 @@ async def test_best_month_breaks_ties_with_the_recent_month(
 async def test_best_month_counts_only_this_goal(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     mine = await _make_goal(client, token, "내 목표")
     other = await _make_goal(client, token, "다른 목표")
 

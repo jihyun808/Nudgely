@@ -16,6 +16,7 @@ from app.ai.streaming import get_reply_streamer
 from app.main import app
 from app.models.goal import Message
 from app.services.reply_service import start_reply
+from tests.helpers import auth, token_for
 
 CHUNKS = ["오늘은 ", "1강부터 ", "시작해볼까?"]
 FULL = "".join(CHUNKS)
@@ -26,20 +27,25 @@ class _SlowStreamer:
 
     async def stream(self, **_) -> AsyncIterator[str]:
         for chunk in CHUNKS:
-            await asyncio.sleep(0.08)
+            await asyncio.sleep(0.02)
             yield chunk
 
 
-async def _token(client: AsyncClient) -> str:
-    res = await client.post(
-        "/api/auth/signup",
-        json={"nickname": "지수", "email": "bg@b.com", "password": "password123"},
-    )
-    return res.json()["accessToken"]
+class _GatedStreamer:
+    """풀어줄 때까지 첫 조각에서 멈춰 있는 스트리머.
 
+    sleep 으로 버티면 머신이 바쁠 때 그 사이 생성이 끝나 테스트가 흔들린다.
+    시간이 아니라 신호로 막아 '아직 만드는 중' 을 확실하게 만든다.
+    """
 
-def _h(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}"}
+    def __init__(self) -> None:
+        self.released = asyncio.Event()
+
+    async def stream(self, **_) -> AsyncIterator[str]:
+        yield CHUNKS[0]
+        await self.released.wait()
+        for chunk in CHUNKS[1:]:
+            yield chunk
 
 
 async def _assistant_messages(session_factory: async_sessionmaker) -> list[Message]:
@@ -70,14 +76,15 @@ async def test_reply_completes_with_nobody_listening(
     (진짜 소켓 끊김은 httpx 의 ASGI 트랜스포트가 응답을 버퍼링해 재현되지 않는다.
      그래서 보장 지점인 start_reply 를 직접 친다.)
     """
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = (
-        await client.post("/api/goals", headers=_h(token), data={"name": "B", "title": "T"})
+        await client.post("/api/goals", headers=auth(token), data={"name": "B", "title": "T"})
     ).json()["id"]
 
+    streamer = _GatedStreamer()
     assistant_id, queue = start_reply(
         session_factory=session_factory,
-        streamer=_SlowStreamer(),
+        streamer=streamer,
         goal_id=goal_id,
         persona=None,
         user_prompt=None,
@@ -85,9 +92,11 @@ async def test_reply_completes_with_nobody_listening(
         history=[("user", "안녕")],
     )
 
-    # 큐를 한 번도 읽지 않는다(= 듣던 사람이 나감)
+    # 큐를 한 번도 읽지 않는다(= 듣던 사람이 나감).
+    # 첫 조각에서 막아 뒀으니 이 시점에는 아직 저장 전이어야 한다.
     assert await _assistant_messages(session_factory) == [], "시작하자마자 끝나 있었다"
 
+    streamer.released.set()
     saved = await _wait_for_assistant(session_factory)
 
     assert saved is not None, "듣는 사람이 없자 생성이 멈췄다"
@@ -102,13 +111,13 @@ async def test_reply_is_saved_once(client: AsyncClient, session_factory: async_s
     """끝까지 들은 경우에도 메시지는 하나만 저장된다."""
     app.dependency_overrides[get_reply_streamer] = lambda: _SlowStreamer()
     try:
-        token = await _token(client)
+        token = await token_for(client)
         goal_id = (
-            await client.post("/api/goals", headers=_h(token), data={"name": "B", "title": "T"})
+            await client.post("/api/goals", headers=auth(token), data={"name": "B", "title": "T"})
         ).json()["id"]
 
         res = await client.post(
-            f"/api/goals/{goal_id}/messages", headers=_h(token), json={"content": "안녕"}
+            f"/api/goals/{goal_id}/messages", headers=auth(token), json={"content": "안녕"}
         )
         assert "event: done" in res.text
 
@@ -130,13 +139,13 @@ async def test_empty_reply_is_not_saved(client: AsyncClient, session_factory: as
 
     app.dependency_overrides[get_reply_streamer] = lambda: _EmptyStreamer()
     try:
-        token = await _token(client)
+        token = await token_for(client)
         goal_id = (
-            await client.post("/api/goals", headers=_h(token), data={"name": "B", "title": "T"})
+            await client.post("/api/goals", headers=auth(token), data={"name": "B", "title": "T"})
         ).json()["id"]
 
         res = await client.post(
-            f"/api/goals/{goal_id}/messages", headers=_h(token), json={"content": "안녕"}
+            f"/api/goals/{goal_id}/messages", headers=auth(token), json={"content": "안녕"}
         )
 
         assert "AI_EMPTY" in res.text

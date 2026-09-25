@@ -12,32 +12,16 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.ai.tools import TOOL_SCHEMAS, dispatch_tool_call
-from app.models.goal import Goal
+from app.ai.tools import TOOL_SCHEMAS
 from app.models.todo import TodoItem
+from tests.helpers import call_tool, create_goal, token_for
 
 DATE = "2026-09-20"
 
 
-async def _goal(client: AsyncClient, session_factory: async_sessionmaker) -> str:
-    token = (
-        await client.post(
-            "/api/auth/signup",
-            json={"nickname": "지수", "email": "todo@b.com", "password": "password123"},
-        )
-    ).json()["accessToken"]
-    return (
-        await client.post(
-            "/api/goals",
-            headers={"Authorization": f"Bearer {token}"},
-            data={"name": "선대냥이", "title": "선형대수"},
-        )
-    ).json()["id"]
-
-
-async def _call(session_factory, goal_id: str, name: str, args: dict) -> str:
-    async with session_factory() as db:
-        return await dispatch_tool_call(db, await db.get(Goal, goal_id), name, args)
+async def _goal(client: AsyncClient, _session_factory=None) -> str:
+    token = await token_for(client, "todo@b.com")
+    return await create_goal(client, token, name="선대냥이", title="선형대수")
 
 
 def test_list_todos_tool_exists():
@@ -50,7 +34,7 @@ async def test_create_todos_returns_item_ids(
 ):
     """만든 직후 바로 체크할 수 있어야 한다. id 를 안 주면 모델이 지어낸다."""
     goal_id = await _goal(client, session_factory)
-    out = await _call(
+    out = await call_tool(
         session_factory,
         goal_id,
         "create_todos",
@@ -67,14 +51,14 @@ async def test_list_todos_shows_ids_and_state(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
     goal_id = await _goal(client, session_factory)
-    await _call(
+    await call_tool(
         session_factory,
         goal_id,
         "create_todos",
         {"date": DATE, "items": [{"content": "1강 듣기"}, {"content": "정리"}]},
     )
 
-    out = await _call(session_factory, goal_id, "list_todos", {"date": DATE})
+    out = await call_tool(session_factory, goal_id, "list_todos", {"date": DATE})
 
     assert "1강 듣기" in out
     assert "정리" in out
@@ -85,7 +69,7 @@ async def test_list_todos_shows_ids_and_state(
 async def test_listed_id_can_be_checked(client: AsyncClient, session_factory: async_sessionmaker):
     """list_todos → check_todo_item 이 실제로 이어져야 한다."""
     goal_id = await _goal(client, session_factory)
-    await _call(
+    await call_tool(
         session_factory,
         goal_id,
         "create_todos",
@@ -94,10 +78,10 @@ async def test_listed_id_can_be_checked(client: AsyncClient, session_factory: as
     async with session_factory() as db:
         item_id = (await db.execute(select(TodoItem.id))).scalars().one()
 
-    out = await _call(session_factory, goal_id, "check_todo_item", {"itemId": item_id})
+    out = await call_tool(session_factory, goal_id, "check_todo_item", {"itemId": item_id})
 
     assert "갱신했다" in out
-    listed = await _call(session_factory, goal_id, "list_todos", {"date": DATE})
+    listed = await call_tool(session_factory, goal_id, "list_todos", {"date": DATE})
     assert "완료" in listed
 
 
@@ -108,8 +92,8 @@ async def test_duplicate_content_is_skipped(
     goal_id = await _goal(client, session_factory)
     items = [{"content": "1-1 소주제 수업"}, {"content": "1-1 소주제 정리"}]
 
-    await _call(session_factory, goal_id, "create_todos", {"date": DATE, "items": items})
-    out = await _call(session_factory, goal_id, "create_todos", {"date": DATE, "items": items})
+    await call_tool(session_factory, goal_id, "create_todos", {"date": DATE, "items": items})
+    out = await call_tool(session_factory, goal_id, "create_todos", {"date": DATE, "items": items})
 
     assert "이미 같은 할 일이 있어" in out
     async with session_factory() as db:
@@ -121,11 +105,11 @@ async def test_partial_duplicate_adds_only_new(
 ):
     """일부만 겹치면 새 것만 넣고 몇 개 건너뛰었는지 알린다."""
     goal_id = await _goal(client, session_factory)
-    await _call(
+    await call_tool(
         session_factory, goal_id, "create_todos", {"date": DATE, "items": [{"content": "수업"}]}
     )
 
-    out = await _call(
+    out = await call_tool(
         session_factory,
         goal_id,
         "create_todos",
@@ -143,7 +127,7 @@ async def test_unknown_item_id_points_to_list_todos(
 ):
     """없는 id 로 체크하면 '만들어라' 가 아니라 '읽어라' 로 유도해야 한다."""
     goal_id = await _goal(client, session_factory)
-    out = await _call(session_factory, goal_id, "check_todo_item", {"itemId": "ti_없는것"})
+    out = await call_tool(session_factory, goal_id, "check_todo_item", {"itemId": "ti_없는것"})
 
     assert "list_todos" in out
     assert "새로 만들지도 마라" in out
@@ -151,7 +135,7 @@ async def test_unknown_item_id_points_to_list_todos(
 
 async def test_list_todos_on_empty_day(client: AsyncClient, session_factory: async_sessionmaker):
     goal_id = await _goal(client, session_factory)
-    out = await _call(session_factory, goal_id, "list_todos", {"date": DATE})
+    out = await call_tool(session_factory, goal_id, "list_todos", {"date": DATE})
     assert "투두가 없다" in out
 
 
@@ -163,7 +147,7 @@ async def test_duplicate_within_one_call_is_skipped(
     그날 첫 생성이면 기존 항목이 없어 중복 검사를 건너뛰던 구멍이 있었다.
     """
     goal_id = await _goal(client, session_factory)
-    out = await _call(
+    out = await call_tool(
         session_factory,
         goal_id,
         "create_todos",
@@ -182,10 +166,10 @@ async def test_all_duplicates_on_fresh_day_leaves_nothing(
     from app.models.todo import Todo
 
     goal_id = await _goal(client, session_factory)
-    await _call(
+    await call_tool(
         session_factory, goal_id, "create_todos", {"date": DATE, "items": [{"content": "수업"}]}
     )
-    await _call(
+    await call_tool(
         session_factory, goal_id, "create_todos", {"date": DATE, "items": [{"content": "수업"}]}
     )
 
