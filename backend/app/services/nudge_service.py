@@ -18,6 +18,7 @@
 
 import logging
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import func, select
@@ -47,19 +48,37 @@ TICK_MINUTES = 10
 #: 되는데, 하루에 일곱 번 오면 앱을 끈다.
 MAX_NUDGES_PER_GOAL_PER_DAY = 2
 
-#: 선톡 문구를 만드는 함수. (목표, 상황) → 보낼 말.
-#: 기본은 템플릿이고, AI 생성기를 끼울 수 있게 인자로 받는다.
-NudgeWriter = Callable[[Goal, str], Awaitable[str]]
+
+@dataclass
+class NudgeContext:
+    """선톡 문구를 쓰는 데 필요한 것들.
+
+    목표만 넘기면 "'선형대수' 시작할 시간이야" 밖에 못 쓴다. 계획 이름과 남은
+    할 일까지 줘야 "1-1 수업 들어야 하는데 시작했어?" 가 나온다.
+    """
+
+    goal: Goal
+    #: "plan_start" | "plan_end"
+    kind: str
+    #: 그 시간에 하기로 한 일(PlannerBlock.title). 계획 없는 선톡이면 None
+    block_title: str | None = None
+    #: 오늘 아직 안 끝낸 할 일들
+    remaining: list[str] = field(default_factory=list)
 
 
-async def default_writer(goal: Goal, kind: str) -> str:
+#: 선톡 문구를 만드는 함수. 상황 → 보낼 말.
+#: 기본은 템플릿이고, AI 생성기(app.ai.nudge_writer.generate_nudge)를 끼운다.
+NudgeWriter = Callable[[NudgeContext], Awaitable[str]]
+
+
+async def default_writer(ctx: NudgeContext) -> str:
     """AI 없이 쓰는 기본 문구. 생성기가 없거나 실패했을 때 쓴다."""
-    title = goal.title or goal.name
-    if kind == "plan_start":
-        return f"'{title}' 시작할 시간이었는데, 잘 하고 있어?"
-    if kind == "plan_end":
-        return f"'{title}' 어떻게 됐어? 끝냈으면 알려줘."
-    return f"'{title}' 오늘 할 일이 아직 남아 있어. 조금만 해볼까?"
+    what = ctx.block_title or ctx.goal.title or ctx.goal.name
+    if ctx.kind == "plan_start":
+        return f"'{what}' 시작할 시간이었는데, 잘 하고 있어?"
+    if ctx.kind == "plan_end":
+        return f"'{what}' 어떻게 됐어? 끝냈으면 알려줘."
+    return f"'{what}' 오늘 할 일이 아직 남아 있어. 조금만 해볼까?"
 
 
 async def _already_nudged(db: AsyncSession, ref: str) -> bool:
@@ -87,13 +106,14 @@ async def _nudges_today(db: AsyncSession, goal_id: str, on: date, zone) -> int:
     )
 
 
-async def _has_incomplete_todo(db: AsyncSession, goal_id: str, on: date) -> bool:
+async def _remaining_items(db: AsyncSession, goal_id: str, on: date) -> list[str]:
+    """오늘 아직 안 끝낸 할 일들. 조건 판단과 문구 재료를 겸한다."""
     todo = (
         await db.execute(select(Todo).where(Todo.goal_id == goal_id, Todo.date == on))
     ).scalar_one_or_none()
     if todo is None:
-        return False
-    return any(not item.is_done for item in todo.items)
+        return []
+    return [item.content for item in todo.items if not item.is_done]
 
 
 def _is_due(target_minutes: int, now_minutes: int) -> bool:
@@ -164,17 +184,19 @@ async def run_plan_nudges(
             goal = await db.get(Goal, block.goal_id)
             if goal is None:
                 continue
+            remaining = await _remaining_items(db, goal.id, on)
             # 끝나고 나서 묻는 건 아직 할 일이 남았을 때만 의미가 있다
-            if kind == "plan_end" and not await _has_incomplete_todo(db, goal.id, on):
+            if kind == "plan_end" and not remaining:
                 continue
             if await _nudges_today(db, goal.id, on, zone) >= MAX_NUDGES_PER_GOAL_PER_DAY:
                 continue
 
+            ctx = NudgeContext(goal=goal, kind=kind, block_title=block.title, remaining=remaining)
             try:
-                content = await writer(goal, kind)
+                content = await writer(ctx)
             except Exception:  # noqa: BLE001 - 문구 생성 실패로 스케줄러를 멈추지 않는다
                 logger.exception("선톡 문구 생성 실패(goal=%s)", goal.id)
-                content = await default_writer(goal, kind)
+                content = await default_writer(ctx)
 
             message = await send_nudge(db, goal, content, ref=ref)
             if message is not None:
@@ -191,6 +213,8 @@ def next_tick_after(now: datetime) -> datetime:
 
 __all__ = [
     "MAX_NUDGES_PER_GOAL_PER_DAY",
+    "NudgeContext",
+    "NudgeWriter",
     "END_DELAY_MINUTES",
     "START_DELAY_MINUTES",
     "TICK_MINUTES",

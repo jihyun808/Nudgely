@@ -19,6 +19,7 @@ from app.services.nudge_service import (
     END_DELAY_MINUTES,
     MAX_NUDGES_PER_GOAL_PER_DAY,
     START_DELAY_MINUTES,
+    NudgeContext,
     run_plan_nudges,
 )
 from app.services.planner_service import add_block
@@ -203,8 +204,8 @@ async def test_custom_writer_is_used(client: AsyncClient, session_factory: async
     """AI 문구 생성기를 끼울 수 있어야 한다(기본은 템플릿)."""
     await _setup(client, session_factory, with_todo=True, email="n10@b.com")
 
-    async def writer(goal: Goal, kind: str) -> str:
-        return f"[{kind}] {goal.name} 화이팅"
+    async def writer(ctx: NudgeContext) -> str:
+        return f"[{ctx.kind}] {ctx.goal.name} 화이팅"
 
     async with session_factory() as db:
         await run_plan_nudges(db, _kst(9, START_DELAY_MINUTES), writer=writer)
@@ -219,7 +220,7 @@ async def test_writer_failure_falls_back_to_template(
     """문구 생성이 실패해도 선톡은 나가야 한다."""
     await _setup(client, session_factory, with_todo=True, email="n11@b.com")
 
-    async def broken(_goal: Goal, _kind: str) -> str:
+    async def broken(_ctx: NudgeContext) -> str:
         raise RuntimeError("모델 호출 실패")
 
     async with session_factory() as db:
@@ -228,3 +229,34 @@ async def test_writer_failure_falls_back_to_template(
 
     assert sent == 1
     assert "시작할 시간" in (await _messages(session_factory))[0]
+
+
+async def test_writer_gets_the_plan_and_what_is_left(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """목표만 넘기면 '선대냥이 시작할 시간이야' 밖에 못 쓴다.
+
+    계획 이름과 남은 할 일까지 줘야 문구가 구체적으로 나온다.
+    """
+    await _setup(client, session_factory, with_todo=True, email="n12@b.com")
+    seen: list[NudgeContext] = []
+
+    async def writer(ctx: NudgeContext) -> str:
+        seen.append(ctx)
+        return "확인"
+
+    async with session_factory() as db:
+        await run_plan_nudges(db, _kst(9, START_DELAY_MINUTES), writer=writer)
+        await db.commit()
+
+    assert seen[0].block_title == "1-1 수업"
+    assert seen[0].remaining == ["1강 듣기"]
+
+
+async def test_default_writer_names_the_plan(client: AsyncClient, session_factory):
+    """계획 이름이 있으면 목표 이름보다 그걸 쓴다(뭘 하기로 했는지가 중요하다)."""
+    await _setup(client, session_factory, with_todo=True, email="n13@b.com")
+
+    await _run(session_factory, _kst(9, START_DELAY_MINUTES))
+
+    assert "1-1 수업" in (await _messages(session_factory))[0]

@@ -29,9 +29,10 @@ async def _tick() -> None:
     대상이 없으면 곧바로 빠져나오므로 빈 실행은 싸다.
     한쪽이 실패해도 다른 쪽은 돌게 따로 감싼다.
     """
+    from app.ai.nudge_writer import generate_nudge
     from app.core.db import async_session
     from app.services.notification_service import run_nightly_check
-    from app.services.nudge_service import run_plan_nudges
+    from app.services.nudge_service import default_writer, run_plan_nudges
 
     now = datetime.now(UTC)
     async with async_session() as db:
@@ -43,7 +44,10 @@ async def _tick() -> None:
             logger.exception("밤 점검 실패")
 
         try:
-            await run_plan_nudges(db, now)
+            # 문구는 싼 모델이 쓴다. 키가 없는 개발 환경에서는 템플릿으로 돈다
+            # (생성이 실패해도 nudge_service 가 템플릿으로 떨어뜨린다)
+            writer = generate_nudge if settings.openai_api_key else default_writer
+            await run_plan_nudges(db, now, writer=writer)
             await db.commit()
         except Exception:  # noqa: BLE001
             await db.rollback()
