@@ -3,12 +3,14 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import SettingsRow from '@/pages/settings/components/SettingsRow';
 import SettingsSection from '@/pages/settings/components/SettingsSection';
-import type { GoalDetail } from '@/types/goal';
+import ProgressEditor from '@/pages/goalSettings/components/ProgressEditor';
+import type { GoalDetail, GoalProgressAmount } from '@/types/goal';
 
 interface GoalOptionsSectionProps {
   goal: GoalDetail;
   dueDate: string;
   onChangeDueDate: (dueDate: string) => void;
+  onChangeProgress: (progress: GoalProgressAmount) => void;
   onToggleMute: (isMuted: boolean) => void;
 }
 
@@ -17,6 +19,7 @@ export default function GoalOptionsSection({
   goal,
   dueDate,
   onChangeDueDate,
+  onChangeProgress,
   onToggleMute,
 }: GoalOptionsSectionProps) {
   const { progress, isNotificationMuted, completedAt } = goal;
@@ -41,12 +44,14 @@ export default function GoalOptionsSection({
         />
         <SettingsRow
           label="진도"
-          // TODO: 진도 스키마(무엇을 셀지)가 확정되면 편집 가능하게 바꾼다
-          description="AI와 대화하면서 갱신돼요"
+          description="AI와 대화하면서 갱신돼요. 틀렸으면 직접 고칠 수 있어요"
           control={
-            <span className="text-sm text-muted-foreground">
-              {progress ? `${progress.current} / ${progress.total}${progress.unit}` : '아직 없어요'}
-            </span>
+            <ProgressEditor
+              // 저장 뒤 서버가 잘라낸 값이 내려오면 입력칸을 새로 그린다
+              key={`${progress?.current}-${progress?.total}-${progress?.unit}`}
+              progress={progress}
+              onCommit={onChangeProgress}
+            />
           }
         />
       </SettingsSection>

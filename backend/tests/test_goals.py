@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.goal import Message
-from tests.helpers import auth, token_for
+from tests.helpers import auth, create_goal, token_for
 
 # 1x1 PNG (multipart 경로 확인용)
 _PNG = base64.b64decode(
@@ -324,3 +324,66 @@ async def test_persona_can_be_cleared_via_form(client: AsyncClient):
 
     assert res.status_code == 200
     assert res.json()["persona"] is None
+
+
+async def test_progress_can_be_edited_by_user(client: AsyncClient):
+    """AI 가 잘못 세운 진도를 사용자가 바로잡을 수 있어야 한다.
+
+    실제로 '24개 중 1개' 인데 4로 저장된 적이 있었고, 그때는 고칠 길이 없었다.
+    """
+    token = await token_for(client)
+    goal_id = await create_goal(client, token)
+
+    res = await client.patch(
+        f"/api/goals/{goal_id}",
+        headers=auth(token),
+        json={"progress": {"current": 1, "total": 24, "unit": "소주제"}},
+    )
+
+    assert res.status_code == 200
+    assert res.json()["progress"] == {"current": 1, "total": 24, "unit": "소주제"}
+
+
+async def test_edited_progress_is_clamped(client: AsyncClient):
+    """전체보다 큰 값을 넣어도 서버가 자른다(AI 경로와 같은 규칙)."""
+    token = await token_for(client)
+    goal_id = await create_goal(client, token)
+
+    res = await client.patch(
+        f"/api/goals/{goal_id}",
+        headers=auth(token),
+        json={"progress": {"current": 99, "total": 24, "unit": "소주제"}},
+    )
+
+    assert res.json()["progress"]["current"] == 24
+
+
+async def test_editing_progress_moves_milestones(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """직접 고친 진도도 로드맵 단계에 반영돼야 한다(AI 가 고칠 때와 같이)."""
+    from sqlalchemy import select
+
+    from app.models.goal import Goal
+    from app.models.milestone import Milestone
+    from app.services.progress_service import set_milestones
+
+    token = await token_for(client)
+    goal_id = await create_goal(client, token)
+    async with session_factory() as db:
+        goal = await db.get(Goal, goal_id)
+        await set_milestones(db, goal, [{"title": f"{i}장"} for i in range(1, 5)])
+        await db.commit()
+
+    await client.patch(
+        f"/api/goals/{goal_id}",
+        headers=auth(token),
+        json={"progress": {"current": 12, "total": 24, "unit": "소주제"}},
+    )
+
+    async with session_factory() as db:
+        rows = await db.execute(
+            select(Milestone).where(Milestone.goal_id == goal_id).order_by(Milestone.order)
+        )
+        statuses = [m.status for m in rows.scalars().all()]
+    assert statuses == ["done", "done", "current", "upcoming"]

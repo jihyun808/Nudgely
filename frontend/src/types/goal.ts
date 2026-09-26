@@ -71,6 +71,14 @@ export interface GoalDetail extends Goal {
 }
 
 /** 목표 수정 입력값. 바뀐 항목만 보낸다 */
+/** 분량 진도 ({current, total, unit}) */
+export interface GoalProgressAmount {
+  current: number;
+  total: number;
+  /** 단위 (예: '강', '페이지') */
+  unit: string;
+}
+
 export interface UpdateGoalInput {
   name?: string;
   persona?: GoalPersona;
@@ -78,6 +86,8 @@ export interface UpdateGoalInput {
   imageUrl?: string;
   prompt?: string;
   dueDate?: string;
+  /** 사용자가 직접 고친 진도. AI가 잘못 세웠을 때 바로잡는 길 */
+  progress?: GoalProgressAmount;
   isNotificationMuted?: boolean;
   isHidden?: boolean;
 }

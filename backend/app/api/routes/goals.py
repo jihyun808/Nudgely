@@ -61,8 +61,9 @@ from app.services.goal_service import (
     get_owned_goal,
     routine_applies_today,
     routines_of,
+    set_progress,
 )
-from app.services.progress_service import build_goal_progress
+from app.services.progress_service import build_goal_progress, sync_milestones
 from app.services.reply_service import start_reply
 
 router = APIRouter()
@@ -236,6 +237,19 @@ async def update_goal(
         goal.persona = body.persona
     if "due_date" in body.model_fields_set:
         goal.due_date = body.due_date
+    if "progress" in body.model_fields_set:
+        if body.progress is None:
+            goal.progress = None
+        else:
+            # set_progress 를 거쳐야 0 ≤ current ≤ total 로 잘린다(AI 경로와 같은 규칙)
+            set_progress(
+                goal,
+                current=body.progress.current,
+                total=body.progress.total,
+                unit=body.progress.unit,
+            )
+        # 진도가 바뀌었으니 로드맵 단계도 다시 맞춘다
+        await sync_milestones(db, goal)
     if body.is_notification_muted is not None:
         goal.is_notification_muted = body.is_notification_muted
     if body.is_hidden is not None:

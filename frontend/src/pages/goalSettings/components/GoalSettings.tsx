@@ -89,6 +89,7 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
         goal={goal}
         dueDate={goal.dueDate ?? ''}
         onChangeDueDate={(dueDate) => patchImmediately({ dueDate })}
+        onChangeProgress={(progress) => patchImmediately({ progress })}
         onToggleMute={(isNotificationMuted) => patchImmediately({ isNotificationMuted })}
       />
 

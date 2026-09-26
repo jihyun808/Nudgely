@@ -60,6 +60,9 @@ class UpdateGoalIn(CamelModel):
     prompt: str | None = Field(default=None, max_length=PROMPT_MAX)
     persona: str | None = None
     due_date: date | None = None
+    # 사용자가 직접 고치는 진도. AI 가 set_progress 로 잘못 세웠을 때 바로잡는 길이다.
+    # null 을 보내면 '진도 없음' 으로 되돌린다.
+    progress: Progress | None = None
     is_notification_muted: bool | None = None
     is_hidden: bool | None = None
 
