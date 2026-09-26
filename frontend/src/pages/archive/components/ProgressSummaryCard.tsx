@@ -64,9 +64,7 @@ export default function ProgressSummaryCard({ progress, spentDays }: ProgressSum
               : `${formatDateDot(startedAt)} 시작 · ${spentDays}일째 달리는 중`}
           </p>
 
-          {amountLabel && (
-            <p className="mt-1 text-xs font-semibold text-primary">{amountLabel}</p>
-          )}
+          {amountLabel && <p className="mt-1 text-xs font-semibold text-primary">{amountLabel}</p>}
 
           {/* 마일스톤 단계별 개수 (진행률과는 다른 기준) */}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">

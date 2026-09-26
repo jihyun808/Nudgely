@@ -146,15 +146,17 @@ export function useChatRoom(goalId: string) {
     // 내 말이 '전송 중' 인 동안에는 상대가 입력할 수 없다.
     // 서버가 받아준 뒤에야(message_start) 전송 중을 걷고 '입력 중...' 으로 넘어간다.
     const handleAccepted = () => {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === localId ? { ...m, status: undefined } : m)),
-      );
+      setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, status: undefined } : m)));
       setIsSending(false);
       setIsReplying(true);
     };
 
     try {
-      const { messages: replies, goalCompleted, quickReplies: asked } = await sendMessage(
+      const {
+        messages: replies,
+        goalCompleted,
+        quickReplies: asked,
+      } = await sendMessage(
         goalId,
         { content: payload.content, file: payload.file, clientId: localId },
         handleAccepted,
