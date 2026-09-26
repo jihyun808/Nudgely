@@ -15,7 +15,7 @@ PATCH 는 JSON·multipart 둘 다 받는다(사진 교체는 multipart image).
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
@@ -23,7 +23,7 @@ from sqlalchemy import delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.ai.attachments import AttachmentContent, load_attachment
-from app.ai.prompts import today_for
+from app.ai.prompts import GoalState, today_for
 from app.ai.streaming import ReplyStreamer, get_reply_streamer
 from app.api.deps import get_current_user
 from app.core.db import get_db, get_session_factory
@@ -37,6 +37,8 @@ from app.core.storage import (
 )
 from app.models.attachment import Attachment
 from app.models.goal import Goal, Message, ReadState
+from app.models.planner import Planner, PlannerBlock
+from app.models.todo import Todo
 from app.models.user import User, UserSettings
 from app.schemas.archive import AttachmentOut, GoalProgressOut
 from app.schemas.goal import (
@@ -53,7 +55,13 @@ from app.schemas.goal import (
     UpdateGoalIn,
 )
 from app.services.attachment_service import create_attachment, list_attachments
-from app.services.goal_service import build_goal_detail, build_goal_out, get_owned_goal
+from app.services.goal_service import (
+    build_goal_detail,
+    build_goal_out,
+    get_owned_goal,
+    routine_applies_today,
+    routines_of,
+)
 from app.services.progress_service import build_goal_progress
 from app.services.reply_service import start_reply
 
@@ -363,6 +371,50 @@ async def _find_by_client_id(
     ).scalar_one_or_none()
 
 
+async def _goal_state(db: AsyncSession, goal: Goal, today: date) -> GoalState:
+    """지금 대화가 어느 단계인지 판단할 사실들을 모은다(prompts._stage_line 이 쓴다)."""
+    progress = goal.progress or {}
+    total = int(progress.get("total") or 0)
+
+    todo = (
+        await db.execute(select(Todo).where(Todo.goal_id == goal.id, Todo.date == today))
+    ).scalar_one_or_none()
+
+    plan = (
+        await db.execute(
+            select(PlannerBlock.id)
+            .join(Planner, PlannerBlock.planner_id == Planner.id)
+            .where(
+                Planner.user_id == goal.user_id,
+                Planner.date == today,
+                # 이 목표의 계획만 본다. 다른 목표에 시간을 잡아 뒀다고
+                # 이 목표까지 '계획 있음' 으로 보면 시간 잡기를 건너뛴다.
+                PlannerBlock.goal_id == goal.id,
+                PlannerBlock.kind.is_(None),  # 계획 블록만(실제 기록 말고)
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    routines = await routines_of(db, goal.id)
+    today_routines = [r for r in routines if routine_applies_today(r, today)]
+    summary = ", ".join(
+        r.content + (f"({r.duration_minutes}분)" if r.duration_minutes else "")
+        for r in today_routines
+    )
+
+    return GoalState(
+        has_progress=total > 0,
+        is_progress_done=total > 0 and int(progress.get("current") or 0) >= total,
+        routine_summary=summary or None,
+        has_todo_today=todo is not None and bool(todo.items),
+        has_plan_today=plan is not None,
+        is_overdue=goal.due_date is not None
+        and goal.due_date < today
+        and goal.completed_at is None,
+    )
+
+
 async def _attachment_of(db: AsyncSession, message_id: str) -> Attachment | None:
     """메시지에 붙은 첨부."""
     return (
@@ -472,6 +524,8 @@ async def send_message(
     # 3) 응답 생성은 백그라운드로 돌린다.
     #    사용자가 답이 오는 중에 채팅방을 나가면 이 SSE 는 끊기지만, 생성은 끝까지
     #    돌아 메시지를 저장한다. 나갔다 와도 답이 와 있다(reply_service 주석 참고).
+    state = await _goal_state(db, goal, today)
+
     assistant_id, queue = start_reply(
         session_factory=session_factory,
         streamer=streamer,
@@ -484,6 +538,7 @@ async def send_message(
         goal_progress=goal.progress,
         due_date=goal.due_date,
         attachment=attachment,
+        state=state,
     )
 
     async def event_stream():

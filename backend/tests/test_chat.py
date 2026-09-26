@@ -8,6 +8,7 @@ from datetime import UTC, date, datetime
 
 from httpx import AsyncClient
 
+from app.ai import prompts
 from app.ai.prompts import build_chat_messages, today_for
 from app.ai.streaming import get_reply_streamer
 from app.core.timezones import local_date_of, zone_of
@@ -332,3 +333,60 @@ def test_tool_policy_is_separate_from_persona():
         assert "set_milestones" in policy[0]["content"]
         # 말투 프롬프트와 섞이지 않았는지
         assert "말투" not in policy[0]["content"]
+
+
+# ── 페르소나 예시 대화 (few-shot) ──
+
+
+def test_examples_are_injected_before_history(monkeypatch):
+    """예시는 히스토리 바로 앞에 들어가고, 예시임이 표시돼야 한다.
+
+    name 을 안 붙이면 모델이 지난 대화로 착각해 예시 내용을 이어 말한다.
+    """
+    monkeypatch.setitem(
+        prompts.PERSONA_EXAMPLES,
+        "friend",
+        [("오늘 하나도 못 했어", "괜찮아, 그럴 수도 있지. 10분만 해볼까?")],
+    )
+
+    msgs = build_chat_messages(
+        persona="friend",
+        user_prompt=None,
+        goal_title="선형대수",
+        history=[("user", "안녕")],
+    )
+
+    roles = [(m.get("name"), m["content"]) for m in msgs]
+    example_at = next(i for i, m in enumerate(msgs) if m.get("name") == "example_user")
+    history_at = next(i for i, m in enumerate(msgs) if m["content"] == "안녕")
+
+    assert example_at < history_at, "예시가 히스토리보다 뒤에 있다"
+    assert msgs[example_at]["role"] == "user"
+    assert msgs[example_at + 1]["name"] == "example_assistant"
+    assert ("example_assistant", "괜찮아, 그럴 수도 있지. 10분만 해볼까?") in roles
+
+
+def test_no_examples_means_nothing_injected(monkeypatch):
+    """예시를 비우면 아무것도 끼지 않는다.
+
+    (실제 표가 채워져 있어도 이 규칙 자체는 그대로여야 하므로 비워서 확인한다)
+    """
+    monkeypatch.setitem(prompts.PERSONA_EXAMPLES, "teacher", [])
+
+    msgs = build_chat_messages(
+        persona="teacher", user_prompt=None, goal_title="T", history=[("user", "안녕")]
+    )
+    assert not [m for m in msgs if m.get("name")]
+
+
+def test_examples_are_per_persona(monkeypatch):
+    """다른 페르소나의 예시가 새어 들어가면 안 된다."""
+    monkeypatch.setitem(prompts.PERSONA_EXAMPLES, "friend", [("친구만 하는 말", "친구만 하는 답")])
+    monkeypatch.setitem(
+        prompts.PERSONA_EXAMPLES, "teacher", [("선생님만 하는 말", "선생님만 하는 답")]
+    )
+
+    msgs = build_chat_messages(persona="teacher", user_prompt=None, goal_title="T", history=[])
+
+    examples = [m["content"] for m in msgs if m.get("name")]
+    assert examples == ["선생님만 하는 말", "선생님만 하는 답"]

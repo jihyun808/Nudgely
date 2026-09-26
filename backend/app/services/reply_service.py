@@ -19,6 +19,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.ai.attachments import AttachmentContent
+from app.ai.prompts import GoalState
 from app.ai.streaming import ReplyStreamer
 from app.ai.tools import dispatch_tool_call
 from app.core.ids import new_id
@@ -37,6 +38,38 @@ Event = tuple[str, dict] | None
 #: 한 턴에 보낼 말풍선 수 상한. 넘치면 마지막 하나로 합친다.
 #: 사람이 카톡 보내듯 나눠 보내는 게 목적인데, 열 개씩 쏟아지면 도배가 된다.
 MAX_BUBBLES = 5
+
+
+#: 한 번에 띄울 선택 버튼 수 상한. 넘치면 버튼 없이 글로만 남긴다.
+MAX_QUICK_REPLIES = 4
+#: 버튼에 들어갈 글자 수 상한. 길면 칩이 줄바꿈되며 읽기 어려워진다.
+MAX_QUICK_REPLY_LENGTH = 20
+
+#: 프롬프트가 약속한 선택지 표기. 마지막 줄에 "[선택: 추가해줘 / 아니]" 로 적는다.
+_CHOICE_RE = re.compile(r"\n?\s*\[선택:\s*(?P<options>[^\]]+)\]\s*$")
+
+
+def extract_quick_replies(text: str) -> tuple[str, list[str]]:
+    """답변 끝의 선택지 표기를 떼어 (남은 글, 보기들) 로 돌려준다.
+
+    화면은 보기들을 입력창 위 버튼으로 그린다. 표기를 그대로 두면 말풍선에
+    대괄호가 보이므로 떼어낸다.
+
+    모델이 형식을 안 지키거나 보기가 너무 많거나 길면 아무것도 떼지 않는다
+    (버튼이 안 생기고 글은 그대로 보인다 — 조용히 내용을 잃지 않는다).
+    """
+    match = _CHOICE_RE.search(text)
+    if match is None:
+        return text, []
+
+    options = [part.strip() for part in match.group("options").split("/")]
+    options = [option for option in options if option]
+    if not 2 <= len(options) <= MAX_QUICK_REPLIES:
+        return text, []
+    if any(len(option) > MAX_QUICK_REPLY_LENGTH for option in options):
+        return text, []
+
+    return text[: match.start()].rstrip(), options
 
 
 def split_bubbles(text: str) -> list[str]:
@@ -67,6 +100,7 @@ async def _run(
     goal_progress: dict | None,
     due_date: date | None,
     attachment: AttachmentContent | None,
+    state: GoalState | None,
 ) -> None:
     """응답을 끝까지 만들어 저장한다. 듣는 사람이 없어도 계속 돈다.
 
@@ -96,6 +130,7 @@ async def _run(
                 goal_progress=goal_progress,
                 due_date=due_date,
                 attachment=attachment,
+                state=state,
             ):
                 full += text
                 await queue.put(("delta", {"text": text}))
@@ -105,14 +140,18 @@ async def _run(
             await queue.put(None)
             return
 
+        # 선택지 표기를 먼저 떼어낸 뒤 말풍선을 나눈다
+        # (표기가 별도 말풍선으로 떨어지면 빈 말풍선이 생긴다)
+        body, quick_replies = extract_quick_replies(full)
+
         # 빈 응답은 저장하지 않는다. 말풍선만 덩그러니 남는다
-        if not full.strip():
+        if not body.strip():
             await queue.put(("error", {"code": "AI_EMPTY", "message": "AI 응답이 비어 있습니다."}))
             await queue.put(None)
             return
 
         # 첫 말풍선은 message_start 로 이미 알린 id 를 쓴다
-        bubbles = split_bubbles(full)
+        bubbles = split_bubbles(body)
         now = datetime.now(UTC)
         saved: list[Message] = []
         for index, bubble in enumerate(bubbles):
@@ -142,6 +181,8 @@ async def _run(
                 for m in saved
             ],
         }
+        if quick_replies:
+            done["quickReplies"] = quick_replies
         # 이번 턴에 AI 가 완주 처리했으면 프론트 축하 연출 신호를 얹는다(api.md §3.2).
         if not was_completed and goal.completed_at is not None:
             done["goalCompleted"] = True
@@ -163,6 +204,7 @@ def start_reply(
     goal_progress: dict | None = None,
     due_date: date | None = None,
     attachment: AttachmentContent | None = None,
+    state: GoalState | None = None,
 ) -> tuple[str, "asyncio.Queue[Event]"]:
     """응답 생성을 백그라운드로 시작한다. (assistant 메시지 id, 이벤트 큐) 를 돌려준다.
 
@@ -187,6 +229,7 @@ def start_reply(
             goal_progress=goal_progress,
             due_date=due_date,
             attachment=attachment,
+            state=state,
         )
     )
     _running.add(task)

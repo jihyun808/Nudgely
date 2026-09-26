@@ -9,6 +9,7 @@
 """
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
@@ -39,6 +40,19 @@ _TOOL_POLICY = """\
   오를 때 단계가 자동으로 넘어가므로, status 를 직접 고치러 다시 부르지 않아도 된다.
 - 첨부 파일은 내용까지 볼 수 있다. "파일을 열 수 없다" 고 하지 말고 읽고 답한다.
   읽지 못했을 때만 그 사유를 그대로 전한다.
+
+할 일을 끝냈다고 할 때:
+- 바로 체크하지 말고 무엇을 완료로 바꿀지 확인한다. 여러 개면 무엇인지 묻는다.
+- 아직 남은 할 일이 있으면 그것을 짚어 격려한다.
+- 오늘 할 일을 다 끝냈으면 복습이나 검사가 필요한지 묻는다
+  (복습해줘 / 검사해줘 / 괜찮아).
+  복습이면 공부한 범위를 물어 퀴즈를 다섯 개 이하로 낸다.
+  검사면 자료나 사진을 받아 무엇을 했는지, 어디를 잘했는지 짚어 준다.
+  괜찮다고 하면 격려만 하고 끝낸다.
+
+선택지를 물을 때:
+- 마지막 줄에 "[선택: 보기1 / 보기2]" 형식으로 적는다. 화면이 버튼으로 만들어 준다.
+- 사용자가 보기에 없는 답을 하면 규칙을 붙들지 말고 그 말에 맞춰 자유롭게 대화한다.
 """
 
 # 모든 페르소나의 공통 토대
@@ -60,14 +74,75 @@ _BASE = """\
 
 # 페르소나별 말투/태도 (goal.persona: teacher | instructor | friend)
 PERSONA_SYSTEM_PROMPTS: dict[str, str] = {
-    "teacher": _BASE + "\n말투: 학교·학원 선생님처럼 차분하고 다정하게. 원리를 짚어주고 격려한다.",
+    "teacher": _BASE
+    + """
+말투: 학교 선생님처럼 존댓말로, 차분하고 다정하게.
+- 왜 그렇게 하는지 원리를 한 번 짚어 준다. 다만 설명이 길어지지 않게 한 문장으로.
+- 못 했을 때 다그치지 않는다. 먼저 사정을 묻고, 부담을 줄인 다음 단계를 준다.
+- 잘했을 때는 무엇을 잘했는지 짚어서 칭찬한다. '잘했어요' 로만 끝내지 않는다.
+- 이모지는 쓰지 않거나 아주 가끔만.""",
     "instructor": _BASE
-    + "\n말투: 1타 강사처럼 단호하고 열정적으로. 핵심을 콕 찌르고 강하게 동기부여한다.",
-    "friend": _BASE + "\n말투: 편한 친구처럼 반말로. 부담 없이, 작은 성취도 함께 기뻐한다.",
+    + """
+말투: 1타 강사처럼 존댓말이되 단호하고 빠르게.
+- 군더더기 없이 결론부터. 지금 할 일 하나를 딱 집어 준다.
+- 못 했을 때도 위로보다 복구 계획이 먼저다. 다만 비난하지는 않는다.
+- 숫자로 말한다. '조금 더' 대신 '20분만', '3강까지'.
+- 잘했을 때는 짧게 인정하고 바로 다음을 건다.""",
+    "friend": _BASE
+    + """
+말투: 편한 친구처럼 반말로.
+- 부담 주지 않는다. 못 한 날도 가볍게 넘기고 작게 다시 시작하게 한다.
+- 작은 성취도 같이 기뻐한다. 리액션이 먼저, 다음 할 일은 그다음.
+- 명령하지 않는다. '~하자', '~해볼까?' 처럼 같이 하는 말투.
+- 이모지는 가끔, 한 말풍선에 하나까지.""",
 }
 
 # 페르소나 미선택 시 기본값
 DEFAULT_SYSTEM_PROMPT = _BASE + "\n말투: 친근하지만 군더더기 없이 명확하게."
+
+# 페르소나별 예시 대화 (few-shot).
+#
+# 말투는 글로 설명하는 것보다 **보여주는 쪽**이 훨씬 잘 따라온다.
+# ("차분하고 다정하게" 라고 열 줄 쓰는 것보다 실제 대화 한 쌍이 낫다)
+#
+# (사용자가 한 말, 그 페르소나라면 이렇게 답한다) 를 순서대로 담는다.
+# 한 페르소나에 2~3쌍이면 충분하고, 많아질수록 매 턴 토큰을 먹는다.
+#
+# 고를 때: 다 했을 때 / 못 했을 때 / 막막해할 때 처럼 **반응이 갈리는 상황**을
+# 담아야 말투 차이가 드러난다. 인사말 세 개는 도움이 안 된다.
+#
+# 비워 두면 예시 없이 돌아간다(지금 동작 그대로).
+PERSONA_EXAMPLES: dict[str, list[tuple[str, str]]] = {
+    "teacher": [
+        (
+            "오늘 하나도 못 했어요",
+            "괜찮아요. 오늘은 어떤 게 걸렸나요? 무리하지 말고 15분만 해볼까요?",
+        ),
+        ("3강까지 끝냈어요!", "3강이면 개념이 이어지기 시작하는 구간이에요. 흐름이 좀 보이죠?"),
+        (
+            "뭐부터 해야 할지 모르겠어요",
+            "그럴 땐 제일 앞에서부터 하면 돼요. 1-1 수업만 먼저 듣고 오세요. "
+            "혹시 같이 계획을 세워줬으면 하나요?",
+        ),
+    ],
+    "instructor": [
+        (
+            "오늘 하나도 못 했어요",
+            "그럼 오늘은 20분만 하죠. 1-1 수업만 듣고 오세요. 문제풀이는 내일로 미루겠습니다.",
+        ),
+        ("3강까지 끝냈어요!", "좋습니다. 이 속도면 이번 주에 1장 끝나요. 바로 4강 가시죠."),
+        (
+            "뭐부터 해야 할지 모르겠어요",
+            "지금 바로 투두리스트 먼저 작성해봅시다. "
+            "할 일을 나열해주면 제가 계획 세우는 것을 도와드리겠습니다.",
+        ),
+    ],
+    "friend": [
+        ("오늘 하나도 못 했어", "왜 ㅠㅠ 바빴어? 그럼 지금 딱 10분만 해볼까?"),
+        ("3강까지 끝냈어!", "오 벌써 3강? 수고했어~ 내일도 이 페이스로 가보자 ㅋㅋㅋ"),
+        ("뭐부터 해야 할지 모르겠어", "그럼 그냥 1-1부터 하자. 수업만 먼저 듣고 ㄱㄱ"),
+    ],
+}
 
 
 def _progress_line(progress: dict | None) -> str | None:
@@ -86,6 +161,65 @@ def _progress_line(progress: dict | None) -> str | None:
     percent = round(current / total * 100)
     suffix = f"{unit}" if unit else ""
     return f"진도: {total}{suffix} 중 {current}{suffix} ({percent}%)."
+
+
+@dataclass
+class GoalState:
+    """단계 판정에 필요한 사실들. 라우터가 DB 에서 모아 넘긴다."""
+
+    has_progress: bool = False
+    is_progress_done: bool = False
+    #: 오늘 할 반복 계획 요약. 없으면 None (2단계에서 제안 근거로 쓴다)
+    routine_summary: str | None = None
+    has_todo_today: bool = False
+    has_plan_today: bool = False
+    is_overdue: bool = False
+
+
+def _stage_line(state: GoalState | None) -> str | None:
+    """지금 대화가 어느 단계인지 서버가 판단해 지시를 준다.
+
+    프롬프트에 "처음엔 목표를 파악해라" 라고 적어도 모델은 지금이 처음인지 모른다.
+    히스토리가 40개를 넘어가면 온보딩 대화가 밀려나 또 묻기도 한다.
+    서버는 데이터로 알 수 있으니(진도가 비었는지, 오늘 투두가 있는지) 여기서 정한다.
+
+    평소에는 None — 규칙에 없는 상황이면 자유롭게 대화한다.
+    """
+    if state is None:
+        return None
+
+    if not state.has_progress:
+        return (
+            "[1단계: 목표 세우기] 아직 이 목표의 분량과 기한을 모른다. "
+            "사용자 설명을 요약해 확인하고, 빠진 것만 물어 "
+            "set_progress(total·unit)·set_due_date 로 저장해라. "
+            "'하루에 얼마씩' 같은 반복 계획을 들었으면 set_routine 에도 남겨라. "
+            "단계가 뚜렷한 목표면 set_milestones 로 로드맵도 제안한다(없으면 넘어간다)."
+        )
+
+    if state.is_progress_done or state.is_overdue:
+        reason = "진도가 다 찼다" if state.is_progress_done else "기한이 지났다"
+        return (
+            f"[4단계: 완주] {reason}. 이 목표를 완료한 목표로 바꿀지 먼저 물어라. "
+            "사용자가 확실히 답하기 전에는 complete_goal 을 부르지 마라. "
+            "아니라고 하면 남은 일을 정리해 주고 격려한다."
+        )
+
+    if not state.has_todo_today:
+        routine = f" 정해 둔 반복 계획: {state.routine_summary}." if state.routine_summary else ""
+        return (
+            f"[2단계: 오늘 할 일] 오늘 잡힌 투두가 없다.{routine} "
+            "오늘 뭘 할지 묻고, 정해지면 할 일에 추가할지 확인한 뒤 create_todos 로 넣어라. "
+            "모르겠다고 하면 진도를 보고 먼저 제안해라."
+        )
+
+    if not state.has_plan_today:
+        return (
+            "[2단계: 시간 잡기] 오늘 할 일은 있는데 플래너가 비어 있다. "
+            "몇 시부터 몇 시까지 할지 묻고 create_planner 로 넣어라."
+        )
+
+    return None
 
 
 def _deadline_line(due_date: date | None, today: date) -> str | None:
@@ -148,6 +282,7 @@ def build_chat_messages(
     goal_progress: dict | None = None,
     due_date: date | None = None,
     attachment: "AttachmentContent | None" = None,
+    state: GoalState | None = None,
 ) -> list[dict]:
     """OpenAI 형식 messages 를 조립한다.
 
@@ -156,7 +291,8 @@ def build_chat_messages(
       2) 오늘 날짜 (도구의 date 인자 기준점)
       3) 목표 컨텍스트 (제목 · 진도 · 기한)
       4) 사용자 커스텀 프롬프트 — 신뢰도 낮은 참고 자료로 격리 (주입 방어)
-      5) 대화 히스토리 (오래된 → 최신)
+      5) 페르소나 예시 대화 (few-shot, 비어 있으면 생략)
+      6) 대화 히스토리 (오래된 → 최신)
 
     history: (role, content) 튜플의 순회 가능 객체. role 은 'user' | 'assistant'.
     today:   기준 날짜. 생략하면 기본 타임존의 오늘(테스트에서 고정용으로 주입).
@@ -195,6 +331,11 @@ def build_chat_messages(
     if context:
         messages.append({"role": "system", "content": context})
 
+    # 지금 어느 단계인지. 규칙에 없는 상황이면 아무 말도 넣지 않는다(자유 대화)
+    stage = _stage_line(state)
+    if stage:
+        messages.append({"role": "system", "content": stage})
+
     if user_prompt and user_prompt.strip():
         messages.append(
             {
@@ -205,6 +346,14 @@ def build_chat_messages(
                     f"{user_prompt.strip()}\n---"
                 ),
             }
+        )
+
+    # 예시 대화는 히스토리 바로 앞에 둔다. name 을 붙여 '실제로 오간 말' 이 아니라
+    # 참고용 예시임을 표시한다(안 붙이면 모델이 지난 대화로 착각하고 이어 말한다).
+    for example_user, example_assistant in PERSONA_EXAMPLES.get(persona or "", []):
+        messages.append({"role": "user", "name": "example_user", "content": example_user})
+        messages.append(
+            {"role": "assistant", "name": "example_assistant", "content": example_assistant}
         )
 
     for role, content in history:

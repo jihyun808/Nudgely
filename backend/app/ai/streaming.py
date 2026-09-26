@@ -16,7 +16,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from datetime import date
 from typing import TYPE_CHECKING, Protocol
 
-from app.ai.prompts import build_chat_messages
+from app.ai.prompts import GoalState, build_chat_messages
 from app.ai.tools import TOOL_SCHEMAS
 
 if TYPE_CHECKING:
@@ -57,6 +57,7 @@ class ReplyStreamer(Protocol):
         goal_progress: dict | None = None,
         due_date: date | None = None,
         attachment: "AttachmentContent | None" = None,
+        state: "GoalState | None" = None,
     ) -> AsyncIterator[str]: ...
 
 
@@ -79,6 +80,7 @@ class OpenAIReplyStreamer:
         goal_progress: dict | None = None,
         due_date: date | None = None,
         attachment: "AttachmentContent | None" = None,
+        state: "GoalState | None" = None,
     ) -> AsyncIterator[str]:
         import json
 
@@ -96,6 +98,7 @@ class OpenAIReplyStreamer:
             goal_progress=goal_progress,
             due_date=due_date,
             attachment=attachment,
+            state=state,
         )
 
         # 1) 도구 호출 라운드: 모델이 도구를 요청하면 실행하고 결과를 다시 넣는다.
