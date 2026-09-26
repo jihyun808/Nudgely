@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.tool_schemas import TOOL_SCHEMAS
 from app.models.goal import Goal
 from app.models.todo import Todo, TodoItem
-from app.services.goal_service import set_progress
+from app.services.goal_service import set_progress, set_routine
 from app.services.notification_service import RECORD_LINK, create_notification
 from app.services.planner_service import add_block
 from app.services.progress_service import set_milestones, sync_milestones
@@ -243,6 +243,52 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
         await sync_milestones(db, goal)
         await db.commit()
         return f"진도를 갱신했다: {goal.progress}."
+
+    if name == "set_due_date":
+        raw = arguments.get("date")
+        if raw in (None, ""):
+            goal.due_date = None
+            await db.commit()
+            return "기한을 없앴다."
+        goal.due_date = _req_date(arguments, "date")
+        await db.commit()
+        return f"기한을 {goal.due_date} 로 정했다."
+
+    if name == "set_routine":
+        items = []
+        for item in _req_items(arguments, "items", allow_empty=True):
+            weekdays = item.get("weekdays")
+            if weekdays is not None:
+                weekdays = _req_text(weekdays, "items[].weekdays", max_len=7)
+                if not set(weekdays) <= set("0123456"):
+                    raise ToolArgError(
+                        "items[].weekdays 는 월=0…일=6 숫자만 이어 붙인다('024'=월수금)."
+                    )
+            duration = item.get("durationMinutes")
+            items.append(
+                {
+                    "content": _req_text(item.get("content"), "items[].content"),
+                    "tag": _req_text(item["tag"], "items[].tag", max_len=20)
+                    if item.get("tag")
+                    else None,
+                    "progress_delta": _req_int(
+                        item.get("progressDelta"),
+                        "items[].progressDelta",
+                        low=0,
+                        high=1000,
+                        default=0,
+                    ),
+                    "duration_minutes": None
+                    if duration is None
+                    else _req_int(duration, "items[].durationMinutes", low=1, high=DAY_MINUTES),
+                    "weekdays": weekdays,
+                }
+            )
+        await set_routine(db, goal, items)
+        await db.commit()
+        if not items:
+            return "매일 할 일을 비웠다."
+        return f"매일 할 일 {len(items)}개를 정했다: " + ", ".join(i["content"] for i in items)
 
     if name == "complete_goal":
         if goal.completed_at is not None:

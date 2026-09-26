@@ -211,3 +211,75 @@ async def test_milestones_can_be_cleared(client: AsyncClient, session_factory: a
 
     assert "잘못됐다" not in out
     assert "0개" in out
+
+
+# ── 목표 세우기 도구 (1단계) ──
+
+
+async def test_due_date_can_be_set_and_cleared(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """기한을 대화로만 알고 넘기면 다음 턴에 잊는다. 저장할 수 있어야 한다."""
+    goal = await _goal(client, session_factory)
+
+    out = await _call(session_factory, goal, "set_due_date", {"date": "2026-10-20"})
+    assert "2026-10-20" in out
+    async with session_factory() as db:
+        assert str((await db.get(Goal, goal.id)).due_date) == "2026-10-20"
+
+    await _call(session_factory, goal, "set_due_date", {})
+    async with session_factory() as db:
+        assert (await db.get(Goal, goal.id)).due_date is None
+
+
+async def test_routine_is_saved(client: AsyncClient, session_factory: async_sessionmaker):
+    """'매일 1소주제' 를 저장해 둬야 다음날 먼저 제안할 수 있다."""
+    from app.models.routine import Routine
+
+    goal = await _goal(client, session_factory)
+
+    out = await _call(
+        session_factory,
+        goal,
+        "set_routine",
+        {
+            "items": [
+                {"content": "수업", "durationMinutes": 45, "progressDelta": 0},
+                {"content": "정리", "durationMinutes": 15, "progressDelta": 1},
+            ]
+        },
+    )
+
+    assert "2개" in out
+    async with session_factory() as db:
+        rows = (await db.execute(select(Routine).order_by(Routine.order))).scalars().all()
+    assert [r.content for r in rows] == ["수업", "정리"]
+    assert rows[1].progress_delta == 1
+
+
+async def test_routine_weekdays_are_validated(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """요일은 월=0…일=6 숫자만. 아무 문자열이나 들어가면 판정이 깨진다."""
+    goal = await _goal(client, session_factory)
+
+    out = await _call(
+        session_factory,
+        goal,
+        "set_routine",
+        {"items": [{"content": "수업", "weekdays": "월수금"}]},
+    )
+    assert "월=0" in out
+
+
+async def test_routine_can_be_emptied(client: AsyncClient, session_factory: async_sessionmaker):
+    from app.models.routine import Routine
+
+    goal = await _goal(client, session_factory)
+    await _call(session_factory, goal, "set_routine", {"items": [{"content": "수업"}]})
+
+    out = await _call(session_factory, goal, "set_routine", {"items": []})
+
+    assert "비웠다" in out
+    async with session_factory() as db:
+        assert (await db.execute(select(Routine))).scalars().all() == []

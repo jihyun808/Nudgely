@@ -140,6 +140,63 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "set_due_date",
+            "description": (
+                "목표 기한을 정하거나 바꾼다. 목표를 세울 때 '언제까지' 를 들었으면 "
+                "대화로만 알고 넘기지 말고 반드시 이 도구로 저장해라. "
+                "기한을 없애려면 date 를 비워서 부른다."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {"type": "string", "description": "YYYY-MM-DD. 비우면 기한 없음"}
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_routine",
+            "description": (
+                "이 목표에서 '매일(또는 정해진 요일에) 할 일' 을 통째로 정한다. "
+                "목표를 세울 때 '하루에 1소주제씩' 처럼 반복 계획을 들었으면 저장해라. "
+                "저장해 두면 다음날부터 '오늘도 이거 할까?' 로 먼저 제안할 수 있다. "
+                "진도로 세는 항목에만 progressDelta 를 주고, 한 단위를 여러 줄로 "
+                "쪼갰으면 합이 1 이 되게 한다. 없애려면 빈 배열로 부른다."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "content": {"type": "string"},
+                                "tag": {"type": "string", "description": "예: 수업, 복습"},
+                                "progressDelta": {"type": "integer", "default": 0},
+                                "durationMinutes": {
+                                    "type": "integer",
+                                    "description": "플래너에 잡을 때 제안할 길이(분)",
+                                },
+                                "weekdays": {
+                                    "type": "string",
+                                    "description": "하는 요일. 월=0…일=6 을 이어 붙인다"
+                                    "('024'=월수금). 비우면 매일",
+                                },
+                            },
+                            "required": ["content"],
+                        },
+                    }
+                },
+                "required": ["items"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "complete_goal",
             "description": (
                 "사용자가 목표 완주를 확인하면 완료 처리한다. "

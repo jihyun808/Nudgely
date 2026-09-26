@@ -11,6 +11,7 @@ from app.models.goal import Goal, Message, ReadState
 from app.models.milestone import Milestone
 from app.models.notification import Notification
 from app.models.planner import Planner, PlannerBlock
+from app.models.routine import Routine
 from app.models.todo import Todo, TodoItem
 from app.models.user import User, UserSettings
 
@@ -24,6 +25,7 @@ __all__ = [
     "Planner",
     "PlannerBlock",
     "ReadState",
+    "Routine",
     "Todo",
     "TodoItem",
     "User",
