@@ -35,13 +35,6 @@ _TYPE_TOGGLE = {
 }
 
 
-def chat_link(goal_id: str) -> str:
-    return f"/chat/{goal_id}"
-
-
-RECORD_LINK = "/record"
-
-
 def _in_dnd(hour: int, start: int, end: int) -> bool:
     """방해 금지 시간대 판정. start>end 면 자정을 넘긴 것으로 본다."""
     if start == end:
@@ -77,7 +70,8 @@ async def create_notification(
     ntype: str,
     title: str,
     body: str,
-    link_to: str | None = None,
+    goal_id: str | None = None,
+    ref: str | None = None,
     now_utc: datetime | None = None,
 ) -> Notification | None:
     """설정을 확인해 알림을 만든다. 발송 조건 미충족이면 None.
@@ -89,7 +83,9 @@ async def create_notification(
     settings = await db.get(UserSettings, user_id)
     if not should_notify(settings, ntype, now_utc):
         return None
-    notif = Notification(user_id=user_id, type=ntype, title=title, body=body, link_to=link_to)
+    notif = Notification(
+        user_id=user_id, type=ntype, title=title, body=body, goal_id=goal_id, ref=ref
+    )
     if now_utc is not None:
         notif.created_at = now_utc
     db.add(notif)
@@ -118,7 +114,6 @@ async def list_notifications(db: AsyncSession, user_id: str) -> list[Notificatio
             body=n.body,
             created_at=n.created_at,
             is_read=n.is_read,
-            link_to=n.link_to,
         )
         for n in rows
     ]
@@ -136,7 +131,9 @@ async def mark_all_read(db: AsyncSession, user_id: str) -> None:
 # ── 독촉(nudge) · 밤 11시 점검 (api.md §5.2) ───────────────────
 
 
-async def send_nudge(db: AsyncSession, goal: Goal, content: str) -> Message | None:
+async def send_nudge(
+    db: AsyncSession, goal: Goal, content: str, *, ref: str | None = None
+) -> Message | None:
     """AI 선톡(독촉): 채팅방에 assistant 메시지를 남기고 nudge 알림을 만든다.
 
     muted·완주 목표는 대상에서 제외하고, 알림 설정이 nudge 를 끄면 아예 보내지 않는다.
@@ -156,7 +153,8 @@ async def send_nudge(db: AsyncSession, goal: Goal, content: str) -> Message | No
         ntype="nudge",
         title=goal.name,
         body=content,
-        link_to=chat_link(goal.id),
+        goal_id=goal.id,
+        ref=ref,
     )
     return msg
 
@@ -256,14 +254,13 @@ async def run_nightly_check(
 
         if await _has_incomplete_todo(db, u.id, on_date) and not await _already_sent_today(
             db, u.id, "todoIncomplete", on_date, zone
-        ):
+        ):  # noqa: E501
             n = await create_notification(
                 db,
                 u.id,
                 ntype="todoIncomplete",
                 title="오늘의 할 일",
                 body="아직 완료하지 않은 할 일이 있어요.",
-                link_to=RECORD_LINK,
                 now_utc=now_utc,
             )
             created += n is not None
@@ -277,7 +274,6 @@ async def run_nightly_check(
                 ntype="plannerIncomplete",
                 title="오늘의 플래너",
                 body="오늘 플래너가 비어 있어요.",
-                link_to=RECORD_LINK,
                 now_utc=now_utc,
             )
             created += n is not None

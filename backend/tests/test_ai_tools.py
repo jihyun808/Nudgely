@@ -213,13 +213,13 @@ async def test_chat_dispatches_tool_and_streams(client: AsyncClient):
 # ── 알림 이동 대상 ──
 
 
-async def test_todo_notifications_link_to_record_tab(
+async def test_todo_notifications_carry_the_goal(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
     """투두 알림은 기록 탭으로 보낸다.
 
-    features.md §4: '독촉은 채팅방, 투두·플래너는 기록 탭'.
-    '할 일 3개가 추가됐어요' 를 눌렀는데 채팅방이 열리면 할 일을 찾을 수 없다.
+    알림은 이동 대상을 싣지 않는다(눌러도 앱이 열리는 것까지가 역할).
+    대신 어느 목표에서 왔는지를 남겨 선톡 하루 상한을 목표별로 센다.
     """
     token = await token_for(client)
     goal_id = await _make_goal(client, token)
@@ -236,4 +236,4 @@ async def test_todo_notifications_link_to_record_tab(
     notifs = (await client.get("/api/notifications", headers=auth(token))).json()
     added = [n for n in notifs if n["type"] == "todoAdded"]
     assert added, "todoAdded 알림이 없다"
-    assert added[0]["linkTo"] == "/record"
+    assert "linkTo" not in added[0]

@@ -18,7 +18,7 @@ from app.ai.tool_schemas import TOOL_SCHEMAS
 from app.models.goal import Goal
 from app.models.todo import Todo, TodoItem
 from app.services.goal_service import set_progress, set_routine
-from app.services.notification_service import RECORD_LINK, create_notification
+from app.services.notification_service import create_notification
 from app.services.planner_service import add_block
 from app.services.progress_service import set_milestones, sync_milestones
 from app.services.record_service import add_todo_items, set_item_done
@@ -136,8 +136,7 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
             ntype="todoAdded",
             title=goal.name,
             body=f"새 할 일 {len(created)}개가 추가됐어요.",
-            # 투두 알림은 기록 탭으로 보낸다(features.md §4 — 독촉만 채팅방)
-            link_to=RECORD_LINK,
+            goal_id=goal.id,
         )
         await db.commit()
         made = ", ".join(f"itemId={i.id}({i.content})" for i in created)
@@ -166,7 +165,7 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
                 ntype="todoDone",
                 title=goal.name,
                 body="할 일을 완료했어요!",
-                link_to=RECORD_LINK,
+                goal_id=goal.id,
             )
         await db.commit()
         return "투두 체크 상태를 갱신했다."

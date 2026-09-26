@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.goal import Goal, Message, ReadState
 from app.schemas.home import HomePreviewOut
-from app.services.notification_service import chat_link
 
 
 async def home_previews(db: AsyncSession, user_id: str) -> list[HomePreviewOut]:
@@ -56,7 +55,8 @@ async def home_previews(db: AsyncSession, user_id: str) -> list[HomePreviewOut]:
                 title=g.name,
                 content=latest.content,
                 received_at=latest.created_at,
-                link_to=chat_link(g.id),
+                # 카드를 누르면 그 채팅방으로 간다(알림과 달리 이동 대상이 분명하다)
+                link_to=f"/chat/{g.id}",
             )
         )
 

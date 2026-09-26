@@ -10,4 +10,3 @@ class NotificationOut(CamelModel):
     body: str
     created_at: UtcDatetime
     is_read: bool
-    link_to: str | None = None

@@ -11,6 +11,12 @@ export type NotificationType =
   'nudge' | 'todoAdded' | 'todoDone' | 'todoIncomplete' | 'plannerIncomplete';
 
 /** 홈 헤더의 알림 목록에 뜨는 알림 하나 */
+/**
+ * 알림 한 건.
+ *
+ * 이동 대상을 싣지 않는다 — 알림은 '무슨 일이 있었는지' 만 알리고,
+ * 눌러도(앱에서는 푸시로 앱이 열리는 것까지가) 화면을 옮기지 않는다.
+ */
 export interface AppNotification {
   id: string;
   type: NotificationType;
@@ -21,8 +27,6 @@ export interface AppNotification {
   /** 발생 시각 (ISO 8601 문자열) */
   createdAt: string;
   isRead: boolean;
-  /** 눌렀을 때 이동할 경로 (예: 해당 채팅방) */
-  linkTo?: string;
 }
 
 /** 목록에 유지하는 최대 알림 개수. 넘치면 오래된 것부터 사라진다 */
