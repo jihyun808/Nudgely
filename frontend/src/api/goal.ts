@@ -130,6 +130,11 @@ export interface SendResult {
    * 화면은 이 신호로 그 자리에서 축하 연출을 띄운다.
    */
   goalCompleted: boolean;
+  /**
+   * 입력창 위에 버튼으로 띄울 보기들. AI 가 선택지를 물었을 때만 온다.
+   * 누르면 그 글자를 그대로 보낸다(전송 경로는 직접 입력과 같다).
+   */
+  quickReplies: string[];
 }
 
 /** SSE 이벤트 한 덩어리 */
@@ -223,6 +228,7 @@ export async function sendMessage(
   let isComplete = false;
   /** 이번 턴에 AI 가 완주 처리했는지 */
   let goalCompleted = false;
+  let quickReplies: string[] = [];
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -250,6 +256,9 @@ export async function sendMessage(
       if (event.name === 'done') {
         // 완주는 이번 턴에 막 일어났을 때만 온다(이미 완주한 방은 안 옴)
         goalCompleted = event.data.goalCompleted === true;
+        quickReplies = Array.isArray(event.data.quickReplies)
+          ? event.data.quickReplies.map(String)
+          : [];
         const sent = Array.isArray(event.data.messages) ? event.data.messages : [];
         bubbles = sent.map((raw) => {
           const item = raw as Record<string, unknown>;
@@ -282,6 +291,7 @@ export async function sendMessage(
           },
         ],
     goalCompleted,
+    quickReplies,
   };
 }
 

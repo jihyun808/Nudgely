@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import DetailHeader from '@/components/DetailHeader';
 import ChatInputBar from '@/pages/chat/components/ChatInputBar';
 import ChatMessageList from '@/pages/chat/components/ChatMessageList';
+import QuickReplyBar from '@/pages/chat/components/QuickReplyBar';
 import { useChatRoom } from '@/pages/chat/useChatRoom';
 
 /**
@@ -91,6 +92,13 @@ export default function ChatDetail() {
           onClose={() => setViewerImage(undefined)}
         />
       )}
+
+      {/* AI 가 보기를 물었을 때만. 누르면 그 글자를 그대로 보낸다 */}
+      <QuickReplyBar
+        replies={chat.quickReplies}
+        onPick={chat.onSend}
+        disabled={chat.isSending || chat.isReplying}
+      />
 
       {/* key: 방을 옮기면 입력 바를 새로 만들어 그 방의 쓰다 만 글을 꺼내 오게 한다 */}
       <ChatInputBar

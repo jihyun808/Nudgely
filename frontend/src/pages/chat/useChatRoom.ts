@@ -24,6 +24,8 @@ export function useChatRoom(goalId: string) {
   const [isReplying, setIsReplying] = useState(false);
   /** 내 메시지를 보내는 중(서버가 받아주기 전). 입력창을 잠그는 데 쓴다 */
   const [isSending, setIsSending] = useState(false);
+  /** AI 가 물은 보기들. 입력창 위 버튼으로 뜬다 */
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
   /** 방금 이 대화에서 목표를 완주했는지. 축하 연출을 한 번 띄우고 내린다 */
   const [hasJustCompleted, setHasJustCompleted] = useState(false);
   /** 다음(더 과거) 페이지 커서. null이면 더 불러올 과거가 없다 */
@@ -47,6 +49,9 @@ export function useChatRoom(goalId: string) {
         // 응답은 최신 → 과거 순이므로 뒤집어 오래된 것부터 그린다
         setMessages([...page.messages].reverse());
         setNextCursor(page.nextCursor);
+        setHasError(false);
+        // 이전 방에서 뜬 선택 버튼이 남아 있으면 엉뚱한 방에 그 답이 전송된다
+        setQuickReplies([]);
         setHasError(false);
         // 방에 들어오면 읽음 처리. 실패해도 화면에는 영향이 없다
         void markGoalAsRead(goalId).catch(() => {});
@@ -135,6 +140,8 @@ export function useChatRoom(goalId: string) {
     };
     setMessages((prev) => [...prev, myMessage]);
     setIsSending(true);
+    // 보기를 눌렀든 직접 썼든, 답한 순간 버튼은 내린다
+    setQuickReplies([]);
 
     // 내 말이 '전송 중' 인 동안에는 상대가 입력할 수 없다.
     // 서버가 받아준 뒤에야(message_start) 전송 중을 걷고 '입력 중...' 으로 넘어간다.
@@ -147,7 +154,7 @@ export function useChatRoom(goalId: string) {
     };
 
     try {
-      const { messages: replies, goalCompleted } = await sendMessage(
+      const { messages: replies, goalCompleted, quickReplies: asked } = await sendMessage(
         goalId,
         { content: payload.content, file: payload.file, clientId: localId },
         handleAccepted,
@@ -156,6 +163,7 @@ export function useChatRoom(goalId: string) {
       // 확정 처리는 handleAccepted 에서 이미 했다. 여기서는 답만 붙인다
       // (말이 길면 서버가 여러 말풍선으로 나눠 준다)
       setMessages((prev) => [...prev, ...replies]);
+      setQuickReplies(asked);
 
       // 방에서 보고 있는 중에 온 답이니 읽음으로 찍는다.
       // 입장 때만 찍으면, 그 뒤에 온 답이 홈에 계속 '안 읽음' 으로 남는다.
@@ -210,6 +218,7 @@ export function useChatRoom(goalId: string) {
     hasError,
     isReplying,
     isSending,
+    quickReplies,
     isLoadingOlder,
     listRef,
     bottomRef,
