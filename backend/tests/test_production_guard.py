@@ -12,6 +12,8 @@ SAFE = {
     "jwt_secret": "x" * 40,
     "auto_create_tables": False,
     "cors_origins": "https://nudgely.app",
+    "public_base_url": "https://api.nudgely.app",
+    "database_url": "postgresql://u:p@db.example.com/nudgely",
 }
 
 
@@ -60,3 +62,16 @@ def test_all_problems_are_reported_at_once():
     assert "JWT_SECRET" in message
     assert "CORS_ORIGINS" in message
     assert "AUTO_CREATE_TABLES" in message
+
+
+def test_sqlite_blocks_startup():
+    """컨테이너가 재시작하면 파일이 통째로 사라진다. 배포 첫날 겪으면 늦다."""
+    with pytest.raises(RuntimeError, match="SQLite"):
+        _settings(database_url="sqlite+aiosqlite:///./nudgely.db").assert_production_ready()
+
+
+@pytest.mark.parametrize("url", ["", "http://localhost:8000"])
+def test_local_public_base_url_blocks_startup(url: str):
+    """첨부 URL 에 그대로 박혀 나간다. 앱에서는 사진이 하나도 안 열린다."""
+    with pytest.raises(RuntimeError, match="PUBLIC_BASE_URL"):
+        _settings(public_base_url=url).assert_production_ready()

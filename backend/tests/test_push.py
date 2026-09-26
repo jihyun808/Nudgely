@@ -341,3 +341,40 @@ async def test_bell_notifications_also_push(
 
     assert pushed == [("오늘의 할 일", "3개 추가했어")]
     assert len((await client.get("/api/notifications", headers=auth(token))).json()) == 1
+
+
+# ── 자격 증명 ──
+
+
+def test_credentials_can_come_from_the_environment(monkeypatch, tmp_path):
+    """배포에서는 파일을 올릴 자리가 없어 JSON 을 통째로 환경변수에 넣는다."""
+    key = tmp_path / "key.json"
+    key.write_text(json.dumps({"project_id": "from-file"}), encoding="utf-8")
+    monkeypatch.setattr(settings, "fcm_credentials_file", str(key))
+    monkeypatch.setattr(settings, "fcm_credentials_json", json.dumps({"project_id": "from-env"}))
+
+    assert push_service._credentials()["project_id"] == "from-env"
+
+
+def test_project_id_falls_back_to_the_key(monkeypatch):
+    """키에 이미 들어 있다. 두 군데에 적어 어긋나게 둘 이유가 없다."""
+    monkeypatch.setattr(settings, "fcm_project_id", "")
+    monkeypatch.setattr(settings, "fcm_credentials_json", json.dumps({"project_id": "nudgely-1"}))
+
+    assert push_service._project_id() == "nudgely-1"
+
+
+def test_explicit_project_id_wins(monkeypatch):
+    monkeypatch.setattr(settings, "fcm_project_id", "override")
+    monkeypatch.setattr(settings, "fcm_credentials_json", json.dumps({"project_id": "nudgely-1"}))
+
+    assert push_service._project_id() == "override"
+
+
+def test_json_credentials_alone_are_enough(monkeypatch):
+    """프로젝트 ID 를 안 적어도 푸시가 켜져야 한다(키에서 읽는다)."""
+    monkeypatch.setattr(settings, "fcm_project_id", "")
+    monkeypatch.setattr(settings, "fcm_credentials_file", "")
+    monkeypatch.setattr(settings, "fcm_credentials_json", json.dumps({"project_id": "x"}))
+
+    assert settings.push_configured is True

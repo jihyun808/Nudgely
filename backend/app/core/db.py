@@ -49,7 +49,8 @@ class UtcDateTime(TypeDecorator):
         return value.astimezone(UTC)
 
 
-engine = create_async_engine(settings.database_url, echo=settings.db_echo, future=True)
+# async_database_url: 호스팅이 준 postgresql:// 주소를 asyncpg 용으로 고쳐 쓴다
+engine = create_async_engine(settings.async_database_url, echo=settings.db_echo, future=True)
 
 
 def enable_sqlite_foreign_keys(target) -> None:

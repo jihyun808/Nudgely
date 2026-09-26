@@ -66,7 +66,24 @@ def _new_client() -> httpx.AsyncClient:
 
 
 def _credentials() -> dict:
+    """서비스 계정 키. 환경변수의 JSON 이 파일보다 우선한다.
+
+    배포에서는 파일을 올릴 자리가 마땅치 않아 JSON 을 통째로 환경변수에 넣고,
+    로컬에서는 받은 파일을 그대로 두고 경로만 가리키는 쪽이 편하다.
+    """
+    if settings.fcm_credentials_json:
+        return json.loads(settings.fcm_credentials_json)
     return json.loads(Path(settings.fcm_credentials_file).read_text(encoding="utf-8"))
+
+
+def _project_id() -> str:
+    """보낼 프로젝트. 따로 지정하지 않으면 키 파일에 적힌 것을 쓴다."""
+    if settings.fcm_project_id:
+        return settings.fcm_project_id
+    project_id = _credentials().get("project_id")
+    if not project_id:
+        raise RuntimeError("FCM 프로젝트 ID 를 찾을 수 없다(키에도 설정에도 없다)")
+    return str(project_id)
 
 
 async def _fetch_access_token(client: httpx.AsyncClient) -> str:
@@ -176,7 +193,7 @@ async def send_to_user(
     if not tokens:
         return 0
 
-    url = f"https://fcm.googleapis.com/v1/projects/{settings.fcm_project_id}/messages:send"
+    url = f"https://fcm.googleapis.com/v1/projects/{_project_id()}/messages:send"
     dead: list[str] = []
     sent = 0
 
