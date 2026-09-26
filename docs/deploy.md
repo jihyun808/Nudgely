@@ -31,6 +31,11 @@ CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8
 
 root 로 돌지 않고, `PORT` 는 호스팅이 주는 값을 쓴다.
 
+⚠️ **도메인을 만들 때 묻는 target port 는 Railway 가 주입한 `PORT` 와 같아야 한다.**
+Railway 는 보통 8080 을 준다(Dockerfile 의 기본값 8000 이 아니다). 어긋나면 앱은
+멀쩡히 떠 있는데 502 가 난다 — 로그의 `Uvicorn running on http://0.0.0.0:XXXX` 가
+정답이다. `PORT` 를 직접 지정하지 말고 이쪽을 맞추는 편이 낫다.
+
 로컬에서 확인:
 
 ```bash
@@ -78,10 +83,10 @@ SQLite 를 그대로 두면 **서버가 뜨지 않는다**(`assert_production_re
 | 키 | 값 | 비고 |
 | --- | --- | --- |
 | `APP_ENV` | `production` | 이 값이 아니면 안전 검사를 건너뛴다 |
+| `PUBLIC_BASE_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` | 주소를 박지 말고 참조로 — 커스텀 도메인으로 바꿔도 따라간다 |
 | `JWT_SECRET` | 무작위 48바이트 | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 | `DATABASE_URL` | Postgres 참조 | Railway 변수 참조로 |
 | `AUTO_CREATE_TABLES` | `false` | 스키마는 마이그레이션이 관리한다 |
-| `PUBLIC_BASE_URL` | `https://<배포 주소>` | 첨부 URL 에 박혀 나간다 |
 | `CORS_ORIGINS` | 아래 참고 | |
 | `OPENAI_API_KEY` | | |
 | `FCM_CREDENTIALS_JSON` | 서비스 계정 키 JSON 통째로 | 파일 대신 |
