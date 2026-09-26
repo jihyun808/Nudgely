@@ -90,7 +90,7 @@ async def test_reply_completes_with_nobody_listening(
     ).json()["id"]
 
     streamer = _GatedStreamer()
-    assistant_id, queue = start_reply(
+    assistant_id, queue, listener = start_reply(
         session_factory=session_factory,
         streamer=streamer,
         goal_id=goal_id,
@@ -180,7 +180,7 @@ async def test_save_failure_still_ends_the_stream(
 
     monkeypatch.setattr("app.services.reply_service.split_bubbles", boom)
 
-    _assistant_id, queue = start_reply(
+    _assistant_id, queue, _listener = start_reply(
         session_factory=session_factory,
         streamer=_SlowStreamer(),
         goal_id=goal_id,

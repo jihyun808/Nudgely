@@ -9,7 +9,7 @@ from app.ai.tools import dispatch_tool_call
 from app.models.goal import Goal, Message
 from app.models.notification import Notification
 from app.models.user import UserSettings
-from app.services.notification_service import RECORD_LINK, chat_link, should_notify
+from app.services.notification_service import should_notify
 from tests.helpers import auth, token_for
 
 
@@ -97,7 +97,8 @@ async def test_home_previews_unread_only_one_per_goal(
     assert body[0]["kind"] == "message"
     assert body[0]["title"] == "A"
     assert body[0]["content"] == "최신 안읽음"
-    assert body[0]["linkTo"] == chat_link(g1)
+    # 홈 미리보기 카드는 누르면 그 채팅방으로 간다(알림과 달리 이동 대상이 분명하다)
+    assert body[0]["linkTo"] == f"/chat/{g1}"
 
 
 async def test_home_previews_excludes_read(
@@ -141,7 +142,6 @@ async def test_notifications_list_and_read(
                     type="todoAdded",
                     title="Buddy",
                     body=f"n{i}",
-                    link_to=RECORD_LINK,
                     created_at=base + timedelta(minutes=i),
                 )
             )
@@ -192,8 +192,8 @@ async def test_ai_create_todos_makes_notification(
     body = res.json()
     assert len(body) == 1
     assert body[0]["type"] == "todoAdded"
-    # 투두 알림은 기록 탭으로 (features.md §4 — 채팅방으로 보내면 할 일을 찾을 수 없다)
-    assert body[0]["linkTo"] == RECORD_LINK
+    # 알림은 이동 대상을 싣지 않는다. 눌러도 앱이 열리는 것까지가 역할이다
+    assert "linkTo" not in body[0]
 
 
 async def test_ai_todo_notification_suppressed_when_toggle_off(

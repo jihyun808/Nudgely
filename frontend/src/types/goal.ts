@@ -45,8 +45,8 @@ export interface Goal {
   completedAt?: string;
   /**
    * 진도. 아직 없을 수도 있다(막 만든 목표 등).
-   * TODO: 진도를 무엇으로 셀지(강의 수, 페이지, 회차 등)는 AI가 사용자에게서
-   *       어떤 정보를 받아 정할지 확정한 뒤 스키마를 다시 맞춘다.
+   * 무엇으로 셀지는 unit 에 담긴다 — AI가 대화로 정해 set_progress 로 세우고,
+   * 틀렸으면 목표 설정 화면에서 직접 고칠 수 있다.
    */
   progress?: {
     current: number;

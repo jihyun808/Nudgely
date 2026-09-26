@@ -6,6 +6,7 @@
 """
 
 from app.models.attachment import Attachment
+from app.models.device import DeviceToken
 from app.models.focus import FocusSession
 from app.models.goal import Goal, Message, ReadState
 from app.models.milestone import Milestone
@@ -17,6 +18,7 @@ from app.models.user import User, UserSettings
 
 __all__ = [
     "Attachment",
+    "DeviceToken",
     "FocusSession",
     "Goal",
     "Message",

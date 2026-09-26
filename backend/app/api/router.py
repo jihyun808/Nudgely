@@ -5,7 +5,17 @@
 
 from fastapi import APIRouter
 
-from app.api.routes import auth, focus, goals, health, home, records, settings, user
+from app.api.routes import (
+    auth,
+    devices,
+    focus,
+    goals,
+    health,
+    home,
+    records,
+    settings,
+    user,
+)
 
 api_router = APIRouter()
 
@@ -17,3 +27,4 @@ api_router.include_router(goals.router, tags=["goals"])
 api_router.include_router(records.router, tags=["records"])
 api_router.include_router(focus.router, tags=["focus"])
 api_router.include_router(home.router, tags=["home"])
+api_router.include_router(devices.router, tags=["devices"])

@@ -1,10 +1,8 @@
 // pages/home/components/NotificationBell.tsx
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { markNotificationsAsRead } from '@/api/home';
 import NotificationList from '@/pages/home/components/NotificationList';
 import { useNotificationStore } from '@/stores/notificationStore';
-import type { AppNotification } from '@/types/notification';
 
 /**
  * 헤더 오른쪽 알림 버튼.
@@ -14,7 +12,6 @@ import type { AppNotification } from '@/types/notification';
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
 
   const notifications = useNotificationStore((state) => state.notifications);
   const markAllAsRead = useNotificationStore((state) => state.markAllAsRead);
@@ -48,10 +45,8 @@ export default function NotificationBell() {
     };
   });
 
-  const handleSelect = (notification: AppNotification) => {
-    close();
-    if (notification.linkTo) navigate(notification.linkTo);
-  };
+  // 알림은 읽고 닫는 것까지가 끝이다. 어디로 갈지는 사용자가 정한다
+  const handleSelect = () => close();
 
   return (
     <div ref={containerRef} className="relative">

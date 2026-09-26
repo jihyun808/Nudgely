@@ -118,7 +118,8 @@ async def test_send_nudge_creates_message_and_notification(
     # nudge 알림 생성
     notifs = (await client.get("/api/notifications", headers=auth(token))).json()
     assert notifs[0]["type"] == "nudge"
-    assert notifs[0]["linkTo"] == f"/chat/{goal_id}"
+    # 알림은 이동 대상을 싣지 않는다
+    assert "linkTo" not in notifs[0]
 
 
 async def test_send_nudge_skips_muted_goal(

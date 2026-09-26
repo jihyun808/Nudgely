@@ -16,7 +16,9 @@ from app.core.config import settings
 from app.core.db import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# alembic 은 ini 값에 %(...)s 치환을 돌린다. 비밀번호에 % 가 들어 있으면
+# 그걸 치환 기호로 읽고 죽는다(호스팅이 만들어주는 비밀번호에 흔하다)
+config.set_main_option("sqlalchemy.url", settings.async_database_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -26,7 +28,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.database_url,
+        url=settings.async_database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         render_as_batch=True,
@@ -48,7 +50,7 @@ def _do_run_migrations(connection) -> None:
 
 
 async def run_migrations_online() -> None:
-    engine = create_async_engine(settings.database_url, future=True)
+    engine = create_async_engine(settings.async_database_url, future=True)
     async with engine.connect() as connection:
         await connection.run_sync(_do_run_migrations)
     await engine.dispose()
