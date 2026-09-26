@@ -13,11 +13,14 @@ alembic>=1.13,<2.0             # 마이그레이션
 # ── 인증 ──
 passlib[bcrypt]>=1.7,<2.0
 bcrypt>=4.0.1,<4.1            # passlib 1.7.4 호환(버전 읽기 버그 회피)
-pyjwt>=2.9,<3.0
+pyjwt[crypto]>=2.9,<3.0        # 로그인 토큰(HS256) + FCM 서비스 계정 서명(RS256)
 python-multipart>=0.0.9,<1.0  # multipart/form-data (파일 업로드·폼)
 
 # ── 첨부 읽기 ──
 pypdf>=5.0,<7.0               # PDF 텍스트 추출(첨부를 AI 컨텍스트로)
+
+# ── 푸시 ──
+httpx>=0.27,<1.0              # FCM HTTP v1 호출(비동기)
 
 # ── 스케줄러 ──
 apscheduler>=3.10,<4.0        # 밤 11시 점검 등 주기 작업

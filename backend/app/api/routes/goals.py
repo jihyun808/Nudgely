@@ -540,7 +540,7 @@ async def send_message(
     #    돌아 메시지를 저장한다. 나갔다 와도 답이 와 있다(reply_service 주석 참고).
     state = await _goal_state(db, goal, today)
 
-    assistant_id, queue = start_reply(
+    assistant_id, queue, listener = start_reply(
         session_factory=session_factory,
         streamer=streamer,
         goal_id=goal.id,
@@ -556,14 +556,23 @@ async def send_message(
     )
 
     async def event_stream():
-        """큐에 쌓이는 이벤트를 그대로 흘려보낸다(중계만 한다)."""
-        yield _sse("message_start", {"messageId": assistant_id, "role": "assistant"})
-        while True:
-            event = await queue.get()
-            if event is None:
-                return
-            name, data = event
-            yield _sse(name, data)
+        """큐에 쌓이는 이벤트를 그대로 흘려보낸다(중계만 한다).
+
+        끊길 때 청취 중단을 알린다. 사용자가 답을 못 본 채 나간 것이므로
+        생성 쪽이 푸시로 알려야 한다(reply_service.Listener).
+        """
+        try:
+            yield _sse("message_start", {"messageId": assistant_id, "role": "assistant"})
+            while True:
+                event = await queue.get()
+                if event is None:
+                    return
+                name, data = event
+                yield _sse(name, data)
+        finally:
+            # 끝까지 흘려보냈든 중간에 끊겼든 여기서 내린다. 끝까지 봤다면 생성 쪽은
+            # 이미 판단을 마친 뒤라(저장 직전에 읽는다) 푸시가 나가지 않는다.
+            listener.active = False
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)

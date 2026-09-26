@@ -14,6 +14,7 @@ SSE 는 그 결과를 중계하기만 한다. 나갔다 와도 답이 와 있다
 import asyncio
 import logging
 import re
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -21,10 +22,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.ai.attachments import AttachmentContent
 from app.ai.prompts import GoalState
 from app.ai.streaming import ReplyStreamer
+from app.ai.text import strip_markdown
 from app.ai.tools import dispatch_tool_call
 from app.core.ids import new_id
 from app.models.goal import Goal, Message
 from app.schemas.common import to_utc_iso
+from app.services.notification_service import notify_reply
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,19 @@ _running: set[asyncio.Task] = set()
 #: 중계할 이벤트 하나. (이벤트 이름, 데이터). None 이면 끝.
 Event = tuple[str, dict] | None
 
+
+@dataclass
+class Listener:
+    """SSE 를 아직 듣고 있는 사람이 있는지.
+
+    채팅방을 보고 있으면 답이 화면에 흐르니 푸시가 필요 없다. 나갔거나 앱을
+    껐으면 답이 온 걸 알 길이 없어 푸시로 알려야 한다. 중계하는 쪽(SSE 라우트)이
+    끊길 때 active 를 내리고, 생성 쪽이 저장 직전에 읽는다.
+    """
+
+    active: bool = True
+
+
 #: 한 턴에 보낼 말풍선 수 상한. 넘치면 마지막 하나로 합친다.
 #: 사람이 카톡 보내듯 나눠 보내는 게 목적인데, 열 개씩 쏟아지면 도배가 된다.
 MAX_BUBBLES = 5
@@ -44,31 +60,6 @@ MAX_BUBBLES = 5
 MAX_QUICK_REPLIES = 4
 #: 버튼에 들어갈 글자 수 상한. 길면 칩이 줄바꿈되며 읽기 어려워진다.
 MAX_QUICK_REPLY_LENGTH = 20
-
-#: 메신저 말풍선에 그대로 보이면 안 되는 마크다운 표기들.
-#: 프롬프트로 금지해 두었지만 모델이 자주 새서, 화면에 나가기 전에 떼어낸다.
-#: (요청만으로 막는 데는 한계가 있고, 별표가 보이는 건 바로 눈에 띈다)
-_MARKDOWN_SUBS = (
-    # **굵게** / __굵게__ → 안쪽 글자만
-    (re.compile(r"\*\*(.+?)\*\*", re.DOTALL), r"\1"),
-    (re.compile(r"__(.+?)__", re.DOTALL), r"\1"),
-    # 줄 앞 제목 기호(#, ##, …)
-    (re.compile(r"^#{1,6}[ \t]+", re.MULTILINE), ""),
-    # 줄 앞 목록 기호(-, *, +). 들여쓰기도 함께 없앤다
-    (re.compile(r"^[ \t]*[-*+][ \t]+", re.MULTILINE), ""),
-)
-
-
-def strip_markdown(text: str) -> str:
-    """말풍선에 보이면 안 되는 마크다운 표기를 떼어낸다.
-
-    *한 개* 기울임이나 코드블록(```)은 건드리지 않는다 — 곱셈이나 실제 코드일 수
-    있어서 잘못 떼면 뜻이 바뀐다. 눈에 제일 거슬리는 것만 보수적으로 지운다.
-    """
-    for pattern, replacement in _MARKDOWN_SUBS:
-        text = pattern.sub(replacement, text)
-    return text
-
 
 #: 프롬프트가 약속한 선택지 표기. 마지막 줄에 "[선택: 추가해줘 / 아니]" 로 적는다.
 _CHOICE_RE = re.compile(r"\n?\s*\[선택:\s*(?P<options>[^\]]+)\]\s*$")
@@ -113,6 +104,7 @@ def split_bubbles(text: str) -> list[str]:
 async def _run(
     *,
     queue: "asyncio.Queue[Event]",
+    listener: Listener,
     session_factory: async_sessionmaker[AsyncSession],
     streamer: ReplyStreamer,
     goal_id: str,
@@ -137,6 +129,7 @@ async def _run(
     try:
         await _generate(
             queue=queue,
+            listener=listener,
             session_factory=session_factory,
             streamer=streamer,
             goal_id=goal_id,
@@ -163,6 +156,7 @@ async def _run(
 async def _generate(
     *,
     queue: "asyncio.Queue[Event]",
+    listener: Listener,
     session_factory: async_sessionmaker[AsyncSession],
     streamer: ReplyStreamer,
     goal_id: str,
@@ -240,6 +234,12 @@ async def _generate(
         for message in saved:
             await db.refresh(message)
 
+        # 답이 왔는데 아무도 안 보고 있으면 알 길이 없다(앱을 껐거나 방을 나갔다).
+        # 채팅방을 보고 있으면 화면에 이미 흘렀으니 보내지 않는다 — 방금 읽은 말을
+        # 다시 울리면 도배가 된다. 종 아이콘에는 쌓지 않는다(푸시만, api.md §5.3).
+        if not listener.active:
+            await notify_reply(db, goal, bubbles[0])
+
         done: dict = {
             "messages": [
                 {
@@ -273,18 +273,23 @@ def start_reply(
     due_date: date | None = None,
     attachment: AttachmentContent | None = None,
     state: GoalState | None = None,
-) -> tuple[str, "asyncio.Queue[Event]"]:
-    """응답 생성을 백그라운드로 시작한다. (assistant 메시지 id, 이벤트 큐) 를 돌려준다.
+) -> tuple[str, "asyncio.Queue[Event]", Listener]:
+    """응답 생성을 백그라운드로 시작한다.
+
+    (assistant 메시지 id, 이벤트 큐, 청취 상태) 를 돌려준다. 중계하는 쪽은 연결이
+    끊길 때 청취 상태를 내려야 한다 — 그래야 답을 푸시로 알릴지 판단할 수 있다.
 
     큐는 상한이 없다. 듣는 사람이 나가도 생성 쪽이 막히지 않아야 하기 때문이다
     (응답 하나 분량이라 메모리도 문제되지 않는다).
     """
     assistant_id = new_id("m")
     queue: asyncio.Queue[Event] = asyncio.Queue()
+    listener = Listener()
 
     task = asyncio.create_task(
         _run(
             queue=queue,
+            listener=listener,
             session_factory=session_factory,
             streamer=streamer,
             goal_id=goal_id,
@@ -303,4 +308,4 @@ def start_reply(
     _running.add(task)
     task.add_done_callback(_running.discard)
 
-    return assistant_id, queue
+    return assistant_id, queue, listener

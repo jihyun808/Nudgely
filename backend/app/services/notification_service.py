@@ -22,6 +22,7 @@ from app.models.planner import Planner, PlannerBlock
 from app.models.todo import Todo, TodoItem
 from app.models.user import User, UserSettings
 from app.schemas.notification import NotificationOut
+from app.services.push_service import push_in_background
 
 # 최신순 최대 개수(api.md §5.2)
 MAX_NOTIFICATIONS = 5
@@ -90,6 +91,11 @@ async def create_notification(
         notif.created_at = now_utc
     db.add(notif)
     await db.flush()
+
+    # 종 아이콘에 쌓는 것만으로는 앱을 열어야 보인다. 같은 내용을 푸시로도 보낸다.
+    # 발송 여부는 위에서 이미 판단했다(설정·방해 금지). 기다리지 않는다 —
+    # FCM 왕복 때문에 투두 저장이 느려질 이유가 없다.
+    push_in_background(user_id, title=title, body=body)
     return notif
 
 
@@ -157,6 +163,25 @@ async def send_nudge(
         ref=ref,
     )
     return msg
+
+
+async def notify_reply(db: AsyncSession, goal: Goal, text: str) -> None:
+    """대화 답변이 왔다고 푸시한다. **종 아이콘에는 쌓지 않는다** (api.md §5.3).
+
+    내가 방금 말을 걸어서 온 답이다. 목록에 남겨 두면 다음에 앱을 열 때 이미 읽은
+    말이 안 읽은 알림으로 또 뜬다. 앱이 꺼져 있는 동안 알려주는 것까지가 목적이라
+    푸시만 보낸다.
+
+    방해 금지는 보지 않는다 — 사용자가 직접 보낸 말에 대한 답이라, 새벽 2시에
+    물었으면 새벽 2시에 답이 오는 게 맞다(todoAdded/todoDone 과 같은 취급).
+    should_notify 에 'reply' 토글이 없는 것도 그래서다. 전체 알림 스위치만 본다.
+    """
+    if goal.is_notification_muted:
+        return
+    settings = await db.get(UserSettings, goal.user_id)
+    if not should_notify(settings, "reply"):
+        return
+    push_in_background(goal.user_id, title=goal.name, body=text)
 
 
 async def _has_active_goal(db: AsyncSession, user_id: str) -> bool:

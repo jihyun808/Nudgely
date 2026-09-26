@@ -57,6 +57,20 @@ class Settings(BaseSettings):
     # 지금 로컬로 이 시각인 사용자만 처리한다. 타임존은 UserSettings.timezone.
     nightly_hour: int = 23
 
+    # ── 푸시(FCM HTTP v1) ──
+    # 앱이 꺼져 있을 때 알릴 유일한 수단이다. 자격 증명이 없으면 조용히 건너뛴다
+    # (개발·테스트에서 푸시 때문에 아무것도 막히지 않아야 한다).
+    push_enabled: bool = True
+    #: Firebase 프로젝트 ID. 콘솔의 '프로젝트 설정 > 일반' 에 있다.
+    fcm_project_id: str = ""
+    #: 서비스 계정 키 JSON 경로. '프로젝트 설정 > 서비스 계정' 에서 발급한다.
+    #: **저장소에 커밋하지 말 것** — 이 파일 하나로 누구에게든 푸시를 보낼 수 있다.
+    fcm_credentials_file: str = ""
+
+    @property
+    def push_configured(self) -> bool:
+        return bool(self.push_enabled and self.fcm_project_id and self.fcm_credentials_file)
+
     # ── 파일 스토리지 ──
     # 로컬 개발: 디스크에 저장하고 /static 으로 서빙. 운영은 S3 등으로 교체.
     storage_dir: str = "./media"

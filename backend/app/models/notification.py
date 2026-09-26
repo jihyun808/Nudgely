@@ -1,12 +1,13 @@
 """알림 모델 (api.md §5.2).
 
 type: nudge | todoAdded | todoDone | todoIncomplete | plannerIncomplete
-- nudge/todoAdded/todoDone → 해당 채팅방으로 이동
-- todoIncomplete/plannerIncomplete → 기록 탭으로 이동
 
 알림은 '무슨 일이 있었는지' 만 알린다. 눌러도 이동하지 않는다 —
 푸시로 앱이 열리는 것까지가 역할이고, 어디로 갈지는 사용자가 정한다.
-(경로 조립을 서버가 하는 방식 — 프론트 AppNotification.linkTo 계약에 맞춤)
+(경로를 서버가 박으면 프론트 라우팅이 바뀔 때 지난 알림이 전부 깨진다)
+
+여기 쌓인 것이 앱 안 종 아이콘 목록이다. 푸시(push_service)는 이 행을 만들 때
+함께 나가지만, 행 없이 푸시만 보내는 경우도 있다(대화 답변 — api.md §5.3).
 """
 
 from datetime import UTC, datetime
