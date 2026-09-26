@@ -130,11 +130,57 @@ async def _run(
     """응답을 끝까지 만들어 저장한다. 듣는 사람이 없어도 계속 돈다.
 
     요청 세션은 응답이 끝나면 닫히므로 자기 세션을 따로 연다.
+
+    무슨 일이 있어도 마지막에 끝 신호(None)를 보낸다. 안 보내면 SSE 를 중계하는
+    쪽이 queue.get() 에서 영원히 기다리고, 태스크 예외는 아무도 보지 않는다.
     """
+    try:
+        await _generate(
+            queue=queue,
+            session_factory=session_factory,
+            streamer=streamer,
+            goal_id=goal_id,
+            assistant_id=assistant_id,
+            persona=persona,
+            user_prompt=user_prompt,
+            goal_title=goal_title,
+            history=history,
+            today=today,
+            goal_progress=goal_progress,
+            due_date=due_date,
+            attachment=attachment,
+            state=state,
+        )
+    except Exception as exc:  # noqa: BLE001 - 저장 실패로 대화를 멈춰 세우지 않는다
+        logger.exception("응답 생성이 중단됐다(goal=%s)", goal_id)
+        await queue.put(
+            ("error", {"code": "AI_ERROR", "message": f"응답을 저장하지 못했습니다: {exc}"})
+        )
+    finally:
+        await queue.put(None)
+
+
+async def _generate(
+    *,
+    queue: "asyncio.Queue[Event]",
+    session_factory: async_sessionmaker[AsyncSession],
+    streamer: ReplyStreamer,
+    goal_id: str,
+    assistant_id: str,
+    persona: str | None,
+    user_prompt: str | None,
+    goal_title: str | None,
+    history: list[tuple[str, str]],
+    today: date | None,
+    goal_progress: dict | None,
+    due_date: date | None,
+    attachment: AttachmentContent | None,
+    state: GoalState | None,
+) -> None:
+    """실제 생성. 끝 신호는 부르는 쪽(_run)이 책임진다."""
     async with session_factory() as db:
         goal = await db.get(Goal, goal_id)
         if goal is None:  # 생성 중에 목표가 지워진 경우
-            await queue.put(None)
             return
 
         was_completed = goal.completed_at is not None  # 이번 턴 완주 감지용
@@ -162,7 +208,6 @@ async def _run(
         except Exception as exc:  # noqa: BLE001 - 외부 AI 오류를 error 이벤트로 감싼다
             logger.warning("AI 응답 실패(goal=%s): %s", goal_id, exc)
             await queue.put(("error", {"code": "AI_ERROR", "message": f"AI 응답 실패: {exc}"}))
-            await queue.put(None)
             return
 
         # 선택지 표기를 먼저 떼어낸 뒤 말풍선을 나눈다
@@ -172,7 +217,6 @@ async def _run(
         # 빈 응답은 저장하지 않는다. 말풍선만 덩그러니 남는다
         if not body.strip():
             await queue.put(("error", {"code": "AI_EMPTY", "message": "AI 응답이 비어 있습니다."}))
-            await queue.put(None)
             return
 
         # 첫 말풍선은 message_start 로 이미 알린 id 를 쓴다
@@ -213,7 +257,6 @@ async def _run(
             done["goalCompleted"] = True
 
         await queue.put(("done", done))
-        await queue.put(None)
 
 
 def start_reply(

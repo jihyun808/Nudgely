@@ -16,7 +16,7 @@ from app.ai.streaming import get_reply_streamer
 from app.main import app
 from app.models.goal import Message
 from app.services.reply_service import start_reply
-from tests.helpers import auth, token_for
+from tests.helpers import auth, create_goal, token_for
 
 CHUNKS = ["오늘은 ", "1강부터 ", "시작해볼까?"]
 FULL = "".join(CHUNKS)
@@ -54,15 +54,23 @@ async def _assistant_messages(session_factory: async_sessionmaker) -> list[Messa
         return list(rows.scalars().all())
 
 
-async def _wait_for_assistant(session_factory: async_sessionmaker, timeout: float = 3.0):
-    """백그라운드 생성이 끝나 저장될 때까지 기다린다."""
-    deadline = asyncio.get_running_loop().time() + timeout
-    while asyncio.get_running_loop().time() < deadline:
-        messages = await _assistant_messages(session_factory)
-        if messages:
-            return messages[0]
-        await asyncio.sleep(0.02)
-    return None
+async def _drain(queue, timeout: float = 5.0) -> list:
+    """끝 신호(None)가 올 때까지 큐를 비운다. 생성이 끝났음을 확실히 아는 방법이다.
+
+    시간을 재서 기다리면 느린 CI 에서 간헐적으로 떨어진다(실제로 그랬다).
+    _run 은 무슨 일이 있어도 마지막에 None 을 보내므로 이걸 기다리면 된다.
+    """
+    events = []
+
+    async def _read():
+        while True:
+            event = await queue.get()
+            if event is None:
+                return
+            events.append(event)
+
+    await asyncio.wait_for(_read(), timeout=timeout)
+    return events
 
 
 async def test_reply_completes_with_nobody_listening(
@@ -95,16 +103,17 @@ async def test_reply_completes_with_nobody_listening(
     # 큐를 한 번도 읽지 않는다(= 듣던 사람이 나감).
     # 첫 조각에서 막아 뒀으니 이 시점에는 아직 저장 전이어야 한다.
     assert await _assistant_messages(session_factory) == [], "시작하자마자 끝나 있었다"
+    # 아무도 안 읽었는데도 첫 조각이 쌓여 있다(읽는 쪽이 돌아오면 그대로 받는다)
+    assert queue.qsize() > 0
 
     streamer.released.set()
-    saved = await _wait_for_assistant(session_factory)
+    await _drain(queue)
 
-    assert saved is not None, "듣는 사람이 없자 생성이 멈췄다"
-    assert saved.id == assistant_id
+    messages = await _assistant_messages(session_factory)
+    assert messages, "듣는 사람이 없자 생성이 멈췄다"
+    assert messages[0].id == assistant_id
     # 끊긴 시점까지가 아니라 끝까지 만들어진 답이어야 한다
-    assert saved.content == FULL
-    # 큐에는 쌓여 있다(읽는 쪽이 돌아오면 그대로 받는다)
-    assert queue.qsize() > 0
+    assert messages[0].content == FULL
 
 
 async def test_reply_is_saved_once(client: AsyncClient, session_factory: async_sessionmaker):
@@ -119,9 +128,9 @@ async def test_reply_is_saved_once(client: AsyncClient, session_factory: async_s
         res = await client.post(
             f"/api/goals/{goal_id}/messages", headers=auth(token), json={"content": "안녕"}
         )
+        # 응답을 끝까지 받았다는 건 생성·저장이 끝났다는 뜻이다(done 이 마지막)
         assert "event: done" in res.text
 
-        await asyncio.sleep(0.05)
         messages = await _assistant_messages(session_factory)
         assert len(messages) == 1
         assert messages[0].content == FULL
@@ -152,3 +161,37 @@ async def test_empty_reply_is_not_saved(client: AsyncClient, session_factory: as
         assert await _assistant_messages(session_factory) == []
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)
+
+
+async def test_save_failure_still_ends_the_stream(
+    client: AsyncClient, session_factory: async_sessionmaker, monkeypatch
+):
+    """저장 단계에서 터져도 끝 신호는 나가야 한다.
+
+    예전에는 try/except 가 스트리밍 루프만 감싸서, commit 에서 예외가 나면
+    큐에 None 이 안 들어갔다. SSE 를 중계하는 쪽은 queue.get() 에서 영원히
+    기다리고, 태스크 예외는 아무도 보지 않았다(원인도 안 남았다).
+    """
+    token = await token_for(client, "save@b.com")
+    goal_id = await create_goal(client, token)
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("디스크가 꽉 찼다")
+
+    monkeypatch.setattr("app.services.reply_service.split_bubbles", boom)
+
+    _assistant_id, queue = start_reply(
+        session_factory=session_factory,
+        streamer=_SlowStreamer(),
+        goal_id=goal_id,
+        persona=None,
+        user_prompt=None,
+        goal_title="T",
+        history=[("user", "안녕")],
+    )
+
+    # 끝 신호가 오지 않으면 여기서 타임아웃으로 실패한다
+    events = await _drain(queue, timeout=3.0)
+
+    assert any(name == "error" for name, _ in events), "실패를 알리지 않았다"
+    assert await _assistant_messages(session_factory) == []
