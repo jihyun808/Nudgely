@@ -61,7 +61,7 @@ export default function ImagePicker({ imageUrl, onChange, label }: ImagePickerPr
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept="image/jpeg,image/png"
         className="hidden"
         onChange={(e) => void handlePick(e.target.files?.[0])}
       />

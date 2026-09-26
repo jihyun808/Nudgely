@@ -30,6 +30,7 @@ from app.schemas.focus import (
     FocusSummaryOut,
     WeeklyFocusOut,
 )
+from app.services.planner_service import add_block
 
 
 async def _zone(db: AsyncSession, user_id: str) -> ZoneInfo:
@@ -87,8 +88,50 @@ async def save_session(
             started_at=started_at,
         )
     )
+    await _record_on_planner(db, user_id, seconds=seconds, started_at=started_at, goal_id=goal_id)
     await db.commit()
     return True
+
+
+async def _record_on_planner(
+    db: AsyncSession,
+    user_id: str,
+    *,
+    seconds: int,
+    started_at: datetime,
+    goal_id: str | None,
+) -> None:
+    """집중한 시간을 플래너 '실제' 기록으로도 남긴다.
+
+    집중 세션과 플래너는 원래 따로 놀아서, 타이머를 아무리 돌려도 플래너의
+    '실제' 열은 늘 비어 있었다(계획만 AI 가 채웠다). 같은 집중을 두 군데서
+    따로 적게 하지 않으려고 저장 시점에 블록을 함께 만든다.
+
+    분 단위로 끊어 담는다. 10분이 한 칸이라 초 단위는 화면에서 의미가 없고,
+    1분이 안 되는 집중은 칸을 못 채우므로 아예 남기지 않는다.
+    """
+    minutes = seconds // 60
+    if minutes <= 0:
+        return
+
+    zone = await _zone(db, user_id)
+    local = as_utc(started_at).astimezone(zone)
+    title = "집중"
+    if goal_id:
+        goal = await db.get(Goal, goal_id)
+        if goal is not None:
+            title = goal.title or goal.name
+
+    await add_block(
+        db,
+        user_id,
+        local.date(),
+        title=title,
+        start_minutes=local.hour * 60 + local.minute,
+        duration_minutes=minutes,
+        kind="focus",
+        goal_id=goal_id,
+    )
 
 
 async def _target_minutes(db: AsyncSession, user_id: str, d: date) -> int:

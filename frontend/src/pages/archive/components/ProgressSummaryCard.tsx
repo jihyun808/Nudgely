@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import CircularProgress from '@/components/CircularProgress';
 import ConfettiBurst from '@/components/ConfettiBurst';
+import { formatProgressAmount, progressPercent } from '@/utils/progress';
 import ProgressStats from '@/pages/archive/components/ProgressStats';
 import type { GoalProgress } from '@/types/archive';
 import { formatDateDot } from '@/utils/date';
@@ -21,12 +22,15 @@ interface ProgressSummaryCardProps {
  * 완료된 목표에는 컨페티가 한 번 터지고, 아래에 회고 지표가 붙는다.
  */
 export default function ProgressSummaryCard({ progress, spentDays }: ProgressSummaryCardProps) {
-  const { goalTitle, startedAt, completedAt, milestones } = progress;
+  const { goalTitle, startedAt, completedAt, milestones, progress: amount } = progress;
 
   const doneCount = milestones.filter(({ status }) => status === 'done').length;
   const currentCount = milestones.filter(({ status }) => status === 'current').length;
   const upcomingCount = milestones.filter(({ status }) => status === 'upcoming').length;
-  const percent = milestones.length > 0 ? Math.round((doneCount / milestones.length) * 100) : 0;
+  // 진행률은 분량 진도 기준 — 홈 목표 카드와 같은 값이다.
+  // 마일스톤은 세는 기준이 달라, 같은 원에 섞으면 두 화면 숫자가 어긋난다.
+  const percent = progressPercent(amount);
+  const amountLabel = formatProgressAmount(amount);
   const isCompleted = Boolean(completedAt);
 
   const [isCelebrating, setIsCelebrating] = useState(false);
@@ -60,7 +64,9 @@ export default function ProgressSummaryCard({ progress, spentDays }: ProgressSum
               : `${formatDateDot(startedAt)} 시작 · ${spentDays}일째 달리는 중`}
           </p>
 
-          {/* 단계별 개수 */}
+          {amountLabel && <p className="mt-1 text-xs font-semibold text-primary">{amountLabel}</p>}
+
+          {/* 마일스톤 단계별 개수 (진행률과는 다른 기준) */}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
             <span className="flex items-center gap-1">
               <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary" />

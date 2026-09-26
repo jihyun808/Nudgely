@@ -6,14 +6,14 @@
 
 ## 1. 파일 · 폴더 이름
 
-| 대상 | 규칙 | 예시 |
-|------|------|------|
-| **컴포넌트 파일** | `PascalCase.tsx` | `Button.tsx`, `UserCard.tsx` |
-| **커스텀 훅** | `use` + camelCase | `useAuth.ts`, `useFetchUser.ts` |
-| **일반 유틸/함수 파일** | `camelCase.ts` | `formatDate.ts`, `apiClient.ts` |
-| **타입 정의 파일** | `camelCase.ts` | `user.ts`, `product.ts` |
-| **폴더 이름** | 소문자 (`camelCase` or `kebab-case`) | `components`, `userProfile` |
-| **상수 모음 파일** | `camelCase.ts` | `constants.ts` |
+| 대상                    | 규칙                                 | 예시                            |
+| ----------------------- | ------------------------------------ | ------------------------------- |
+| **컴포넌트 파일**       | `PascalCase.tsx`                     | `Button.tsx`, `UserCard.tsx`    |
+| **커스텀 훅**           | `use` + camelCase                    | `useAuth.ts`, `useFetchUser.ts` |
+| **일반 유틸/함수 파일** | `camelCase.ts`                       | `formatDate.ts`, `apiClient.ts` |
+| **타입 정의 파일**      | `camelCase.ts`                       | `user.ts`, `product.ts`         |
+| **폴더 이름**           | 소문자 (`camelCase` or `kebab-case`) | `components`, `userProfile`     |
+| **상수 모음 파일**      | `camelCase.ts`                       | `constants.ts`                  |
 
 > 핵심: **컴포넌트만 대문자로 시작**, 나머지는 소문자로 시작.
 
@@ -21,15 +21,15 @@
 
 ## 2. 변수 · 함수 · 타입 (코드 안)
 
-| 대상 | 규칙 | 예시 |
-|------|------|------|
-| 변수 / 함수 | `camelCase` | `const userName`, `function getUser()` |
-| 컴포넌트 | `PascalCase` | `function UserCard() {}` |
-| 상수 (고정값) | `UPPER_SNAKE_CASE` | `const MAX_COUNT = 10` |
-| 타입 / 인터페이스 | `PascalCase` | `interface User`, `type ButtonProps` |
-| 불리언 변수 | `is` / `has` / `can` 접두사 | `isLoading`, `hasError` |
-| 이벤트 핸들러 | `handle` 접두사 | `handleClick`, `handleSubmit` |
-| 핸들러 prop | `on` 접두사 | `onClick`, `onChange` |
+| 대상              | 규칙                        | 예시                                   |
+| ----------------- | --------------------------- | -------------------------------------- |
+| 변수 / 함수       | `camelCase`                 | `const userName`, `function getUser()` |
+| 컴포넌트          | `PascalCase`                | `function UserCard() {}`               |
+| 상수 (고정값)     | `UPPER_SNAKE_CASE`          | `const MAX_COUNT = 10`                 |
+| 타입 / 인터페이스 | `PascalCase`                | `interface User`, `type ButtonProps`   |
+| 불리언 변수       | `is` / `has` / `can` 접두사 | `isLoading`, `hasError`                |
+| 이벤트 핸들러     | `handle` 접두사             | `handleClick`, `handleSubmit`          |
+| 핸들러 prop       | `on` 접두사                 | `onClick`, `onChange`                  |
 
 ---
 
@@ -47,7 +47,7 @@ interface UserCardProps {
 }
 
 function UserCard({ name, isActive = false }: UserCardProps) {
-  return <div className={isActive ? "active" : ""}>{name}</div>;
+  return <div className={isActive ? 'active' : ''}>{name}</div>;
 }
 
 export default UserCard;
@@ -61,33 +61,33 @@ export default UserCard;
 
 ```tsx
 // 1. 외부 라이브러리
-import { useState } from "react";
-import axios from "axios";
+import { useState } from 'react';
+import axios from 'axios';
 
 // 2. 내부 절대/상대 경로 (컴포넌트, 훅, 유틸)
-import UserCard from "../components/UserCard";
-import { formatDate } from "../utils/formatDate";
+import UserCard from '../components/UserCard';
+import { formatDate } from '../utils/formatDate';
 
 // 3. 타입
-import type { User } from "../types/user";
+import type { User } from '../types/user';
 
 // 4. 스타일
-import "./App.css";
+import './App.css';
 ```
 
 ---
 
 ## 5. 폴더별 역할
 
-| 폴더 | 넣는 것 |
-|------|---------|
-| `components/` | 재사용 UI 조각 (Button, Modal, Header) |
-| `pages/` | 라우트(화면) 단위 컴포넌트 (LoginPage, HomePage) |
-| `hooks/` | 커스텀 훅 (`useXxx`) |
-| `api/` | 서버 통신 함수 (fetch/axios 래핑) |
-| `utils/` | 순수 유틸 함수 (날짜 포맷 등) |
-| `types/` | 공용 타입 정의 |
-| `assets/` | 이미지, 아이콘 등 정적 파일 |
+| 폴더          | 넣는 것                                          |
+| ------------- | ------------------------------------------------ |
+| `components/` | 재사용 UI 조각 (Button, Modal, Header)           |
+| `pages/`      | 라우트(화면) 단위 컴포넌트 (LoginPage, HomePage) |
+| `hooks/`      | 커스텀 훅 (`useXxx`)                             |
+| `api/`        | 서버 통신 함수 (fetch/axios 래핑)                |
+| `utils/`      | 순수 유틸 함수 (날짜 포맷 등)                    |
+| `types/`      | 공용 타입 정의                                   |
+| `assets/`     | 이미지, 아이콘 등 정적 파일                      |
 
 ---
 

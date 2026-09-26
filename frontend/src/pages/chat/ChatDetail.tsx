@@ -1,11 +1,13 @@
 // pages/chat/ChatDetail.tsx
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import CelebrationOverlay from '@/components/CelebrationOverlay';
 import ImageViewer from '@/components/ImageViewer';
 import { Button } from '@/components/ui/button';
 import DetailHeader from '@/components/DetailHeader';
 import ChatInputBar from '@/pages/chat/components/ChatInputBar';
 import ChatMessageList from '@/pages/chat/components/ChatMessageList';
+import QuickReplyBar from '@/pages/chat/components/QuickReplyBar';
 import { useChatRoom } from '@/pages/chat/useChatRoom';
 
 /**
@@ -86,11 +88,37 @@ export default function ChatDetail() {
         <ImageViewer
           src={viewerImage.src}
           alt={viewerImage.name}
+          fileName={viewerImage.name}
           onClose={() => setViewerImage(undefined)}
         />
       )}
 
-      <ChatInputBar onSend={chat.onSend} onAttach={chat.onAttach} disabled={chat.isReplying} />
+      {/* AI 가 보기를 물었을 때만. 누르면 그 글자를 그대로 보낸다 */}
+      <QuickReplyBar
+        replies={chat.quickReplies}
+        onPick={chat.onSend}
+        disabled={chat.isSending || chat.isReplying}
+      />
+
+      {/* key: 방을 옮기면 입력 바를 새로 만들어 그 방의 쓰다 만 글을 꺼내 오게 한다 */}
+      <ChatInputBar
+        key={goalId}
+        goalId={goalId}
+        onSend={chat.onSend}
+        onAttach={chat.onAttach}
+        disabled={chat.isSending || chat.isReplying}
+      />
+
+      {/* AI 가 방금 완주 처리했을 때. 모아보기까지 들어가지 않아도 바로 축하한다 */}
+      {chat.hasJustCompleted && (
+        <CelebrationOverlay
+          onClose={chat.dismissCompletion}
+          emoji="🏆"
+          isLooping={false}
+          title="목표 완주!"
+          description={`'${chat.goal.title ?? chat.goal.name}' 를 끝까지 해냈어요. 정말 고생했어요!`}
+        />
+      )}
     </div>
   );
 }

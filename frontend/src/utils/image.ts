@@ -1,9 +1,12 @@
 // utils/image.ts
 
-/** 허용 이미지 MIME 타입 */
-const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
+/**
+ * 허용 이미지 MIME 타입.
+ * 서버가 저장 시 jpg·png만 받으므로(backend/app/core/storage.py) 여기서도 그 둘로 맞춘다.
+ */
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'] as const;
 /** 허용 확장자 (MIME과 교차 검증용) */
-const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif'] as const;
+const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png'] as const;
 /** 최대 업로드 크기: 5MB */
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
@@ -17,12 +20,6 @@ async function sniffImageSignature(file: File) {
 
   if (startsWith(0xff, 0xd8, 0xff)) return 'image/jpeg';
   if (startsWith(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png';
-  if (startsWith(0x47, 0x49, 0x46, 0x38)) return 'image/gif';
-  // WebP: 0~3바이트 "RIFF" + 8~11바이트 "WEBP"
-  const isWebp =
-    startsWith(0x52, 0x49, 0x46, 0x46) &&
-    [0x57, 0x45, 0x42, 0x50].every((b, i) => header[8 + i] === b);
-  if (isWebp) return 'image/webp';
   return null;
 }
 
@@ -43,7 +40,7 @@ export async function validateImageFile(file: File): Promise<string | null> {
   const isAllowedExtension = (ALLOWED_EXTENSIONS as readonly string[]).includes(extension);
   const isAllowedMime = (ALLOWED_MIME_TYPES as readonly string[]).includes(file.type);
   if (!isAllowedExtension || !isAllowedMime) {
-    return 'JPG, PNG, WEBP, GIF 형식만 올릴 수 있어요.';
+    return 'JPG, PNG 형식만 올릴 수 있어요.';
   }
 
   // 확장자를 이미지로 위장한 파일(예: .png로 이름만 바꾼 스크립트)을 걸러낸다

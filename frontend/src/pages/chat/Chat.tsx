@@ -130,8 +130,8 @@ export default function Chat() {
           type="search"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          placeholder="채팅 검색"
-          aria-label="채팅 검색"
+          placeholder="채팅방 검색"
+          aria-label="채팅방 검색"
           className="h-11 w-full rounded-xl bg-muted-foreground/8 pr-4 pl-10 text-sm placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         />
       </div>

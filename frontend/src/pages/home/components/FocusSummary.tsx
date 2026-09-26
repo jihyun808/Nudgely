@@ -14,9 +14,7 @@ interface FocusSummaryProps {
 
 /**
  * 오늘의 집중 요약 두 칸 (집중 시간 / 연속 달성일).
- *
- * TODO: 연속 달성일은 투두가 체크된 날을 세는 값이라 서버에서 계산해 내려받아야 한다.
- *       지금은 홈 조회 응답이 없어 화면에서 기본값을 쓴다.
+ * 연속 달성일은 투두가 체크된 날을 세는 값이라 서버가 계산해 내려준다.
  */
 export default function FocusSummary({
   focusedSeconds,

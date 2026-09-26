@@ -12,23 +12,12 @@ from app.main import app
 from app.models.goal import Goal
 from app.services.goal_service import set_progress
 from app.services.record_service import create_daily_todo
-
-
-async def _token(client: AsyncClient, email: str = "a@b.com") -> str:
-    res = await client.post(
-        "/api/auth/signup",
-        json={"nickname": "지수", "email": email, "password": "password123"},
-    )
-    return res.json()["accessToken"]
-
-
-def _h(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}"}
+from tests.helpers import auth, token_for
 
 
 async def _make_goal(client: AsyncClient, token: str) -> str:
     res = await client.post(
-        "/api/goals", headers=_h(token), data={"name": "Buddy", "title": "UI/UX 완주"}
+        "/api/goals", headers=auth(token), data={"name": "Buddy", "title": "UI/UX 완주"}
     )
     return res.json()["id"]
 
@@ -37,7 +26,7 @@ async def _make_goal(client: AsyncClient, token: str) -> str:
 
 
 async def test_dispatch_create_todos(client: AsyncClient, session_factory: async_sessionmaker):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -56,14 +45,14 @@ async def test_dispatch_create_todos(client: AsyncClient, session_factory: async
         )
     assert "2개" in out
 
-    got = await client.get("/api/todos", headers=_h(token), params={"date": "2026-08-03"})
+    got = await client.get("/api/todos", headers=auth(token), params={"date": "2026-08-03"})
     items = got.json()[0]["items"]
     assert [i["content"] for i in items] == ["21강 수강", "복습"]
     assert items[0]["tag"] == "강의"
 
 
 async def test_dispatch_set_progress(client: AsyncClient, session_factory: async_sessionmaker):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -72,14 +61,14 @@ async def test_dispatch_set_progress(client: AsyncClient, session_factory: async
             s, goal, "set_progress", {"total": 50, "unit": "강", "current": 21}
         )
 
-    detail = await client.get(f"/api/goals/{goal_id}", headers=_h(token))
+    detail = await client.get(f"/api/goals/{goal_id}", headers=auth(token))
     assert detail.json()["progress"] == {"current": 21, "total": 50, "unit": "강"}
 
 
 async def test_dispatch_check_todo_updates_progress(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -98,17 +87,17 @@ async def test_dispatch_check_todo_updates_progress(
         )
     assert "갱신" in out
 
-    detail = await client.get(f"/api/goals/{goal_id}", headers=_h(token))
+    detail = await client.get(f"/api/goals/{goal_id}", headers=auth(token))
     assert detail.json()["progress"]["current"] == 3
 
 
 async def test_dispatch_check_todo_wrong_goal(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     g1 = await _make_goal(client, token)
     g2 = (
-        await client.post("/api/goals", headers=_h(token), data={"name": "B2", "title": "T2"})
+        await client.post("/api/goals", headers=auth(token), data={"name": "B2", "title": "T2"})
     ).json()["id"]
 
     async with session_factory() as s:
@@ -125,7 +114,7 @@ async def test_dispatch_check_todo_wrong_goal(
 
 
 async def test_dispatch_create_planner(client: AsyncClient, session_factory: async_sessionmaker):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -140,14 +129,14 @@ async def test_dispatch_create_planner(client: AsyncClient, session_factory: asy
             },
         )
 
-    got = await client.get("/api/planners", headers=_h(token), params={"date": "2026-08-03"})
+    got = await client.get("/api/planners", headers=auth(token), params={"date": "2026-08-03"})
     body = got.json()
     assert len(body["planned"]) == 1
     assert body["planned"][0]["startMinutes"] == 480
 
 
 async def test_dispatch_set_milestones(client: AsyncClient, session_factory: async_sessionmaker):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -159,14 +148,14 @@ async def test_dispatch_set_milestones(client: AsyncClient, session_factory: asy
             {"milestones": [{"title": "기초 10강", "status": "done"}, {"title": "완주"}]},
         )
 
-    got = await client.get(f"/api/goals/{goal_id}/progress", headers=_h(token))
+    got = await client.get(f"/api/goals/{goal_id}/progress", headers=auth(token))
     ms = got.json()["milestones"]
     assert [m["title"] for m in ms] == ["기초 10강", "완주"]
     assert ms[0]["status"] == "done"
 
 
 async def test_dispatch_unknown_tool(client: AsyncClient, session_factory: async_sessionmaker):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
     async with session_factory() as s:
         goal = await s.get(Goal, goal_id)
@@ -202,12 +191,12 @@ async def test_chat_dispatches_tool_and_streams(client: AsyncClient):
         calls, ["좋아, ", "투두 만들었어!"]
     )
     try:
-        token = await _token(client)
+        token = await token_for(client)
         goal_id = await _make_goal(client, token)
 
         res = await client.post(
             f"/api/goals/{goal_id}/messages",
-            headers=_h(token),
+            headers=auth(token),
             json={"content": "오늘 3강 들을래"},
         )
         assert res.status_code == 200
@@ -215,7 +204,36 @@ async def test_chat_dispatches_tool_and_streams(client: AsyncClient):
         assert "event: done" in res.text
 
         # 도구가 실제로 투두를 만들었는지
-        todos = await client.get("/api/todos", headers=_h(token), params={"date": "2026-08-03"})
+        todos = await client.get("/api/todos", headers=auth(token), params={"date": "2026-08-03"})
         assert todos.json()[0]["items"][0]["content"] == "오늘 3강"
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)
+
+
+# ── 알림 이동 대상 ──
+
+
+async def test_todo_notifications_link_to_record_tab(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """투두 알림은 기록 탭으로 보낸다.
+
+    features.md §4: '독촉은 채팅방, 투두·플래너는 기록 탭'.
+    '할 일 3개가 추가됐어요' 를 눌렀는데 채팅방이 열리면 할 일을 찾을 수 없다.
+    """
+    token = await token_for(client)
+    goal_id = await _make_goal(client, token)
+
+    async with session_factory() as db:
+        goal = await db.get(Goal, goal_id)
+        await dispatch_tool_call(
+            db,
+            goal,
+            "create_todos",
+            {"date": "2026-09-20", "items": [{"content": "1강 듣기"}]},
+        )
+
+    notifs = (await client.get("/api/notifications", headers=auth(token))).json()
+    added = [n for n in notifs if n["type"] == "todoAdded"]
+    assert added, "todoAdded 알림이 없다"
+    assert added[0]["linkTo"] == "/record"

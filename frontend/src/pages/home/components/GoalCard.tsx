@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { GOAL_CARD_HEIGHT } from '@/pages/home/components/homeCardHeight';
 import type { Goal } from '@/types/goal';
 import { formatDateDot } from '@/utils/date';
+import { progressPercent } from '@/utils/progress';
 
 interface GoalCardProps {
   goal: Goal;
@@ -15,9 +16,8 @@ interface GoalCardProps {
  */
 export default function GoalCard({ goal }: GoalCardProps) {
   const { name, title, startedAt, remainingDays, progress } = goal;
-  // TODO: 진도(current/total)를 무엇으로 셀지는 AI가 받는 정보 스펙 확정 후 다시 맞춘다
-  const percent =
-    progress && progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+  // 모아보기 진도 탭과 같은 함수를 쓴다(두 화면 숫자가 갈라지지 않게)
+  const percent = progressPercent(progress);
 
   return (
     <div

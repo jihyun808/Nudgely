@@ -14,6 +14,8 @@ import NotificationBell from '@/pages/home/components/NotificationBell';
 import PreviewSwiper from '@/pages/home/components/PreviewSwiper';
 import { useNotificationStore } from '@/stores/notificationStore';
 import type { Goal } from '@/types/goal';
+// 같은 이름의 컴포넌트가 있어 타입은 별칭으로 가져온다
+import type { FocusSummary as FocusSummaryData } from '@/types/focus';
 import type { HomePreview } from '@/types/home';
 
 /**
@@ -24,7 +26,13 @@ export default function Home() {
   const [previews, setPreviews] = useState<HomePreview[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   /** 오늘 집중 요약 (집중 탭에서 쌓인 값) */
-  const [focus, setFocus] = useState({ focusedSeconds: 0, targetMinutes: 0 });
+  const [focus, setFocus] = useState<FocusSummaryData>({
+    focusedSeconds: 0,
+    targetMinutes: 0,
+    streakDays: 0,
+    bestStreakDays: 0,
+    isBestStreak: false,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -113,8 +121,8 @@ export default function Home() {
             <FocusSummary
               focusedSeconds={focus.focusedSeconds}
               targetMinutes={focus.targetMinutes}
-              streakDays={7}
-              isBestStreak
+              streakDays={focus.streakDays}
+              isBestStreak={focus.isBestStreak}
             />
           </section>
 

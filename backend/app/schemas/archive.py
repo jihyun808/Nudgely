@@ -9,7 +9,8 @@ from app.schemas.common import CamelModel, UtcDatetime
 class AttachmentOut(CamelModel):
     """모아보기 첨부 (types/archive.ts Attachment).
 
-    사진(image)의 url 은 목록 표시용 썸네일을 내려준다(api.md §3.6).
+    url 은 항상 원본이다(뷰어·다운로드용). 목록에 작게 그릴 때 쓰라고
+    사진(image)은 thumbnail_url 을 함께 준다(api.md §3.6, §8-3-2).
     """
 
     id: str
@@ -18,6 +19,8 @@ class AttachmentOut(CamelModel):
     size_bytes: int
     uploaded_at: UtcDatetime
     url: str | None = None
+    # 사진만 있다. 없으면 프론트가 url(원본)로 대체한다.
+    thumbnail_url: str | None = None
 
 
 class ProgressMilestoneOut(CamelModel):
@@ -27,12 +30,18 @@ class ProgressMilestoneOut(CamelModel):
 
 
 class GoalProgressOut(CamelModel):
-    """목표 진도 로드맵. 진행률(%)은 프론트가 done÷전체로 계산한다."""
+    """목표 진도 로드맵.
+
+    진행률(%)은 progress(current/total)로 낸다 — 홈 목표 카드와 같은 값이다.
+    마일스톤은 '몇 단계까지 왔나' 를 타임라인으로 보여주는 별개 정보다.
+    """
 
     goal_id: str
     goal_title: str
     started_at: UtcDatetime
     completed_at: UtcDatetime | None = None
+    # {current, total, unit}. AI 가 아직 세우지 않았으면 없다(api.md §3.1)
+    progress: dict | None = None
     milestones: list[ProgressMilestoneOut]
 
     # 집계 3종. 없으면 프론트가 해당 칸을 그리지 않는다(초기엔 생략 가능).

@@ -6,10 +6,10 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base
+from app.core.db import Base, UtcDateTime
 from app.core.ids import new_id
 
 # 진행 상태 (types/archive.ts ProgressMilestone.status)
@@ -29,6 +29,9 @@ class Milestone(Base):
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, default="upcoming")  # done|current|upcoming
+    # 이 단계가 끝나는 진도 지점(goal.progress.current 기준). 없으면 균등 분할로 본다.
+    # 예: 24소주제를 1~4장으로 나누면 6/12/18/24.
+    target_progress: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 타임라인 정렬용 순서
     order: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)

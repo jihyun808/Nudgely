@@ -16,6 +16,9 @@ bcrypt>=4.0.1,<4.1            # passlib 1.7.4 호환(버전 읽기 버그 회피
 pyjwt>=2.9,<3.0
 python-multipart>=0.0.9,<1.0  # multipart/form-data (파일 업로드·폼)
 
+# ── 첨부 읽기 ──
+pypdf>=5.0,<7.0               # PDF 텍스트 추출(첨부를 AI 컨텍스트로)
+
 # ── 스케줄러 ──
 apscheduler>=3.10,<4.0        # 밤 11시 점검 등 주기 작업
 

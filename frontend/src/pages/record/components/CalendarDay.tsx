@@ -40,9 +40,10 @@ export default function CalendarDay({
       aria-label={`${date.getMonth() + 1}월 ${date.getDate()}일`}
       className={cn(
         'relative flex h-8 w-8 items-center justify-center rounded-full transition-transform',
-        // 오늘은 회색 원, 선택한 날은 브랜드 테두리로 구분한다
+        // 오늘은 회색 원, 선택한 날은 얇은 브랜드 테두리로 구분한다
+        // (꽃잎 위에 겹쳐 그려지므로 테두리가 두꺼우면 날짜가 묻힌다)
         isToday && !isSelected && 'bg-muted-foreground/12',
-        isSelected && 'scale-105 ring-2 ring-primary',
+        isSelected && 'scale-105 ring-1 ring-primary/90',
         isWiggling && 'flower-wiggle',
       )}
     >

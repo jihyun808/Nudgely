@@ -1,11 +1,11 @@
 // pages/focus/Focus.tsx
+import CelebrationOverlay from '@/components/CelebrationOverlay';
 import PageHeader from '@/components/PageHeader';
 import SegmentedTabs from '@/components/SegmentedTabs';
-import CelebrationOverlay from '@/pages/focus/components/CelebrationOverlay';
 import CurrentPlanNotice from '@/pages/focus/components/CurrentPlanNotice';
 import FocusControls from '@/pages/focus/components/FocusControls';
 import FocusDial from '@/pages/focus/components/FocusDial';
-import FocusModeHint from '@/pages/focus/components/FocusModeHint';
+import FocusGoalPicker from '@/pages/focus/components/FocusGoalPicker';
 import FocusStats from '@/pages/focus/components/FocusStats';
 import { useCurrentPlan } from '@/pages/focus/useCurrentPlan';
 import { useFocusTimer } from '@/pages/focus/useFocusTimer';
@@ -40,6 +40,14 @@ export default function Focus() {
         />
       </div>
 
+      {/* 집중이 시작된 뒤 목표를 바꾸면 이미 흐른 시간까지 새 목표로 넘어간다.
+          아직 저장되지 않은 집중이 있는 동안에는 잠근다(멈춰 둔 경우 포함). */}
+      <FocusGoalPicker
+        value={timer.goalId}
+        onChange={timer.selectGoal}
+        disabled={timer.isRunning || timer.elapsedSeconds > 0}
+      />
+
       <SegmentedTabs
         items={MODE_TABS}
         value={timer.mode}
@@ -53,7 +61,7 @@ export default function Focus() {
         </div>
       )}
 
-      <div className={currentPlan ? 'mt-3' : 'mt-8'}>
+      <div className={currentPlan ? 'mt-6' : 'mt-12'}>
         <FocusDial
           roundMinutes={timer.roundMinutes}
           elapsedSeconds={timer.elapsedSeconds}
@@ -64,7 +72,7 @@ export default function Focus() {
         />
       </div>
 
-      <div className="mt-8">
+      <div className="mt-12">
         <FocusControls
           isRunning={timer.isRunning}
           elapsedSeconds={timer.elapsedSeconds}
@@ -72,10 +80,6 @@ export default function Focus() {
           onPause={timer.onPause}
           onFinish={timer.onFinish}
         />
-      </div>
-
-      <div className="mt-4">
-        <FocusModeHint mode={timer.mode} />
       </div>
 
       {timer.isCelebrating && <CelebrationOverlay onClose={timer.dismissCelebration} />}

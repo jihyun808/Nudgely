@@ -17,11 +17,26 @@ interface FileCardProps {
   file: Attachment;
 }
 
-/** 파일 한 개 카드. 아이콘 + 파일명 + 크기 */
+/**
+ * 파일 한 개 카드. 아이콘 + 파일명 + 크기.
+ *
+ * 누르면 새 탭에서 연다. pdf처럼 브라우저가 그릴 수 있는 형식은 미리보기로 뜨고,
+ * zip·xlsx처럼 그럴 수 없는 형식은 브라우저가 알아서 내려받는다.
+ * url이 아직 없으면(서버 연동 전) 누를 수 없는 카드로 둔다.
+ */
 export default function FileCard({ file }: FileCardProps) {
+  const Card = file.url ? 'a' : 'div';
+
   return (
-    // TODO: 파일 열기·다운로드 연결
-    <div className="h-full rounded-xl border border-border bg-background p-3">
+    <Card
+      {...(file.url && {
+        href: file.url,
+        download: file.name,
+        target: '_blank',
+        rel: 'noreferrer',
+      })}
+      className="block h-full rounded-xl border border-border bg-background p-3 transition-colors active:bg-muted-foreground/5"
+    >
       <span
         aria-hidden
         className={`flex h-10 w-10 items-center justify-center rounded-lg ${
@@ -43,6 +58,6 @@ export default function FileCard({ file }: FileCardProps) {
       </span>
       <p className="mt-2.5 line-clamp-2 text-sm font-semibold break-all">{file.name}</p>
       <p className="mt-1 text-xs text-muted-foreground">{formatFileSize(file.sizeBytes)}</p>
-    </div>
+    </Card>
   );
 }

@@ -8,9 +8,12 @@
 - FastAPI 의 HTTPException / 요청 검증 오류도 같은 포맷으로 변환한다.
 """
 
+from json import JSONDecodeError
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
@@ -29,6 +32,14 @@ class AppError(Exception):
 
 def _payload(code: str, message: str) -> dict[str, str]:
     return {"code": code, "message": message}
+
+
+def _first_error_message(errors: list[dict]) -> str:
+    """검증 오류 목록에서 사람이 읽을 첫 줄을 뽑는다."""
+    first = errors[0] if errors else {}
+    loc = ".".join(str(p) for p in first.get("loc", []) if p != "body")
+    msg = first.get("msg", "잘못된 요청입니다.")
+    return f"{loc}: {msg}" if loc else msg
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -50,9 +61,25 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
-        # 첫 번째 오류 메시지를 사람이 읽을 수 있게 전달.
-        first = exc.errors()[0] if exc.errors() else {}
-        loc = ".".join(str(p) for p in first.get("loc", []) if p != "body")
-        msg = first.get("msg", "잘못된 요청입니다.")
-        message = f"{loc}: {msg}" if loc else msg
-        return JSONResponse(status_code=422, content=_payload("VALIDATION_ERROR", message))
+        # FastAPI 가 자동 검증한 경우(경로·쿼리·선언된 본문).
+        return JSONResponse(
+            status_code=422,
+            content=_payload("VALIDATION_ERROR", _first_error_message(exc.errors())),
+        )
+
+    @app.exception_handler(ValidationError)
+    async def _handle_model_validation_error(_: Request, exc: ValidationError) -> JSONResponse:
+        # 라우터가 model_validate 로 직접 검증한 경우(JSON·multipart 본문을 손으로 파싱하는 곳).
+        # 안 잡으면 500 이 나간다 — 검증 실패는 클라이언트 잘못이므로 422 로 돌려준다.
+        return JSONResponse(
+            status_code=422,
+            content=_payload("VALIDATION_ERROR", _first_error_message(exc.errors())),
+        )
+
+    @app.exception_handler(JSONDecodeError)
+    async def _handle_json_decode_error(_: Request, __: JSONDecodeError) -> JSONResponse:
+        # JSON 이라고 보냈는데 파싱이 안 되는 본문. 역시 500 이 아니라 400 이다.
+        return JSONResponse(
+            status_code=400,
+            content=_payload("INVALID_JSON", "요청 본문이 올바른 JSON 이 아닙니다."),
+        )

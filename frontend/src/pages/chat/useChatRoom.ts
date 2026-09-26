@@ -22,6 +22,12 @@ export function useChatRoom(goalId: string) {
   const [hasError, setHasError] = useState(false);
   /** AI 응답 대기 중 (입력 잠금 + 타이핑 표시) */
   const [isReplying, setIsReplying] = useState(false);
+  /** 내 메시지를 보내는 중(서버가 받아주기 전). 입력창을 잠그는 데 쓴다 */
+  const [isSending, setIsSending] = useState(false);
+  /** AI 가 물은 보기들. 입력창 위 버튼으로 뜬다 */
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
+  /** 방금 이 대화에서 목표를 완주했는지. 축하 연출을 한 번 띄우고 내린다 */
+  const [hasJustCompleted, setHasJustCompleted] = useState(false);
   /** 다음(더 과거) 페이지 커서. null이면 더 불러올 과거가 없다 */
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
@@ -31,6 +37,8 @@ export function useChatRoom(goalId: string) {
   const bottomRef = useRef<HTMLDivElement>(null);
   /** 과거 메시지를 붙이기 직전의 스크롤 높이. 위치 보정에 쓰고 비운다 */
   const heightBeforePrependRef = useRef<number | null>(null);
+  /** 실패한 전송의 첨부 파일. 재시도 때 같이 다시 보내야 해서 들고 있는다 */
+  const pendingFilesRef = useRef(new Map<string, File>());
 
   useEffect(() => {
     let isStale = false;
@@ -41,6 +49,9 @@ export function useChatRoom(goalId: string) {
         // 응답은 최신 → 과거 순이므로 뒤집어 오래된 것부터 그린다
         setMessages([...page.messages].reverse());
         setNextCursor(page.nextCursor);
+        setHasError(false);
+        // 이전 방에서 뜬 선택 버튼이 남아 있으면 엉뚱한 방에 그 답이 전송된다
+        setQuickReplies([]);
         setHasError(false);
         // 방에 들어오면 읽음 처리. 실패해도 화면에는 영향이 없다
         void markGoalAsRead(goalId).catch(() => {});
@@ -96,9 +107,23 @@ export function useChatRoom(goalId: string) {
       .finally(() => setIsLoadingOlder(false));
   };
 
-  /** 낙관적으로 내 메시지를 먼저 그리고, 응답을 받아 확정한다 */
-  const send = async (payload: { content?: string; file?: File }) => {
-    const localId = createId();
+  // 방을 떠날 때도 읽음으로 찍는다. 아직 저장되지 않은(생성 중인) 답은
+  // 대상이 아니므로, 나간 뒤 도착한 답은 그대로 '안 읽음' 으로 남는다.
+  useEffect(
+    () => () => {
+      void markGoalAsRead(goalId).catch(() => {});
+    },
+    [goalId],
+  );
+
+  /**
+   * 낙관적으로 내 메시지를 먼저 그리고, 응답을 받아 확정한다.
+   *
+   * localId 는 전송 키(멱등키)로 서버에도 함께 보낸다. 재시도가 같은 값으로 가면
+   * 서버가 내 메시지를 중복 저장하지 않고 AI 응답만 새로 만들어 준다.
+   */
+  const send = async (payload: { content?: string; file?: File; localId?: string }) => {
+    const localId = payload.localId ?? createId();
     const myMessage: ChatMessage = {
       id: localId,
       role: 'user',
@@ -114,29 +139,72 @@ export function useChatRoom(goalId: string) {
       status: 'sending',
     };
     setMessages((prev) => [...prev, myMessage]);
-    setIsReplying(true);
+    setIsSending(true);
+    // 보기를 눌렀든 직접 썼든, 답한 순간 버튼은 내린다
+    setQuickReplies([]);
+
+    // 내 말이 '전송 중' 인 동안에는 상대가 입력할 수 없다.
+    // 서버가 받아준 뒤에야(message_start) 전송 중을 걷고 '입력 중...' 으로 넘어간다.
+    const handleAccepted = () => {
+      setMessages((prev) => prev.map((m) => (m.id === localId ? { ...m, status: undefined } : m)));
+      setIsSending(false);
+      setIsReplying(true);
+    };
 
     try {
-      const reply = await sendMessage(goalId, payload);
-      setMessages((prev) => [
-        // 전송 성공한 내 메시지는 status를 지워 확정 상태로 만든다
-        ...prev.map((m) => (m.id === localId ? { ...m, status: undefined } : m)),
-        reply,
-      ]);
+      const {
+        messages: replies,
+        goalCompleted,
+        quickReplies: asked,
+      } = await sendMessage(
+        goalId,
+        { content: payload.content, file: payload.file, clientId: localId },
+        handleAccepted,
+      );
+      pendingFilesRef.current.delete(localId);
+      // 확정 처리는 handleAccepted 에서 이미 했다. 여기서는 답만 붙인다
+      // (말이 길면 서버가 여러 말풍선으로 나눠 준다)
+      setMessages((prev) => [...prev, ...replies]);
+      setQuickReplies(asked);
+
+      // 방에서 보고 있는 중에 온 답이니 읽음으로 찍는다.
+      // 입장 때만 찍으면, 그 뒤에 온 답이 홈에 계속 '안 읽음' 으로 남는다.
+      void markGoalAsRead(goalId).catch(() => {});
+
+      // AI 가 이번 턴에 완주 처리했으면 그 자리에서 축하한다.
+      // 헤더·모아보기가 완주 상태를 반영하도록 목표도 다시 받아온다.
+      if (goalCompleted) {
+        setHasJustCompleted(true);
+        fetchGoal(goalId)
+          .then(setGoal)
+          .catch(() => {
+            // 못 받아도 축하 연출은 그대로 띄운다
+          });
+      }
     } catch {
+      // 재시도 때 파일을 다시 보낼 수 있도록 남겨둔다
+      if (payload.file) pendingFilesRef.current.set(localId, payload.file);
       setMessages((prev) =>
         prev.map((m) => (m.id === localId ? { ...m, status: 'failed' as const } : m)),
       );
       showToast('메시지를 보내지 못했어요', { variant: 'warning' });
     } finally {
+      setIsSending(false);
       setIsReplying(false);
     }
   };
 
-  /** 실패한 메시지를 목록에서 빼고 같은 내용으로 다시 보낸다 */
+  /**
+   * 실패한 메시지를 목록에서 빼고 같은 내용으로 다시 보낸다.
+   * 같은 id(=전송 키)를 그대로 써서 서버에 중복 저장되지 않게 한다.
+   */
   const retry = (failed: ChatMessage) => {
     setMessages((prev) => prev.filter(({ id }) => id !== failed.id));
-    void send({ content: failed.content });
+    void send({
+      content: failed.content,
+      file: pendingFilesRef.current.get(failed.id),
+      localId: failed.id,
+    });
   };
 
   const reload = () => {
@@ -151,6 +219,8 @@ export function useChatRoom(goalId: string) {
     isLoading,
     hasError,
     isReplying,
+    isSending,
+    quickReplies,
     isLoadingOlder,
     listRef,
     bottomRef,
@@ -159,5 +229,7 @@ export function useChatRoom(goalId: string) {
     onAttach: (file: File) => void send({ file }),
     onRetry: retry,
     reload,
+    hasJustCompleted,
+    dismissCompletion: () => setHasJustCompleted(false),
   } as const;
 }

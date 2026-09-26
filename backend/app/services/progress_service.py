@@ -91,6 +91,7 @@ async def build_goal_progress(db: AsyncSession, goal: Goal) -> GoalProgressOut:
         goal_title=_title_of(goal),
         started_at=goal.started_at,
         completed_at=goal.completed_at,
+        progress=goal.progress,
         milestones=[ProgressMilestoneOut(id=m.id, title=m.title, status=m.status) for m in ms_rows],
         # 집계: 없으면(0) 생략 → 프론트가 해당 칸을 그리지 않는다.
         completed_todo_count=completed or None,
@@ -103,7 +104,11 @@ async def build_goal_progress(db: AsyncSession, goal: Goal) -> GoalProgressOut:
 
 
 async def set_milestones(db: AsyncSession, goal: Goal, milestones: list[dict]) -> None:
-    """마일스톤을 통째로 교체. milestones: [{title, status}] (순서대로)."""
+    """마일스톤을 통째로 교체. milestones: [{title, status?, target?}] (순서대로).
+
+    교체 뒤 진도와 한 번 맞춘다. 진도가 이미 있는데 AI 가 준 status 를 그대로 두면
+    '24개 중 12개' 인 목표에 전부 upcoming 인 로드맵이 붙는다.
+    """
     await db.execute(Milestone.__table__.delete().where(Milestone.goal_id == goal.id))
     for i, m in enumerate(milestones):
         db.add(
@@ -111,7 +116,65 @@ async def set_milestones(db: AsyncSession, goal: Goal, milestones: list[dict]) -
                 goal_id=goal.id,
                 title=m["title"],
                 status=m.get("status", "upcoming"),
+                target_progress=m.get("target"),
                 order=i,
             )
         )
+    await db.flush()
+    await sync_milestones(db, goal)
+
+
+def _thresholds(rows: list[Milestone], total: int) -> list[int]:
+    """각 단계가 끝나는 진도 지점.
+
+    AI 가 target 을 다 줬으면 그대로 쓰고, 하나라도 비면 균등 분할로 본다
+    (24개를 4단계로 → 6/12/18/24). 섞어 쓰면 단계 순서가 뒤집힐 수 있어
+    '전부 있거나 전부 없거나' 로만 다룬다.
+    """
+    if all(m.target_progress is not None for m in rows):
+        return [int(m.target_progress) for m in rows]
+    count = len(rows)
+    return [round(total * (i + 1) / count) for i in range(count)]
+
+
+async def sync_milestones(db: AsyncSession, goal: Goal) -> None:
+    """진도에 맞춰 마일스톤 status 를 다시 계산한다.
+
+    진도가 진실이다 — 투두를 체크해 진도가 오르면 단계도 따라 올라간다.
+    진도가 아직 없으면(total 미설정) 아무것도 하지 않는다. 그때는 AI 가
+    set_milestones 로 직접 지정한 status 가 그대로 남는다.
+    """
+    progress = goal.progress or {}
+    total = int(progress.get("total") or 0)
+    if total <= 0:
+        return
+
+    rows = (
+        (
+            await db.execute(
+                select(Milestone)
+                .where(Milestone.goal_id == goal.id)
+                .order_by(Milestone.order, Milestone.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not rows:
+        return
+
+    current = int(progress.get("current") or 0)
+    thresholds = _thresholds(list(rows), total)
+
+    has_current = False
+    for milestone, threshold in zip(rows, thresholds, strict=True):
+        if current >= threshold:
+            milestone.status = "done"
+        elif not has_current:
+            # 끝나지 않은 첫 단계가 '진행 중'. 나머지는 예정이다
+            milestone.status = "current"
+            has_current = True
+        else:
+            milestone.status = "upcoming"
+
     await db.flush()

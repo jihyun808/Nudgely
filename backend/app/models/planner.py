@@ -10,10 +10,10 @@
 
 from datetime import UTC, date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Date, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db import Base
+from app.core.db import Base, UtcDateTime
 from app.core.ids import new_id
 
 # 실제 기록의 출처 (types/planner.ts PlannerRecordKind)
@@ -33,7 +33,7 @@ class Planner(Base):
         String, ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)
 
     blocks: Mapped[list["PlannerBlock"]] = relationship(
         back_populates="planner",
@@ -49,6 +49,12 @@ class PlannerBlock(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: new_id("plb"))
     planner_id: Mapped[str] = mapped_column(
         String, ForeignKey("planners.id", ondelete="CASCADE"), index=True
+    )
+    # 어느 목표의 블록인지. 계획은 AI 가 그 목표 방에서 세우고,
+    # 실제 기록은 집중 타이머에서 고른 목표를 그대로 물려받는다.
+    # 목표가 지워져도 기록 자체는 남겨야 해서 SET NULL.
+    goal_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("goals.id", ondelete="SET NULL"), nullable=True, index=True
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
     start_minutes: Mapped[int] = mapped_column(Integer, nullable=False)

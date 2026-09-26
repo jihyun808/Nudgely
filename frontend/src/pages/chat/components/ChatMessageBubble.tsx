@@ -20,8 +20,13 @@ interface ChatMessageBubbleProps {
   onOpenImage?: (src: string, name: string) => void;
 }
 
-/** 파일 첨부 말풍선 내용. 아이콘 가독성 때문에 보낸 쪽과 무관하게 흰 카드로 그린다 */
-function FileContent({ name, caption }: { name: string; caption?: string }) {
+/**
+ * 파일 첨부 말풍선 내용. 아이콘 가독성 때문에 보낸 쪽과 무관하게 흰 카드로 그린다.
+ *
+ * 오른쪽 끝에 다운로드 버튼을 둔다(카카오톡과 같은 자리). 아직 올라가는 중이라
+ * 서버 url 이 없으면 버튼을 그리지 않는다.
+ */
+function FileContent({ name, caption, url }: { name: string; caption?: string; url?: string }) {
   return (
     <span className="flex items-center gap-2.5">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -38,10 +43,36 @@ function FileContent({ name, caption }: { name: string; caption?: string }) {
           <path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7Z" />
         </svg>
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-foreground">{name}</span>
         {caption && <span className="block truncate text-xs text-muted-foreground">{caption}</span>}
       </span>
+
+      {url && (
+        <a
+          href={url}
+          download={name}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`${name} 내려받기`}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors active:bg-muted-foreground/10"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+            className="h-4 w-4"
+          >
+            <path d="M12 3v12" />
+            <path d="m7 11 5 5 5-5" />
+            <path d="M5 21h14" />
+          </svg>
+        </a>
+      )}
     </span>
   );
 }
@@ -100,7 +131,7 @@ export default function ChatMessageBubble({
         isFailed && 'opacity-60',
       )}
     >
-      {file ? <FileContent name={file.name} caption={file.caption} /> : content}
+      {file ? <FileContent name={file.name} caption={file.caption} url={file.url} /> : content}
     </div>
   );
 

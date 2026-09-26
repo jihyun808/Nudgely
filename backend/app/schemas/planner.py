@@ -15,6 +15,9 @@ class PlannerBlockOut(CamelModel):
     duration_minutes: int
     # 실제 기록만 kind(focus/verify/manual). 계획 블록은 없음.
     kind: str | None = None
+    # 어느 목표의 블록인지. 목표 없이 그냥 집중한 기록이면 둘 다 없다.
+    goal_id: str | None = None
+    goal_name: str | None = None
 
 
 class DailyPlannerOut(CamelModel):

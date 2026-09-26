@@ -10,6 +10,14 @@ const RADIUS = 88;
 const TICK_OUTER = 104;
 /** 숫자가 놓이는 반지름 */
 const LABEL_RADIUS = 116;
+/**
+ * viewBox 를 사방으로 넓히는 여백.
+ *
+ * 12시 방향 '0' 은 y = CENTER - LABEL_RADIUS = 4 에 중심이 놓이는데,
+ * 글자 높이의 절반(약 5.5)이 위로 뻗어 y 가 음수가 된다. 여백이 없으면
+ * viewBox 밖이라 글자 윗부분이 잘린다.
+ */
+const PADDING = 8;
 
 /** 12시 방향을 0으로 두고, 비율(0~1)을 좌표로 바꾼다 */
 const toPoint = (ratio: number, radius: number) => {
@@ -65,7 +73,12 @@ export default function FocusDial({
 
   return (
     <div className="relative mx-auto w-full max-w-[17rem]">
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full" role="img" aria-label="집중 타이머">
+      <svg
+        viewBox={`${-PADDING} ${-PADDING} ${SIZE + PADDING * 2} ${SIZE + PADDING * 2}`}
+        className="w-full"
+        role="img"
+        aria-label="집중 타이머"
+      >
         {/* 눈금 */}
         {ticks.map((minute) => {
           const isMajor = minute % labelStep === 0;

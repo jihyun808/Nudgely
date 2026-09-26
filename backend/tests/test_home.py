@@ -10,26 +10,15 @@ from app.models.goal import Goal, Message
 from app.models.notification import Notification
 from app.models.user import UserSettings
 from app.services.notification_service import RECORD_LINK, chat_link, should_notify
-
-
-async def _token(client: AsyncClient, email: str = "a@b.com") -> str:
-    res = await client.post(
-        "/api/auth/signup",
-        json={"nickname": "지수", "email": email, "password": "password123"},
-    )
-    return res.json()["accessToken"]
-
-
-def _h(token: str) -> dict:
-    return {"Authorization": f"Bearer {token}"}
+from tests.helpers import auth, token_for
 
 
 async def _user_id(client: AsyncClient, token: str) -> str:
-    return (await client.get("/api/me", headers=_h(token))).json()["id"]
+    return (await client.get("/api/me", headers=auth(token))).json()["id"]
 
 
 async def _make_goal(client: AsyncClient, token: str, name: str = "Buddy") -> str:
-    res = await client.post("/api/goals", headers=_h(token), data={"name": name, "title": "T"})
+    res = await client.post("/api/goals", headers=auth(token), data={"name": name, "title": "T"})
     return res.json()["id"]
 
 
@@ -84,7 +73,7 @@ def test_should_notify_dnd_uses_the_users_timezone():
 async def test_home_previews_unread_only_one_per_goal(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     g1 = await _make_goal(client, token, "A")
     await _make_goal(client, token, "B")  # 메시지 없음 → 미리보기 없음
 
@@ -102,7 +91,7 @@ async def test_home_previews_unread_only_one_per_goal(
         )
         await s.commit()
 
-    res = await client.get("/api/home/previews", headers=_h(token))
+    res = await client.get("/api/home/previews", headers=auth(token))
     body = res.json()
     assert len(body) == 1  # 목표당 한 장, g2 는 제외
     assert body[0]["kind"] == "message"
@@ -114,7 +103,7 @@ async def test_home_previews_unread_only_one_per_goal(
 async def test_home_previews_excludes_read(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     g = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -129,8 +118,8 @@ async def test_home_previews_excludes_read(
         await s.commit()
 
     # 읽음 처리 → 미리보기에서 사라짐
-    await client.post(f"/api/goals/{g}/read", headers=_h(token))
-    res = await client.get("/api/home/previews", headers=_h(token))
+    await client.post(f"/api/goals/{g}/read", headers=auth(token))
+    res = await client.get("/api/home/previews", headers=auth(token))
     assert res.json() == []
 
 
@@ -140,7 +129,7 @@ async def test_home_previews_excludes_read(
 async def test_notifications_list_and_read(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     uid = await _user_id(client, token)
 
     async with session_factory() as s:
@@ -158,30 +147,30 @@ async def test_notifications_list_and_read(
             )
         await s.commit()
 
-    listed = await client.get("/api/notifications", headers=_h(token))
+    listed = await client.get("/api/notifications", headers=auth(token))
     body = listed.json()
     assert len(body) == 5  # 최대 5
     assert body[0]["body"] == "n6"  # 최신순
     assert all(n["isRead"] is False for n in body)
 
     # 전체 읽음
-    assert (await client.post("/api/notifications/read", headers=_h(token))).status_code == 204
-    after = await client.get("/api/notifications", headers=_h(token))
+    assert (await client.post("/api/notifications/read", headers=auth(token))).status_code == 204
+    after = await client.get("/api/notifications", headers=auth(token))
     assert all(n["isRead"] is True for n in after.json())
 
 
 async def test_notifications_isolated_by_user(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    t1 = await _token(client, "u1@b.com")
-    t2 = await _token(client, "u2@b.com")
+    t1 = await token_for(client, "u1@b.com")
+    t2 = await token_for(client, "u2@b.com")
     uid1 = await _user_id(client, t1)
 
     async with session_factory() as s:
         s.add(Notification(user_id=uid1, type="todoAdded", title="x", body="mine"))
         await s.commit()
 
-    assert (await client.get("/api/notifications", headers=_h(t2))).json() == []
+    assert (await client.get("/api/notifications", headers=auth(t2))).json() == []
 
 
 # ── AI 도구 → 알림 연동 ──
@@ -190,7 +179,7 @@ async def test_notifications_isolated_by_user(
 async def test_ai_create_todos_makes_notification(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
 
     async with session_factory() as s:
@@ -199,17 +188,18 @@ async def test_ai_create_todos_makes_notification(
             s, goal, "create_todos", {"date": "2026-08-03", "items": [{"content": "3강"}]}
         )
 
-    res = await client.get("/api/notifications", headers=_h(token))
+    res = await client.get("/api/notifications", headers=auth(token))
     body = res.json()
     assert len(body) == 1
     assert body[0]["type"] == "todoAdded"
-    assert body[0]["linkTo"] == chat_link(goal_id)
+    # 투두 알림은 기록 탭으로 (features.md §4 — 채팅방으로 보내면 할 일을 찾을 수 없다)
+    assert body[0]["linkTo"] == RECORD_LINK
 
 
 async def test_ai_todo_notification_suppressed_when_toggle_off(
     client: AsyncClient, session_factory: async_sessionmaker
 ):
-    token = await _token(client)
+    token = await token_for(client)
     goal_id = await _make_goal(client, token)
     uid = await _user_id(client, token)
 
@@ -226,6 +216,6 @@ async def test_ai_todo_notification_suppressed_when_toggle_off(
         )
 
     # 투두는 만들어지되 알림은 안 생김
-    assert (await client.get("/api/notifications", headers=_h(token))).json() == []
-    todos = await client.get("/api/todos", headers=_h(token), params={"date": "2026-08-03"})
+    assert (await client.get("/api/notifications", headers=auth(token))).json() == []
+    todos = await client.get("/api/todos", headers=auth(token), params={"date": "2026-08-03"})
     assert len(todos.json()) == 1

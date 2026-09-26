@@ -18,6 +18,10 @@ export interface PlannerBlock {
   durationMinutes: number;
   /** 실제 기록일 때만 있는 출처. 계획 블록은 없다 */
   kind?: PlannerRecordKind;
+  /** 어느 목표의 블록인지. 목표 없이 그냥 집중한 기록이면 둘 다 없다 */
+  goalId?: string;
+  /** 표에 '제목 · 목표이름'으로 붙여 쓴다. 지워진 목표면 없다 */
+  goalName?: string;
 }
 
 /** 하루치 텐미닛 플래너 */

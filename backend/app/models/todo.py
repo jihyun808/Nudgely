@@ -12,7 +12,6 @@ from datetime import UTC, date, datetime
 from sqlalchemy import (
     Boolean,
     Date,
-    DateTime,
     ForeignKey,
     Integer,
     String,
@@ -21,7 +20,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.db import Base
+from app.core.db import Base, UtcDateTime
 from app.core.ids import new_id
 
 
@@ -38,7 +37,7 @@ class Todo(Base):
         String, ForeignKey("goals.id", ondelete="CASCADE"), index=True
     )
     date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)
 
     items: Mapped[list["TodoItem"]] = relationship(
         back_populates="todo",
@@ -60,7 +59,7 @@ class TodoItem(Base):
     tag: Mapped[str | None] = mapped_column(String, nullable=True)
     # 진도 기여값. '강'에 해당하는 항목만 값을 갖고, 복습·정리 등은 0.
     progress_delta: Mapped[int] = mapped_column(Integer, default=0)
-    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    done_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)
 
     todo: Mapped["Todo"] = relationship(back_populates="items")

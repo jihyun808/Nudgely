@@ -104,7 +104,13 @@ GET /goals/{goalId}        # 단건 → GoalDetail
 - **숨긴 목표는 기본 목록에서 제외**한다.
 - 정렬·검색은 프론트가 처리한다.
 - `GoalDetail` = `Goal` + `prompt`, `persona`, `dueDate`, `isNotificationMuted`, `isHidden`, `completedAt`
-- ⚠️ **`progress` 스키마 미확정.** 진도를 무엇으로 셀지는 AI가 받을 정보와 함께 정해야 한다.
+- ✅ **`progress` 스키마 확정** — `{ current, total, unit }` (셋 다 필수, 없으면 `progress` 자체가 `null`).
+  - `unit`: 세는 단위를 AI가 대화에서 정한다. 예: `강` / `페이지` / `회차`
+  - `total`·`unit`은 **AI가 `set_progress` 툴로** 세운다 (목표를 파악한 뒤, 보통 첫 대화).
+  - `current`는 두 경로로 바뀐다.
+    1. 투두 항목에 붙은 `progressDelta`가 **체크될 때 자동 증감** (해제하면 되돌린다)
+    2. 사용자가 "30강까지 했어"처럼 말하면 AI가 `set_progress`로 **절대값 보정**
+  - 서버가 `0 ≤ current ≤ total`로 잘라낸다. `progress`가 아직 없으면(AI가 `set_progress`를 안 했으면) `progressDelta`는 무시된다.
 
 ### 3.2 생성 · 수정 · 삭제
 
@@ -118,9 +124,23 @@ DELETE /goals/{goalId}            → 204
 
 `PATCH` 대상: `name`(1~10자) · `title`(0~50자) · `prompt`(0~500자) · `persona` · `image` · `dueDate` · `isNotificationMuted` · `isHidden`
 
+**화면 동작 ↔ 엔드포인트** — 숨기기·되돌리기는 전용 엔드포인트가 아니라 `isHidden` 토글이다. 별도 API로 착각하기 쉬워 표로 정리한다.
+
+| 화면 동작                    | 어디서                   | 호출                                 |
+| ---------------------------- | ------------------------ | ------------------------------------ |
+| 채팅방 개설                  | 홈 · 채팅 탭의 목표 추가 | `POST /goals`                        |
+| 기본 정보·기한·알림 수정     | 목표 설정                | `PATCH /goals/{id}`                  |
+| **채팅방 숨기기**            | 목표 설정                | `PATCH /goals/{id}` `{ isHidden: true }` |
+| **히스토리에서 되돌리기**    | 설정 > 히스토리          | `PATCH /goals/{id}` `{ isHidden: false }` |
+| 숨긴 목표 목록               | 설정 > 히스토리          | `GET /goals?hidden=true`             |
+| 목표 완료 처리               | 목표 설정                | `POST /goals/{id}/complete`          |
+| 대화 내용만 삭제             | 목표 설정                | `DELETE /goals/{id}/messages`        |
+| **채팅방 삭제**              | 목표 설정                | `DELETE /goals/{id}`                 |
+
 - `persona`: `teacher` | `instructor` | `friend`. **선택 사항이고, 고르면 서버가 그에 맞는 기본 시스템 프롬프트를 적용한다.** 현재 화면에서는 개설할 때만 고를 수 있다(수정 UI는 미구현이지만 `PATCH`는 받아두는 편이 낫다).
 - **`isNotificationMuted`가 켜진 목표는 알림 발송에서 제외**해야 한다.
-- **`isHidden`은 삭제가 아니다.** 목록에서만 빼고 히스토리에서 되돌린다.
+- **`isHidden`은 삭제가 아니다.** 목록에서만 빼고 데이터는 그대로 두며, 히스토리에서 되돌린다. 숨긴 동안에도 대화·투두·첨부는 남아 있어야 한다.
+- **삭제(`DELETE`)는 되돌릴 수 없다.** 프론트는 두 동작 모두 확인 팝업을 띄운다.
 - 완료 처리는 `completedAt`을 채운다.
 - **완주한 목표에는 알림·선톡·투두를 만들지 않는다.** 서버가 스케줄러·AI 대상에서 제외해야 한다.
 - ⚠️ **목표 삭제 시 대화·투두·플래너 처리 정책 미합의.**
@@ -170,14 +190,30 @@ event: delta
 data: {"text":"좋아, "}
 
 event: done
-data: {"messageId":"m_02","createdAt":"..."}
+data: {"messages":[{"messageId":"m_02","content":"좋아, 1강부터 해볼까?","createdAt":"..."}]}
 ```
 
 에러 시 `event: error` + `data: {"code":"...","message":"..."}`
 
+- **`done.quickReplies`** — AI 가 선택지를 물으면 보기 배열이 온다(없으면 키 자체가 없다).
+  프롬프트가 마지막 줄에 `[선택: 추가해줘 / 아니]` 를 적게 하고 서버가 떼어낸다.
+  화면은 입력창 위 버튼으로 그리고, 누르면 그 글자를 그대로 보낸다(전송 경로는 직접 입력과 같다).
+  보기가 1개거나 5개 이상이거나 20자를 넘으면 떼지 않는다(버튼 없이 글로 남는다).
+- **`done.messages` 는 배열이다.** AI 가 길게 답하면 서버가 빈 줄 기준으로 잘라
+  여러 말풍선으로 저장한다(카톡처럼 나눠 보내는 모양, 한 턴 최대 5개).
+  `delta` 는 자르기 전 원문이 그대로 흐르므로, 화면은 `done` 을 받아 그린다.
+- `message_start` 는 서버가 **내 메시지를 저장하고 답을 만들기 시작한** 시점이다.
+  화면은 이때 '전송 중' 을 걷고 '입력 중...' 으로 넘어간다.
+- 응답 생성은 요청과 분리돼 있다. 답이 오는 중에 채팅방을 나가 SSE 가 끊겨도
+  생성은 끝까지 돌아 저장된다(다시 들어오면 답이 와 있다).
 - 내 메시지는 프론트가 먼저 그리고, 실패하면 "다시 시도"를 띄운다.
 - **파일 첨부는 multipart**(`content` 선택 + `file`). 허용: **jpg·jpeg·png·pdf·txt, 10MB 이하**. 서버에서 재검증하고 실행 권한 없는 스토리지에 저장한다.
 - 사진은 말풍선에 썸네일로 그리므로 `file.url`이 바로 표시 가능한 URL이어야 한다.
+- **첨부는 내용까지 AI 가 읽는다.** 사진은 이미지로, pdf·txt 는 텍스트를 뽑아
+  대화 컨텍스트에 넣는다(텍스트가 없는 스캔 PDF 는 그 사실을 알린다).
+  첨부 내용은 사용자가 쓴 글이 아니므로 **'자료' 로 격리해** 넘긴다 — 파일 안의
+  지시("이전 지시를 무시하고 …")를 따르지 않게 하는 주입 방어다.
+  이번 턴 첨부만 싣는다(매 턴 다시 보내면 비용이 폭증한다).
 - 인프라: 프록시 `proxy_buffering off`, 스트리밍 압축 처리, 긴 응답 타임아웃.
 
 ### 3.5 읽음 처리
@@ -208,7 +244,18 @@ GET /goals/{goalId}/attachments?kind=image   # 사진
 
 - **동영상은 받지 않는다.** 유효기간 개념도 없다.
 - 프론트가 `uploadedAt` 기준 **연-월로 묶어** 최신 달부터 보여준다.
-- 사진 목록에는 **썸네일 URL**이 필요하다.
+- 사진 목록에는 **썸네일 URL**이 필요하다. 지금은 `url` 하나뿐이라 목록·뷰어·다운로드가 같은 값을 쓴다.
+  원본이 크면 목록이 무거워지므로 `thumbnailUrl`을 따로 내려주는 편이 낫다. **합의 필요.**
+
+**다운로드** — 파일 카드와 사진 뷰어(`ImageViewer`)의 다운로드 버튼은 모두 `url`을 `<a download>`로 연다.
+
+- `url`이 없으면 프론트가 버튼·링크를 그리지 않는다. **목록 응답에 `url`은 사실상 필수.**
+- ⚠️ **브라우저의 `download` 속성은 동일 출처(또는 `blob:`·`data:`) URL에서만 동작한다.**
+  첨부를 S3 등 다른 도메인에서 서빙하면 속성이 무시되고 새 탭에서 열리기만 한다. 파일명을 지켜 내려받게 하려면 둘 중 하나가 필요하다.
+  1. 서버가 `Content-Disposition: attachment; filename*=UTF-8''<파일명>` 헤더를 붙인다 (presigned URL이면 발급 시 파라미터로 지정)
+  2. 첨부를 **우리 도메인 경유**로 서빙한다 (예: `GET /attachments/{id}/download`)
+- 파일명이 한글이면 `filename*=UTF-8''` 형식으로 인코딩해야 깨지지 않는다.
+- pdf·이미지처럼 브라우저가 그릴 수 있는 형식은 미리보기로 뜨고, zip·xlsx 등은 브라우저가 알아서 내려받는다.
 
 ```
 GET /goals/{goalId}/progress
@@ -220,6 +267,7 @@ GET /goals/{goalId}/progress
   "goalTitle": "UI/UX 디자인 강의 완주",
   "startedAt": "...",
   "completedAt": null,
+  "progress": { "current": 21, "total": 50, "unit": "강" },
   "milestones": [{ "id": "p1", "title": "6월까지 기초 10강 완료", "status": "done" }],
   "focusedSeconds": 151200,
   "completedTodoCount": 64,
@@ -229,14 +277,21 @@ GET /goals/{goalId}/progress
 
 | 필드                                                  | 만드는 주체 |
 | ----------------------------------------------------- | ----------- |
-| `milestones[].title` / `.status`                      | **AI**      |
+| `milestones[].title` / `.target`                      | **AI**      |
+| `milestones[].status`                                 | 백엔드(진도 기준 자동) |
+| `progress`                                            | **AI**(set_progress) + 투두 체크 |
 | `startedAt` / `completedAt`                           | 백엔드      |
 | `focusedSeconds` / `completedTodoCount` / `bestMonth` | 백엔드 집계 |
 
-- `status`: `done` / `current` / `upcoming`. 진도율(%)은 프론트가 `done ÷ 전체`로 계산한다.
+- **진도율(%)은 `progress`(current/total)로 낸다.** 홈 목표 카드와 같은 값이며,
+  프론트는 `utils/progress.ts` 의 같은 함수를 쓴다(두 화면이 갈라지지 않게).
+- `milestones` 는 '몇 단계까지 왔나' 를 보여주는 **타임라인**이지 진행률이 아니다.
+  `status`(`done`/`current`/`upcoming`)는 **서버가 진도를 보고 자동으로 갱신**한다 —
+  경계는 AI 가 준 `target`(그 단계가 끝나는 진도 지점), 없으면 균등 분할이다.
+  진도가 아직 없으면(total 미설정) AI 가 준 status 를 그대로 둔다.
 - 집계 3종은 **없으면 해당 칸을 그리지 않는다.** 연동 초기엔 빼도 된다.
 - `completedAt`이 있으면 완료 화면(축하 연출 + 회고 지표)이 된다.
-- 백엔드 할 일: 마일스톤 쓰기 API, `completedAt` 판정 규칙, **집중 세션에 목표 id 추가**(없으면 `focusedSeconds`를 목표별로 집계 불가)
+- 집중 세션의 목표 id 는 집중 탭에서 고른다(선택). 안 고르면 `focusedSeconds` 가 비어 있다.
 
 ---
 
@@ -425,8 +480,10 @@ PATCH  /settings     # 바뀐 항목만
 | 1   | 에러 응답 포맷 통일 (`code` / `message`)                      | ✅                                  |
 | 2   | **액세스 토큰 만료·갱신 정책** (리프레시 토큰 여부, 만료 시간) | 🔧 지금은 401이면 재로그인. 리프레시 도입 시 인터셉터 수정 |
 | 3   | 사진 업로드 방식: multipart 직접 vs S3 presigned URL           | 🔧 presigned면 업로드 흐름 변경     |
+| 3-1 | **첨부 다운로드 경로** — 외부 도메인 직링크면 `Content-Disposition` 필요 (3.6) | ✅ `<a download>` 연결 완료 |
+| 3-2 | 사진 **썸네일 URL 분리** 여부 (`thumbnailUrl`)                 | ✅ 필드만 늘면 바로 사용            |
 | 4   | SSE 스트리밍 가능 여부 (프록시 버퍼링·타임아웃)                | 🔧 스펙 확정 후 구현                |
-| 5   | **목표 진도(`progress`) 스키마** — AI가 받을 정보와 함께       | 🔧 스키마 확정 후 진도 편집         |
+| 5   | ~~목표 진도(`progress`) 스키마~~ → **확정** (3.1)              | ✅ `{current,total,unit}`, 진도는 AI가 쓴다 |
 | 6   | 목표 삭제·회원 탈퇴 시 데이터 처리 (딸린 데이터·보관 기간)     | ✅ 호출·화면 완료                   |
 | 7   | **집중 세션에 목표 id 추가** — 목표별 집중 시간 집계에 필요    | 🔧 집중 화면에 목표 선택 UI 없음    |
 | 8   | 마일스톤 쓰기 API와 목표 완료 판정 주체 (AI / 자동)            | ✅                                  |

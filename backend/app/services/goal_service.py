@@ -4,13 +4,14 @@
 - 최근 메시지 / 안 읽은 개수 / D-day 등 계산이 여기 모여 있다.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
 from app.models.goal import Goal, Message, ReadState
+from app.models.routine import Routine
 from app.schemas.goal import GoalDetailOut, GoalOut, Progress
 
 # 아직 대화가 없을 때 채팅 목록에 보여줄 안내 문구
@@ -44,7 +45,15 @@ def set_progress(
     total: int | None = None,
     unit: str | None = None,
 ) -> None:
-    """AI 보정: 진도를 절대값으로 설정 (ai-plan §4.3b)."""
+    """AI 보정: 진도를 절대값으로 설정 (ai-plan §4.3b).
+
+    셋 다 None 이면 아무것도 하지 않는다. 빈 호출에도 dict 를 만들어 버리면
+    진도가 없던 목표의 progress 가 {0, 0, ""} 가 되고, 프론트는 이걸 진도가
+    "있다"고 보아 시작일 안내 대신 0% 막대를 그린다(api.md §3.1 — 없으면 null).
+    """
+    if current is None and total is None and unit is None:
+        return
+
     p = dict(goal.progress) if goal.progress else {"current": 0, "total": 0, "unit": ""}
     if total is not None:
         p["total"] = total
@@ -131,3 +140,44 @@ async def build_goal_detail(db: AsyncSession, goal: Goal, user_id: str) -> GoalD
         is_notification_muted=goal.is_notification_muted,
         is_hidden=goal.is_hidden,
     )
+
+
+async def set_routine(db: AsyncSession, goal: Goal, items: list[dict]) -> None:
+    """'매일 할 것' 을 통째로 교체.
+
+    items: [{content, tag?, progress_delta?, duration_minutes?, weekdays?}]
+    마일스톤과 같이 교체 방식이다. 빈 배열이면 전부 지운다.
+    """
+    await db.execute(Routine.__table__.delete().where(Routine.goal_id == goal.id))
+    for order, item in enumerate(items):
+        db.add(
+            Routine(
+                goal_id=goal.id,
+                content=item["content"],
+                tag=item.get("tag"),
+                progress_delta=int(item.get("progress_delta") or 0),
+                duration_minutes=item.get("duration_minutes"),
+                weekdays=item.get("weekdays"),
+                order=order,
+            )
+        )
+    await db.flush()
+
+
+async def routines_of(db: AsyncSession, goal_id: str) -> list[Routine]:
+    rows = await db.execute(
+        select(Routine)
+        .where(Routine.goal_id == goal_id)
+        .order_by(Routine.order, Routine.created_at)
+    )
+    return list(rows.scalars().all())
+
+
+def routine_applies_today(routine: Routine, today: date) -> bool:
+    """오늘 하는 항목인지. weekdays 가 비어 있으면 매일 한다.
+
+    월=0 … 일=6 (프론트 toMondayFirst 와 같은 기준).
+    """
+    if not routine.weekdays:
+        return True
+    return str(today.weekday()) in routine.weekdays

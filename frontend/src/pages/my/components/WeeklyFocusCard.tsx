@@ -32,9 +32,6 @@ const formatHours = (hours: number) => `${Number(hours.toFixed(1))}h`;
 /**
  * 주간 집중 카드.
  * 좌우 버튼으로 지난 주를 볼 수 있고, 이번 주보다 미래로는 갈 수 없다.
- *
- * 값은 아직 실제 집중 기록이 아니다(mock).
- * TODO: 집중 탭 기록이 쌓이면 실제 주간 집계로 교체
  */
 export default function WeeklyFocusCard() {
   /** 0이면 이번 주, -1이면 지난 주 */

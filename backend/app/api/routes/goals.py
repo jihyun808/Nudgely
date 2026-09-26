@@ -11,29 +11,36 @@
     POST   /api/goals/{id}/messages      메시지 전송 → AI 응답 SSE 스트리밍
     POST   /api/goals/{id}/read          읽음 처리 (204)
 
-파일 첨부(multipart)·모아보기(attachments)·진도(progress) 쓰기는 다음 슬라이스.
+PATCH 는 JSON·multipart 둘 다 받는다(사진 교체는 multipart image).
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, select, tuple_
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.ai.attachments import AttachmentContent, load_attachment
+from app.ai.prompts import GoalState, today_for
 from app.ai.streaming import ReplyStreamer, get_reply_streamer
-from app.ai.tools import dispatch_tool_call
 from app.api.deps import get_current_user
-from app.core.db import get_db
+from app.core.db import get_db, get_session_factory
 from app.core.errors import AppError
-from app.core.ids import new_id
-from app.core.storage import CHAT_ALLOWED, chat_max_bytes, image_max_bytes, save_upload
+from app.core.storage import (
+    CHAT_ALLOWED,
+    chat_max_bytes,
+    image_max_bytes,
+    save_upload,
+    storage_root,
+)
 from app.models.attachment import Attachment
 from app.models.goal import Goal, Message, ReadState
-from app.models.user import User
+from app.models.planner import Planner, PlannerBlock
+from app.models.todo import Todo
+from app.models.user import User, UserSettings
 from app.schemas.archive import AttachmentOut, GoalProgressOut
-from app.schemas.common import to_utc_iso
 from app.schemas.goal import (
     MESSAGE_CONTENT_MAX,
     NAME_MAX,
@@ -48,8 +55,16 @@ from app.schemas.goal import (
     UpdateGoalIn,
 )
 from app.services.attachment_service import create_attachment, list_attachments
-from app.services.goal_service import build_goal_detail, build_goal_out, get_owned_goal
-from app.services.progress_service import build_goal_progress
+from app.services.goal_service import (
+    build_goal_detail,
+    build_goal_out,
+    get_owned_goal,
+    routine_applies_today,
+    routines_of,
+    set_progress,
+)
+from app.services.progress_service import build_goal_progress, sync_milestones
+from app.services.reply_service import start_reply
 
 router = APIRouter()
 
@@ -150,15 +165,65 @@ async def get_goal(
     return await build_goal_detail(db, goal, user.id)
 
 
+# 폼은 값이 전부 문자열로 오므로 불리언 필드만 되돌린다
+_BOOL_FORM_FIELDS = ("isNotificationMuted", "isHidden", "is_notification_muted", "is_hidden")
+#: 폼에서 빈 문자열로 오면 null 로 읽을 필드(폼은 null 을 실을 수 없다)
+_EMPTY_MEANS_NULL = ("dueDate", "due_date", "persona")
+
+
+async def _parse_goal_patch(
+    request: Request,
+) -> tuple[UpdateGoalIn, tuple[bytes, str | None] | None]:
+    """PATCH 본문에서 (수정 필드, (사진 바이트, 파일명)) 을 뽑는다.
+
+    - multipart/form-data: 보낸 필드 + image(선택)
+    - 그 외(JSON): 보낸 필드만
+    """
+    ctype = request.headers.get("content-type", "")
+    if not ctype.startswith(("multipart/form-data", "application/x-www-form-urlencoded")):
+        return UpdateGoalIn.model_validate(await request.json()), None
+
+    form = await request.form()
+    image = None
+    upload = form.get("image")
+    if upload is not None and hasattr(upload, "read"):
+        image = (await upload.read(), upload.filename)
+
+    fields: dict[str, object] = {}
+    for key, value in form.items():
+        if key == "image" or not isinstance(value, str):
+            continue
+        if key in _EMPTY_MEANS_NULL and value == "":
+            # 폼은 null 을 못 싣는다. 빈 문자열을 '지움' 으로 읽는다
+            # (날짜를 비우면 기한 없음, AI 성격을 비우면 선택 안 함)
+            fields[key] = None
+        elif key in _BOOL_FORM_FIELDS:
+            fields[key] = value.lower() == "true"
+        else:
+            fields[key] = value
+    return UpdateGoalIn.model_validate(fields), image
+
+
 @router.patch("/goals/{goal_id}", response_model=GoalDetailOut)
 async def update_goal(
     goal_id: str,
-    body: UpdateGoalIn,
+    request: Request,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> GoalDetailOut:
+    """목표 수정. 사진은 multipart(image), 나머지는 form/JSON 모두 받는다."""
     goal = await get_owned_goal(db, user.id, goal_id)
+    body, image = await _parse_goal_patch(request)
     _validate_persona(body.persona)
+
+    if image is not None:
+        saved = save_upload(
+            image[0],
+            image[1],
+            allowed_exts={"jpg", "jpeg", "png"},
+            max_bytes=image_max_bytes(),
+        )
+        goal.image_url = saved.url
 
     if body.name is not None:
         goal.name = body.name.strip()
@@ -166,10 +231,25 @@ async def update_goal(
         goal.title = body.title.strip() or None
     if body.prompt is not None:
         goal.prompt = body.prompt.strip() or None
-    if body.persona is not None:
+    # null 을 보내면 '선택 안 함' 으로 되돌린다(기한과 같은 방식).
+    # is not None 으로 보면 지울 수가 없어 설정 화면의 '선택 안 함' 이 먹지 않는다.
+    if "persona" in body.model_fields_set:
         goal.persona = body.persona
-    if body.due_date is not None:
+    if "due_date" in body.model_fields_set:
         goal.due_date = body.due_date
+    if "progress" in body.model_fields_set:
+        if body.progress is None:
+            goal.progress = None
+        else:
+            # set_progress 를 거쳐야 0 ≤ current ≤ total 로 잘린다(AI 경로와 같은 규칙)
+            set_progress(
+                goal,
+                current=body.progress.current,
+                total=body.progress.total,
+                unit=body.progress.unit,
+            )
+        # 진도가 바뀌었으니 로드맵 단계도 다시 맞춘다
+        await sync_milestones(db, goal)
     if body.is_notification_muted is not None:
         goal.is_notification_muted = body.is_notification_muted
     if body.is_hidden is not None:
@@ -292,11 +372,88 @@ async def list_messages(
     return MessagePage(messages=messages, next_cursor=next_cursor)
 
 
-async def _parse_send_body(request: Request) -> tuple[str, tuple[bytes, str | None] | None]:
-    """전송 본문에서 (content, (파일 바이트, 파일명)) 을 뽑는다.
+async def _find_by_client_id(
+    db: AsyncSession, goal_id: str, client_id: str | None
+) -> Message | None:
+    """이미 저장된 전송인지 확인한다(멱등키). clientId 가 없으면 항상 새 메시지."""
+    if not client_id:
+        return None
+    return (
+        await db.execute(
+            select(Message).where(Message.goal_id == goal_id, Message.client_id == client_id)
+        )
+    ).scalar_one_or_none()
 
-    - multipart/form-data: content(선택) + file(선택)
-    - 그 외(JSON): {content}
+
+async def _goal_state(db: AsyncSession, goal: Goal, today: date) -> GoalState:
+    """지금 대화가 어느 단계인지 판단할 사실들을 모은다(prompts._stage_line 이 쓴다)."""
+    progress = goal.progress or {}
+    total = int(progress.get("total") or 0)
+
+    todo = (
+        await db.execute(select(Todo).where(Todo.goal_id == goal.id, Todo.date == today))
+    ).scalar_one_or_none()
+
+    plan = (
+        await db.execute(
+            select(PlannerBlock.id)
+            .join(Planner, PlannerBlock.planner_id == Planner.id)
+            .where(
+                Planner.user_id == goal.user_id,
+                Planner.date == today,
+                # 이 목표의 계획만 본다. 다른 목표에 시간을 잡아 뒀다고
+                # 이 목표까지 '계획 있음' 으로 보면 시간 잡기를 건너뛴다.
+                PlannerBlock.goal_id == goal.id,
+                PlannerBlock.kind.is_(None),  # 계획 블록만(실제 기록 말고)
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    routines = await routines_of(db, goal.id)
+    today_routines = [r for r in routines if routine_applies_today(r, today)]
+    summary = ", ".join(
+        r.content + (f"({r.duration_minutes}분)" if r.duration_minutes else "")
+        for r in today_routines
+    )
+
+    return GoalState(
+        has_progress=total > 0,
+        is_progress_done=total > 0 and int(progress.get("current") or 0) >= total,
+        routine_summary=summary or None,
+        has_todo_today=todo is not None and bool(todo.items),
+        has_plan_today=plan is not None,
+        is_overdue=goal.due_date is not None
+        and goal.due_date < today
+        and goal.completed_at is None,
+    )
+
+
+async def _attachment_of(db: AsyncSession, message_id: str) -> Attachment | None:
+    """메시지에 붙은 첨부."""
+    return (
+        await db.execute(select(Attachment).where(Attachment.message_id == message_id))
+    ).scalar_one_or_none()
+
+
+def _attachment_content(attachment: Attachment | None) -> AttachmentContent | None:
+    """첨부를 AI 가 읽을 형태로. url 마지막 조각이 디스크의 파일명이다."""
+    if attachment is None:
+        return None
+    stored_name = attachment.url.rsplit("/", 1)[-1]
+    return load_attachment(storage_root() / stored_name, attachment.name)
+
+
+async def _parse_send_body(
+    request: Request,
+) -> tuple[str, tuple[bytes, str | None] | None, str | None]:
+    """전송 본문에서 (content, (파일 바이트, 파일명), clientId) 를 뽑는다.
+
+    - multipart/form-data: content(선택) + file(선택) + clientId(선택)
+    - 그 외(JSON): {content, clientId?}
+
+    clientId 는 프론트가 만든 전송 키(멱등키)다. 재시도가 같은 값으로 오면
+    메시지를 새로 만들지 않고 기존 것을 재사용한다.
     """
     ctype = request.headers.get("content-type", "")
     if ctype.startswith("multipart/form-data"):
@@ -306,9 +463,13 @@ async def _parse_send_body(request: Request) -> tuple[str, tuple[bytes, str | No
         file = None
         if upload is not None and hasattr(upload, "read"):
             file = (await upload.read(), upload.filename)
-        return content, file
+        return content, file, str(form.get("clientId") or "") or None
     data = await request.json()
-    return str(data.get("content") or "").strip(), None
+    return (
+        str(data.get("content") or "").strip(),
+        None,
+        str(data.get("clientId") or "") or None,
+    )
 
 
 @router.post("/goals/{goal_id}/messages")
@@ -318,6 +479,7 @@ async def send_message(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     streamer: ReplyStreamer = Depends(get_reply_streamer),
+    session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
 ) -> StreamingResponse:
     """메시지 전송 → AI 응답 SSE 스트리밍 (api.md §3.4).
 
@@ -326,23 +488,30 @@ async def send_message(
     """
     goal = await get_owned_goal(db, user.id, goal_id)
 
-    content, file = await _parse_send_body(request)
+    content, file, client_id = await _parse_send_body(request)
     if len(content) > MESSAGE_CONTENT_MAX:
         raise AppError("VALIDATION_ERROR", "메시지가 너무 깁니다.", status_code=422)
     if not content and file is None:
         raise AppError("VALIDATION_ERROR", "내용이나 파일이 필요합니다.", status_code=422)
 
     # 1) 내 메시지 저장 (+ 첨부)
-    user_msg = Message(goal_id=goal.id, role="user", content=content)
-    db.add(user_msg)
-    await db.flush()
+    existing = await _find_by_client_id(db, goal.id, client_id)
+    if existing is not None:
+        user_msg = existing
+        saved_attachment = await _attachment_of(db, user_msg.id)
+    else:
+        user_msg = Message(goal_id=goal.id, role="user", content=content, client_id=client_id)
+        db.add(user_msg)
+        await db.flush()
 
-    file_note = None
-    if file is not None:
-        saved = save_upload(file[0], file[1], allowed_exts=CHAT_ALLOWED, max_bytes=chat_max_bytes())
-        await create_attachment(db, goal.id, user_msg.id, saved)
-        file_note = saved.display_name
-    await db.commit()
+        saved_attachment = None
+        if file is not None:
+            saved = save_upload(
+                file[0], file[1], allowed_exts=CHAT_ALLOWED, max_bytes=chat_max_bytes()
+            )
+            await create_attachment(db, goal.id, user_msg.id, saved)
+            saved_attachment = await _attachment_of(db, user_msg.id)
+        await db.commit()
 
     # 2) AI 에 넘길 히스토리(오래된 → 최신, 최근 N개)
     rows = (
@@ -358,48 +527,43 @@ async def send_message(
         .all()
     )
     history = [(m.role, m.content) for m in reversed(rows)]
-    if file_note:
-        history.append(("user", f"[사용자가 파일을 첨부했습니다: {file_note}]"))
+    # 이번 턴 첨부는 내용까지 읽어 넘긴다(지난 첨부는 히스토리에 글로만 남는다)
+    attachment = _attachment_content(saved_attachment)
 
-    persona, prompt, title = goal.persona, goal.prompt, goal.title
-    assistant_id = new_id("m")
-    was_completed = goal.completed_at is not None  # 이번 턴 완주 감지용
+    # AI 가 create_todos/create_planner 의 date 를 찍으려면 '오늘'을 알아야 한다.
+    # 서버 UTC 가 아니라 그 사람 타임존 기준이어야 기록 화면과 같은 날에 들어간다.
+    user_settings = await db.get(UserSettings, goal.user_id)
+    today = today_for(user_settings.timezone if user_settings else None)
 
-    async def _dispatch(name: str, arguments: dict) -> str:
-        # AI 도구 호출 → 실제 동작(투두·플래너·마일스톤·진도·완주 처리)
-        return await dispatch_tool_call(db, goal, name, arguments)
+    # 3) 응답 생성은 백그라운드로 돌린다.
+    #    사용자가 답이 오는 중에 채팅방을 나가면 이 SSE 는 끊기지만, 생성은 끝까지
+    #    돌아 메시지를 저장한다. 나갔다 와도 답이 와 있다(reply_service 주석 참고).
+    state = await _goal_state(db, goal, today)
+
+    assistant_id, queue = start_reply(
+        session_factory=session_factory,
+        streamer=streamer,
+        goal_id=goal.id,
+        persona=goal.persona,
+        user_prompt=goal.prompt,
+        goal_title=goal.title,
+        history=history,
+        today=today,
+        goal_progress=goal.progress,
+        due_date=goal.due_date,
+        attachment=attachment,
+        state=state,
+    )
 
     async def event_stream():
+        """큐에 쌓이는 이벤트를 그대로 흘려보낸다(중계만 한다)."""
         yield _sse("message_start", {"messageId": assistant_id, "role": "assistant"})
-        full = ""
-        try:
-            async for text in streamer.stream(
-                persona=persona,
-                user_prompt=prompt,
-                goal_title=title,
-                history=history,
-                dispatch=_dispatch,
-            ):
-                full += text
-                yield _sse("delta", {"text": text})
-        except Exception as exc:  # noqa: BLE001 - 외부 AI 오류를 error 이벤트로 감싼다
-            yield _sse("error", {"code": "AI_ERROR", "message": f"AI 응답 실패: {exc}"})
-            return
-
-        # 3) 완성된 assistant 메시지 저장
-        assistant_msg = Message(id=assistant_id, goal_id=goal.id, role="assistant", content=full)
-        db.add(assistant_msg)
-        await db.commit()
-        await db.refresh(assistant_msg)
-
-        # 이번 턴에 AI 가 완주 처리했으면 프론트 축하 연출 신호를 얹는다(api.md §3.2).
-        done_data = {
-            "messageId": assistant_id,
-            "createdAt": to_utc_iso(assistant_msg.created_at),
-        }
-        if not was_completed and goal.completed_at is not None:
-            done_data["goalCompleted"] = True
-        yield _sse("done", done_data)
+        while True:
+            event = await queue.get()
+            if event is None:
+                return
+            name, data = event
+            yield _sse(name, data)
 
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)
