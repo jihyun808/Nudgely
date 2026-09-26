@@ -41,6 +41,7 @@ async def daily_todos(db: AsyncSession, user_id: str, on: date) -> list[DailyTod
                 goal_id=t.goal_id,
                 goal_title=_title_of(goal),
                 date=t.date,
+                is_goal_completed=goal is not None and goal.completed_at is not None,
                 items=[
                     TodoItemOut(
                         id=i.id,

@@ -42,6 +42,8 @@ class DailyTodoOut(CamelModel):
     goal_title: str
     date: date
     items: list[TodoItemOut]
+    # 완주한 목표의 투두는 화면에서 손대지 않는다(진도·알림이 멈춘 상태다)
+    is_goal_completed: bool = False
 
 
 class TodoMark(CamelModel):

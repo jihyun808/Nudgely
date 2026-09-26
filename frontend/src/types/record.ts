@@ -28,6 +28,8 @@ export const TODO_TAG_MAX = 10;
  */
 export interface DailyTodo {
   id: string;
+  /** 완주한 목표의 투두인지. 완주했으면 화면에서 손대지 않는다 */
+  isGoalCompleted?: boolean;
   /** 어느 목표(=채팅방)의 투두인지 */
   goalId: string;
   /** 카드 제목으로 쓰는 목표 이름 (Goal.title과 같은 값) */
