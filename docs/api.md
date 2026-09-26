@@ -466,9 +466,14 @@ POST /notifications/read   → 204   # 전체 읽음
 
 **운영**
 
-- 인증은 서비스 계정 키(FCM HTTP v1). `FCM_PROJECT_ID`·`FCM_CREDENTIALS_FILE` 두 값이
-  없으면 발송을 **조용히 건너뛴다** — 개발·CI 가 푸시 설정 없이 돌아가야 한다.
-  설정 여부는 `GET /health` 의 `pushConfigured` 로 확인한다.
+- 클라이언트(권한·토큰 발급·등록) 쪽은 [`mobile.md`](./mobile.md) 참고.
+- 인증은 서비스 계정 키(FCM HTTP v1). 키가 없으면 발송을 **조용히 건너뛴다** —
+  개발·CI 가 푸시 설정 없이 돌아가야 한다. 설정 여부는 `GET /health` 의
+  `pushConfigured` 로 확인한다.
+  - 로컬: `FCM_CREDENTIALS_FILE` 에 받은 JSON 파일 경로
+  - 배포: `FCM_CREDENTIALS_JSON` 에 그 JSON 내용 통째로(호스팅에 파일을 올릴 자리가
+    없다). 둘 다 있으면 JSON 이 이긴다.
+  - `FCM_PROJECT_ID` 는 비워 두면 키의 `project_id` 를 쓴다.
 - 죽은 토큰(`UNREGISTERED`)은 보내다가 알게 되는 즉시 지운다. FCM 이 잠깐 죽은 것
   (5xx)과는 구분한다 — 그걸로 지우면 복구할 길이 없다.
 - 푸시 실패는 **절대 호출자를 깨뜨리지 않는다.** 투두 저장이 FCM 때문에 실패하면 안 된다.
