@@ -7,7 +7,7 @@ interface TodoItemRowProps {
   /** 오늘, 진행 중인 목표의 투두만 손댈 수 있다 */
   isEditable: boolean;
   onToggle: () => void;
-  /** 글씨를 눌렀을 때. AI가 만든 항목이면 수정 대신 안내를 띄운다 */
+  /** 글씨를 눌렀을 때 (수정). AI가 넣은 항목도 고칠 수 있다 */
   onPressContent: () => void;
 }
 
@@ -35,7 +35,7 @@ export default function TodoItemRow({
   onToggle,
   onPressContent,
 }: TodoItemRowProps) {
-  const { content, isDone, tag, source } = item;
+  const { content, isDone, tag } = item;
 
   const checkboxClassName = cn(
     'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors',
@@ -74,7 +74,7 @@ export default function TodoItemRow({
         <button
           type="button"
           onClick={onPressContent}
-          aria-label={source === 'user' ? `${content} 수정` : content}
+          aria-label={`${content} 수정`}
           className={cn(contentClassName, 'text-left')}
         >
           {content}

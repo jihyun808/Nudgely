@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import AppError
 from app.models.goal import Goal
 from app.models.todo import Todo, TodoItem
-from app.schemas.record import DailyTodoOut, TodoItemOut, TodoMark
+from app.schemas.record import TODO_ITEM_MAX, DailyTodoOut, TodoItemOut, TodoMark
 from app.services.goal_service import apply_progress_delta
 from app.services.progress_service import sync_milestones
 
@@ -182,6 +182,12 @@ async def add_user_item(db: AsyncSession, todo: Todo, content: str, tag: str | N
     progress_delta 는 0 이다 — 진도로 셀지는 AI 가 판단할 일이고,
     사용자가 넣은 할 일이 진도를 멋대로 올리면 숫자가 어긋난다.
     """
+    if len(todo.items) >= TODO_ITEM_MAX:
+        raise AppError(
+            "TODO_ITEM_LIMIT",
+            f"할 일은 하루 {TODO_ITEM_MAX}개까지 추가할 수 있습니다.",
+            status_code=422,
+        )
     item = TodoItem(content=content.strip(), tag=tag, progress_delta=0, source="user")
     todo.items.append(item)
     await db.flush()

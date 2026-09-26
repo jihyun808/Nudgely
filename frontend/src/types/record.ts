@@ -17,6 +17,9 @@ export interface TodoItemInput {
   tag?: string;
 }
 
+/** 목표 하나의 하루치 항목 수 상한 (서버 schemas/record.py 와 같은 값) */
+export const TODO_ITEM_MAX = 10;
+
 /** 항목 내용 글자수 제한 (서버 schemas/record.py 와 같은 값) */
 export const TODO_CONTENT_MAX = 50;
 /** 태그 글자수 제한 */

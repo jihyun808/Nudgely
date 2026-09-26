@@ -100,6 +100,39 @@ async def add_block(
 # 이 경로로 건드리지 않는다.
 
 
+async def _reject_overlap(
+    db: AsyncSession,
+    user_id: str,
+    on: date,
+    *,
+    start_minutes: int,
+    duration_minutes: int,
+    exclude_id: str | None = None,
+) -> None:
+    """같은 시간대에 실제 기록이 이미 있으면 막는다.
+
+    표는 한 칸에 블록 하나만 그리므로, 겹쳐 넣으면 뒤쪽이 화면에서 사라진다.
+    누를 수가 없으니 지울 방법도 없어진다 — 받아 두면 안 되는 값이다.
+    """
+    planner = await _get_planner(db, user_id, on)
+    if planner is None:
+        return
+
+    end = start_minutes + duration_minutes
+    for block in planner.blocks:
+        if block.kind is None or block.id == exclude_id:
+            continue  # 계획은 다른 열에 그려서 겹쳐도 된다
+        if (
+            block.start_minutes < end
+            and start_minutes < block.start_minutes + block.duration_minutes
+        ):
+            raise AppError(
+                "BLOCK_OVERLAPS",
+                f"'{block.title}' 기록과 시간이 겹칩니다.",
+                status_code=422,
+            )
+
+
 async def _owned_block(db: AsyncSession, user_id: str, on: date, block_id: str) -> PlannerBlock:
     block = await db.get(PlannerBlock, block_id)
     if block is None:
@@ -124,6 +157,9 @@ async def add_actual(
     """사용자가 손으로 넣은 실제 기록(kind="manual")."""
     if start_minutes + duration_minutes > 24 * 60:
         raise AppError("BLOCK_PAST_MIDNIGHT", "자정을 넘길 수 없습니다.", status_code=422)
+    await _reject_overlap(
+        db, user_id, on, start_minutes=start_minutes, duration_minutes=duration_minutes
+    )
     return await add_block(
         db,
         user_id,
@@ -148,6 +184,14 @@ async def update_actual(
     if start_minutes + duration_minutes > 24 * 60:
         raise AppError("BLOCK_PAST_MIDNIGHT", "자정을 넘길 수 없습니다.", status_code=422)
     block = await _owned_block(db, user_id, on, block_id)
+    await _reject_overlap(
+        db,
+        user_id,
+        on,
+        start_minutes=start_minutes,
+        duration_minutes=duration_minutes,
+        exclude_id=block_id,
+    )
     block.title = title.strip()
     block.start_minutes = start_minutes
     block.duration_minutes = duration_minutes

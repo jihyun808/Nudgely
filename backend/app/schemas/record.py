@@ -9,6 +9,9 @@ from pydantic import Field
 
 from app.schemas.common import CamelModel
 
+#: 목표 하나의 하루치 항목 수 상한. 카드가 길어지면 넘겨보기 어렵다
+TODO_ITEM_MAX = 10
+
 #: 항목 내용·태그 글자수 상한 (프론트 types/record.ts 와 같은 값)
 TODO_CONTENT_MAX = 50
 TODO_TAG_MAX = 10

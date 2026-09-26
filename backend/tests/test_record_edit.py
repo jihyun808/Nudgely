@@ -208,3 +208,89 @@ async def test_block_cannot_pass_midnight(client: AsyncClient):
         json={"title": "밤샘", "startMinutes": 23 * 60 + 30, "durationMinutes": 120},
     )
     assert res.status_code == 422
+
+
+# ── 검토에서 나온 방어 ──
+
+
+async def test_overlapping_actual_is_rejected(client: AsyncClient):
+    """겹쳐 넣으면 표가 한 칸에 하나만 그려 뒤쪽이 화면에서 사라진다.
+
+    누를 수가 없으니 지울 방법도 없어진다 — 받아 두면 안 되는 값이다.
+    """
+    token = await token_for(client, "ov1@b.com")
+    await client.post(
+        f"/api/planners/{DATE}/actual",
+        headers=auth(token),
+        json={"title": "문제풀이", "startMinutes": 540, "durationMinutes": 60},
+    )
+
+    res = await client.post(
+        f"/api/planners/{DATE}/actual",
+        headers=auth(token),
+        json={"title": "복습", "startMinutes": 570, "durationMinutes": 60},
+    )
+
+    assert res.status_code == 422
+    assert "겹칩니다" in res.json()["message"]
+
+
+async def test_moving_a_block_onto_itself_is_allowed(client: AsyncClient):
+    """자기 자신과는 겹쳐도 된다(길이만 줄이는 수정)."""
+    token = await token_for(client, "ov2@b.com")
+    created = await client.post(
+        f"/api/planners/{DATE}/actual",
+        headers=auth(token),
+        json={"title": "문제풀이", "startMinutes": 540, "durationMinutes": 60},
+    )
+    block_id = created.json()["actual"][0]["id"]
+
+    res = await client.patch(
+        f"/api/planners/{DATE}/actual/{block_id}",
+        headers=auth(token),
+        json={"title": "문제풀이", "startMinutes": 540, "durationMinutes": 30},
+    )
+
+    assert res.status_code == 200
+    assert res.json()["actual"][0]["durationMinutes"] == 30
+
+
+async def test_plan_blocks_may_overlap_actual(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """계획은 다른 열에 그려지므로 실제 기록과 시간이 겹쳐도 된다."""
+    token = await token_for(client, "ov3@b.com")
+    goal_id = await create_goal(client, token)
+    await call_tool(
+        session_factory,
+        goal_id,
+        "create_planner",
+        {"date": DATE, "blocks": [{"title": "수업", "startMinutes": 540, "durationMinutes": 60}]},
+    )
+
+    res = await client.post(
+        f"/api/planners/{DATE}/actual",
+        headers=auth(token),
+        json={"title": "실제로 한 것", "startMinutes": 540, "durationMinutes": 60},
+    )
+
+    assert res.status_code == 201
+
+
+async def test_item_count_is_capped(client: AsyncClient, session_factory: async_sessionmaker):
+    """카드가 길어지면 넘겨보기 어렵다. 프론트도 같은 값으로 막는다."""
+    from app.schemas.record import TODO_ITEM_MAX
+
+    token = await token_for(client, "cap@b.com")
+    goal_id = await create_goal(client, token)
+    todo_id, _ = await _todo_with_item(client, session_factory, token, goal_id)
+
+    last = None
+    for i in range(TODO_ITEM_MAX + 2):
+        last = await client.post(
+            f"/api/todos/{todo_id}/items", headers=auth(token), json={"content": f"추가 {i}"}
+        )
+
+    assert last.status_code == 422
+    todos = (await client.get("/api/todos", headers=auth(token), params={"date": DATE})).json()
+    assert len(todos[0]["items"]) == TODO_ITEM_MAX

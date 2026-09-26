@@ -1,6 +1,6 @@
 // pages/record/components/TodoCard.tsx
 import TodoItemRow from '@/pages/record/components/TodoItemRow';
-import type { DailyTodo, TodoItem } from '@/types/record';
+import { TODO_ITEM_MAX, type DailyTodo, type TodoItem } from '@/types/record';
 
 interface TodoCardProps {
   todo: DailyTodo;
@@ -62,9 +62,11 @@ export default function TodoCard({
         <button
           type="button"
           onClick={onAddItem}
-          className="mt-3 w-full rounded-xl border border-dashed border-border py-2 text-xs text-muted-foreground transition-colors active:bg-muted-foreground/10"
+          // 카드가 길어지면 넘겨보기 어렵다. 서버도 같은 값으로 막는다
+          disabled={items.length >= TODO_ITEM_MAX}
+          className="mt-3 w-full rounded-xl border border-dashed border-border py-2 text-xs text-muted-foreground transition-colors active:bg-muted-foreground/10 disabled:opacity-50"
         >
-          + 할 일 추가
+          {items.length >= TODO_ITEM_MAX ? `하루 ${TODO_ITEM_MAX}개까지예요` : '+ 할 일 추가'}
         </button>
       )}
     </div>
