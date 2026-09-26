@@ -61,27 +61,50 @@ function getRowLabel(slots: (PlannerBlock | undefined)[]) {
   return [...counts.values()].sort((a, b) => b.count - a.count)[0].label;
 }
 
+interface RowCellProps {
+  slots: (PlannerBlock | undefined)[];
+  isPlan: boolean;
+  /** 줄이 시작하는 시각(자정 기준 분) */
+  rowStart: number;
+  /** 칸을 눌렀을 때. 계획 열이거나 읽기 전용이면 없다 */
+  onPressSlot?: (minute: number, block: PlannerBlock | undefined) => void;
+}
+
 /** 한 칸: 10분짜리 칸 6개 + 그 아래 제목 */
-function RowCell({ slots, isPlan }: { slots: (PlannerBlock | undefined)[]; isPlan: boolean }) {
+function RowCell({ slots, isPlan, rowStart, onPressSlot }: RowCellProps) {
   const label = getRowLabel(slots);
+
+  const slotClassName = (block: PlannerBlock | undefined) =>
+    cn(
+      'h-2 flex-1 rounded-[2px]',
+      // 빈 칸도 옅게 그려야 '10분이 한 칸'이라는 게 눈에 보인다
+      block
+        ? isPlan
+          ? 'bg-primary/40'
+          : KIND_COLORS[block.kind ?? 'manual']
+        : 'bg-muted-foreground/10',
+    );
 
   return (
     <div className="min-w-0 flex-1">
-      <div className="flex gap-px" aria-hidden>
-        {slots.map((block, i) => (
-          <div
-            key={i}
-            className={cn(
-              'h-2 flex-1 rounded-[2px]',
-              // 빈 칸도 옅게 그려야 '10분이 한 칸'이라는 게 눈에 보인다
-              block
-                ? isPlan
-                  ? 'bg-primary/40'
-                  : KIND_COLORS[block.kind ?? 'manual']
-                : 'bg-muted-foreground/10',
-            )}
-          />
-        ))}
+      <div className="flex gap-px">
+        {slots.map((block, i) => {
+          const minute = rowStart + i * PLANNER_BLOCK_MINUTES;
+          if (!onPressSlot) return <div key={i} aria-hidden className={slotClassName(block)} />;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onPressSlot(minute, block)}
+              aria-label={
+                block
+                  ? `${formatTime(minute)} ${block.title} 수정`
+                  : `${formatTime(minute)} 기록 추가`
+              }
+              className={slotClassName(block)}
+            />
+          );
+        })}
       </div>
       <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{label}</p>
     </div>
@@ -94,6 +117,11 @@ interface PlannerTimelineProps {
   /** 표에 그릴 시간 범위(시). 설정 화면에서 바꿀 수 있다 */
   startHour: number;
   endHour: number;
+  /**
+   * '실제' 칸을 눌렀을 때. 없으면 읽기 전용이다(지난 날짜 등).
+   * 채워진 칸이면 그 기록을, 빈 칸이면 undefined 를 준다(추가 모드).
+   */
+  onPressActual?: (minute: number, block: PlannerBlock | undefined) => void;
 }
 
 /**
@@ -109,6 +137,7 @@ export default function PlannerTimeline({
   actual,
   startHour,
   endHour,
+  onPressActual,
 }: PlannerTimelineProps) {
   // 설정한 시간 범위 전체를 1시간 단위로 그린다
   const rows = Array.from({ length: endHour - startHour }, (_, i) => (startHour + i) * ROW_MINUTES);
@@ -127,8 +156,14 @@ export default function PlannerTimeline({
           <span className="w-11 shrink-0 text-[11px] font-semibold text-muted-foreground">
             {formatTime(minute)}
           </span>
-          <RowCell slots={getRowSlots(planned, minute)} isPlan />
-          <RowCell slots={getRowSlots(actual, minute)} isPlan={false} />
+          {/* 계획은 AI 가 세우므로 누를 수 없다. 실제 기록만 편집한다 */}
+          <RowCell slots={getRowSlots(planned, minute)} isPlan rowStart={minute} />
+          <RowCell
+            slots={getRowSlots(actual, minute)}
+            isPlan={false}
+            rowStart={minute}
+            onPressSlot={onPressActual}
+          />
         </div>
       ))}
     </div>

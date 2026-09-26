@@ -5,7 +5,16 @@
 
 from datetime import date
 
+from pydantic import Field
+
 from app.schemas.common import CamelModel
+
+#: 목표 하나의 하루치 항목 수 상한. 카드가 길어지면 넘겨보기 어렵다
+TODO_ITEM_MAX = 10
+
+#: 항목 내용·태그 글자수 상한 (프론트 types/record.ts 와 같은 값)
+TODO_CONTENT_MAX = 50
+TODO_TAG_MAX = 10
 
 
 class TodoItemOut(CamelModel):
@@ -13,6 +22,19 @@ class TodoItemOut(CamelModel):
     content: str
     is_done: bool
     tag: str | None = None
+    # 누가 만든 항목인지. 화면이 'AI가 넣은 것' 을 표시하는 데 쓴다.
+    source: str | None = None
+
+
+class TodoItemIn(CamelModel):
+    """항목 추가·수정 입력."""
+
+    content: str = Field(min_length=1, max_length=TODO_CONTENT_MAX)
+    tag: str | None = Field(default=None, max_length=TODO_TAG_MAX)
+
+
+class TodoItemDoneIn(CamelModel):
+    is_done: bool
 
 
 class DailyTodoOut(CamelModel):
@@ -23,6 +45,8 @@ class DailyTodoOut(CamelModel):
     goal_title: str
     date: date
     items: list[TodoItemOut]
+    # 완주한 목표의 투두는 화면에서 손대지 않는다(진도·알림이 멈춘 상태다)
+    is_goal_completed: bool = False
 
 
 class TodoMark(CamelModel):

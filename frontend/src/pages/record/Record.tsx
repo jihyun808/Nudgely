@@ -37,6 +37,8 @@ export default function Record() {
   const dateKey = useMemo(() => formatDateKey(selectedDate), [selectedDate]);
   /** 캘린더에 꽃 모양으로 표시할 완료 기록 */
   const [marks, setMarks] = useState<TodoMark[]>([]);
+  /** 항목을 체크·삭제해 완료 개수가 바뀌면 올려 꽃 표시를 다시 받는다 */
+  const [marksKey, setMarksKey] = useState(0);
   const [visibleMonth, setVisibleMonth] = useState(() => dateKey.slice(0, 7));
 
   // 보이는 달이 바뀌면 그 달의 완료 표시를 다시 불러온다
@@ -52,7 +54,7 @@ export default function Record() {
     return () => {
       isStale = true;
     };
-  }, [visibleMonth]);
+  }, [visibleMonth, marksKey]);
   // 선택한 날짜가 바뀌면 그 날짜에 할당된 투두를 다시 불러온다
   useEffect(() => {
     let isStale = false;
@@ -129,7 +131,15 @@ export default function Record() {
                 </div>
               ) : (
                 // key: 날짜가 바뀌면 캐러셀을 첫 장으로 되돌린다
-                <TodoCarousel key={dateKey} todos={todos} />
+                <TodoCarousel
+                  key={dateKey}
+                  todos={todos}
+                  setTodos={setTodos}
+                  // 지난 날짜는 읽기 전용이다 — 나중에 고치면 꽃 표시와 진도가
+                  // 뒤늦게 흔들린다
+                  isToday={dateKey === formatDateKey(new Date())}
+                  onCompletionChanged={() => setMarksKey((key) => key + 1)}
+                />
               )}
             </div>
           </>

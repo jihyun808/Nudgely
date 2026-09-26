@@ -24,6 +24,15 @@ export interface PlannerBlock {
   goalName?: string;
 }
 
+/** 실제 기록을 추가·수정할 때 보내는 값 */
+export interface PlannerBlockInput {
+  title: string;
+  /** 자정 기준 시작 시각(분) */
+  startMinutes: number;
+  /** 지속 시간(분) */
+  durationMinutes: number;
+}
+
 /** 하루치 텐미닛 플래너 */
 export interface DailyPlanner {
   /** 날짜 (YYYY-MM-DD) */

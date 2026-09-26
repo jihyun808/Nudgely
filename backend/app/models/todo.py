@@ -57,6 +57,9 @@ class TodoItem(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     is_done: Mapped[bool] = mapped_column(Boolean, default=False)
     tag: Mapped[str | None] = mapped_column(String, nullable=True)
+    # 누가 만든 항목인지: ai | user. 화면이 'AI가 넣은 것' 을 표시하는 데 쓴다.
+    # 과거 데이터는 NULL 이고, 그건 AI 가 만든 것으로 본다(예전엔 AI 만 만들었다).
+    source: Mapped[str | None] = mapped_column(String, nullable=True)
     # 진도 기여값. '강'에 해당하는 항목만 값을 갖고, 복습·정리 등은 0.
     progress_delta: Mapped[int] = mapped_column(Integer, default=0)
     done_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)

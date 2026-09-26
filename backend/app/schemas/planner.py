@@ -5,7 +5,12 @@
 
 from datetime import date
 
+from pydantic import Field
+
 from app.schemas.common import CamelModel
+
+#: 자정 기준 분. 24:00 == 1440
+DAY_MINUTES = 24 * 60
 
 
 class PlannerBlockOut(CamelModel):
@@ -18,6 +23,14 @@ class PlannerBlockOut(CamelModel):
     # 어느 목표의 블록인지. 목표 없이 그냥 집중한 기록이면 둘 다 없다.
     goal_id: str | None = None
     goal_name: str | None = None
+
+
+class PlannerBlockIn(CamelModel):
+    """실제 기록 추가·수정 입력. 계획(kind=None)은 AI 가 세우므로 여기로 들어오지 않는다."""
+
+    title: str = Field(min_length=1, max_length=50)
+    start_minutes: int = Field(ge=0, le=DAY_MINUTES - 1)
+    duration_minutes: int = Field(ge=1, le=DAY_MINUTES)
 
 
 class DailyPlannerOut(CamelModel):

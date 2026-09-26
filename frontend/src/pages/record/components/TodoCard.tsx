@@ -1,17 +1,33 @@
 // pages/record/components/TodoCard.tsx
-import { cn } from '@/lib/utils';
-import type { DailyTodo } from '@/types/record';
+import TodoItemRow from '@/pages/record/components/TodoItemRow';
+import { TODO_ITEM_MAX, type DailyTodo, type TodoItem } from '@/types/record';
 
 interface TodoCardProps {
   todo: DailyTodo;
+  /**
+   * 손댈 수 있는 카드인지. 지난 날짜나 완주한 목표는 읽기 전용이다.
+   * 지난 기록을 나중에 고치면 캘린더 꽃 표시와 진도가 뒤늦게 흔들린다.
+   */
+  isEditable: boolean;
+  onToggleItem: (item: TodoItem) => void;
+  /** 항목 글씨를 눌렀을 때 (수정) */
+  onPressItem: (item: TodoItem) => void;
+  /** '할 일 추가' 를 눌렀을 때 */
+  onAddItem: () => void;
 }
 
 /**
  * 목표 하나의 하루치 투두 카드.
- * 제목은 목표 이름(Goal.title)이고, 항목은 그날 AI가 만든 할 일이다.
- * 체크 상태는 AI와의 대화로 갱신되므로 화면에서는 읽기 전용이다.
+ * 제목은 목표 이름(Goal.title)이고, 항목은 AI 가 만든 것과 내가 넣은 것이 섞인다.
+ * 둘 다 체크·수정·삭제할 수 있다(AI 가 잘못 넣은 것을 바로잡는 길).
  */
-export default function TodoCard({ todo }: TodoCardProps) {
+export default function TodoCard({
+  todo,
+  isEditable,
+  onToggleItem,
+  onPressItem,
+  onAddItem,
+}: TodoCardProps) {
   const { goalTitle, items } = todo;
   const doneCount = items.filter(({ isDone }) => isDone).length;
 
@@ -25,51 +41,14 @@ export default function TodoCard({ todo }: TodoCardProps) {
       </div>
 
       <ul className="mt-3 space-y-1">
-        {items.map(({ id, content, isDone, tag }) => (
-          <li
-            key={id}
-            className="flex items-center gap-2.5 border-b border-border py-2.5 last:border-b-0"
-          >
-            {/* AI가 상태를 바꾸므로 버튼이 아닌 표시 전용 체크박스 */}
-            <span
-              role="checkbox"
-              aria-checked={isDone}
-              aria-label={content}
-              className={cn(
-                'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border',
-                isDone ? 'border-primary bg-primary' : 'border-border bg-background',
-              )}
-            >
-              {isDone && (
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={3}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-3 w-3 text-primary-foreground"
-                >
-                  <path d="m5 13 4 4L19 7" />
-                </svg>
-              )}
-            </span>
-
-            <span
-              className={cn(
-                'min-w-0 flex-1 text-sm',
-                isDone ? 'text-muted-foreground line-through' : 'text-foreground',
-              )}
-            >
-              {content}
-            </span>
-
-            {tag && (
-              <span className="shrink-0 rounded-md bg-primary/10 px-2 py-0.5 text-xs text-primary">
-                {tag}
-              </span>
-            )}
-          </li>
+        {items.map((item) => (
+          <TodoItemRow
+            key={item.id}
+            item={item}
+            isEditable={isEditable}
+            onToggle={() => onToggleItem(item)}
+            onPressContent={() => onPressItem(item)}
+          />
         ))}
 
         {items.length === 0 && (
@@ -78,6 +57,18 @@ export default function TodoCard({ todo }: TodoCardProps) {
           </li>
         )}
       </ul>
+
+      {isEditable && (
+        <button
+          type="button"
+          onClick={onAddItem}
+          // 카드가 길어지면 넘겨보기 어렵다. 서버도 같은 값으로 막는다
+          disabled={items.length >= TODO_ITEM_MAX}
+          className="mt-3 w-full rounded-xl border border-dashed border-border py-2 text-xs text-muted-foreground transition-colors active:bg-muted-foreground/10 disabled:opacity-50"
+        >
+          {items.length >= TODO_ITEM_MAX ? `하루 ${TODO_ITEM_MAX}개까지예요` : '+ 할 일 추가'}
+        </button>
+      )}
     </div>
   );
 }

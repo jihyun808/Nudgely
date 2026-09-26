@@ -1,14 +1,20 @@
 // pages/record/components/TenMinutePlanner.tsx
 import { useEffect, useMemo, useState } from 'react';
-import { fetchDailyPlanner } from '@/api/record';
+import {
+  addPlannerActual,
+  deletePlannerActual,
+  fetchDailyPlanner,
+  updatePlannerActual,
+} from '@/api/record';
 import { fetchSettings } from '@/api/settings';
 import Skeleton from '@/components/Skeleton';
 import StepperButton from '@/components/StepperButton';
 import { Button } from '@/components/ui/button';
+import PlannerBlockDialog from '@/pages/record/components/PlannerBlockDialog';
 import PlannerSummary from '@/pages/record/components/PlannerSummary';
 import PlannerTimeline from '@/pages/record/components/PlannerTimeline';
 import { summarizePlanner } from '@/pages/record/plannerSummary';
-import type { DailyPlanner } from '@/types/planner';
+import type { DailyPlanner, PlannerBlock } from '@/types/planner';
 import type { PlannerSettings } from '@/types/settings';
 import { formatDateKey } from '@/utils/date';
 
@@ -22,7 +28,8 @@ function formatPlannerDate(date: Date) {
 /**
  * 텐미닛 플래너.
  * 날짜를 좌우로 넘겨 지난 기록도 볼 수 있고, 표와 요약은 그 날짜 데이터로 다시 그려진다.
- * 계획은 AI가 정해 고정이며, 실제 기록은 추후 수정 가능하게 열어둘 예정이다.
+ * 계획은 AI가 정해 고정이고, 실제 기록은 칸을 눌러 추가·수정·삭제할 수 있다
+ * (집중 타이머가 자동으로 남긴 것도 고칠 수 있다 — 켜 두고 딴짓한 날을 바로잡는 길).
  */
 export default function TenMinutePlanner() {
   const [date, setDate] = useState(() => new Date());
@@ -31,6 +38,8 @@ export default function TenMinutePlanner() {
   const [planner, setPlanner] = useState<DailyPlanner>();
   /** 표에 그릴 시간 범위. 설정 화면에서 정한다 */
   const [plannerRange, setPlannerRange] = useState<PlannerSettings>({ startHour: 6, endHour: 24 });
+  /** 열려 있는 편집 팝업. block 이 없으면 추가 모드 */
+  const [target, setTarget] = useState<{ minute: number; block?: PlannerBlock }>();
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -70,6 +79,13 @@ export default function TenMinutePlanner() {
   };
 
   const summary = planner ? summarizePlanner(planner) : undefined;
+
+  /**
+   * 아직 오지 않은 시간은 기록할 수 없다 — '실제' 는 이미 한 일이다.
+   * 오늘이면 지금까지, 지난 날짜면 그 날 끝까지 고를 수 있다.
+   */
+  const now = new Date();
+  const maxMinutes = isToday ? now.getHours() * 60 + now.getMinutes() : plannerRange.endHour * 60;
 
   return (
     <div>
@@ -116,6 +132,7 @@ export default function TenMinutePlanner() {
                 actual={planner.actual}
                 startHour={plannerRange.startHour}
                 endHour={plannerRange.endHour}
+                onPressActual={(minute, block) => setTarget({ minute, block })}
               />
             </div>
             <div className="mt-5">
@@ -124,6 +141,33 @@ export default function TenMinutePlanner() {
           </>
         )}
       </div>
+
+      {target && (
+        <PlannerBlockDialog
+          block={target.block}
+          defaultStartMinutes={target.minute}
+          startHour={plannerRange.startHour}
+          endHour={plannerRange.endHour}
+          maxMinutes={maxMinutes}
+          onSubmit={async (input) => {
+            setPlanner(
+              target.block
+                ? await updatePlannerActual(dateKey, target.block.id, input)
+                : await addPlannerActual(dateKey, input),
+            );
+            setTarget(undefined);
+          }}
+          onDelete={
+            target.block
+              ? async () => {
+                  setPlanner(await deletePlannerActual(dateKey, target.block!.id));
+                  setTarget(undefined);
+                }
+              : undefined
+          }
+          onClose={() => setTarget(undefined)}
+        />
+      )}
     </div>
   );
 }

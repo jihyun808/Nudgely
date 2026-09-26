@@ -10,9 +10,10 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import AppError
 from app.models.goal import Goal
 from app.models.todo import Todo, TodoItem
-from app.schemas.record import DailyTodoOut, TodoItemOut, TodoMark
+from app.schemas.record import TODO_ITEM_MAX, DailyTodoOut, TodoItemOut, TodoMark
 from app.services.goal_service import apply_progress_delta
 from app.services.progress_service import sync_milestones
 
@@ -40,8 +41,16 @@ async def daily_todos(db: AsyncSession, user_id: str, on: date) -> list[DailyTod
                 goal_id=t.goal_id,
                 goal_title=_title_of(goal),
                 date=t.date,
+                is_goal_completed=goal is not None and goal.completed_at is not None,
                 items=[
-                    TodoItemOut(id=i.id, content=i.content, is_done=i.is_done, tag=i.tag)
+                    TodoItemOut(
+                        id=i.id,
+                        content=i.content,
+                        is_done=i.is_done,
+                        tag=i.tag,
+                        # 과거 데이터(NULL)는 AI 가 만든 것으로 본다
+                        source=i.source or "ai",
+                    )
                     for i in t.items
                 ],
             )
@@ -120,6 +129,7 @@ async def add_todo_items(
             content=content,
             tag=it.get("tag"),
             progress_delta=int(it.get("progress_delta", 0)),
+            source="ai",
         )
         todo.items.append(item)
         created.append(item)
@@ -143,3 +153,61 @@ async def set_item_done(db: AsyncSession, item: TodoItem, done: bool) -> None:
     # 진도가 움직였으면 로드맵 단계도 따라간다(체크 해제면 되돌아간다)
     if item.progress_delta:
         await sync_milestones(db, goal)
+
+
+# ── 사용자가 직접 고치는 경로 (api.md §4) ──────────────────
+
+
+async def owned_todo(db: AsyncSession, user_id: str, todo_id: str) -> Todo:
+    """내 투두 묶음 하나. 남의 것이면 404."""
+    todo = await db.get(Todo, todo_id)
+    if todo is None:
+        raise AppError("TODO_NOT_FOUND", "투두를 찾을 수 없습니다.", status_code=404)
+    goal = await db.get(Goal, todo.goal_id)
+    if goal is None or goal.user_id != user_id:
+        raise AppError("TODO_NOT_FOUND", "투두를 찾을 수 없습니다.", status_code=404)
+    return todo
+
+
+def _item_of(todo: Todo, item_id: str) -> TodoItem:
+    for item in todo.items:
+        if item.id == item_id:
+            return item
+    raise AppError("TODO_ITEM_NOT_FOUND", "할 일을 찾을 수 없습니다.", status_code=404)
+
+
+async def add_user_item(db: AsyncSession, todo: Todo, content: str, tag: str | None) -> TodoItem:
+    """사용자가 직접 넣은 항목.
+
+    progress_delta 는 0 이다 — 진도로 셀지는 AI 가 판단할 일이고,
+    사용자가 넣은 할 일이 진도를 멋대로 올리면 숫자가 어긋난다.
+    """
+    if len(todo.items) >= TODO_ITEM_MAX:
+        raise AppError(
+            "TODO_ITEM_LIMIT",
+            f"할 일은 하루 {TODO_ITEM_MAX}개까지 추가할 수 있습니다.",
+            status_code=422,
+        )
+    item = TodoItem(content=content.strip(), tag=tag, progress_delta=0, source="user")
+    todo.items.append(item)
+    await db.flush()
+    return item
+
+
+async def update_item(db: AsyncSession, todo: Todo, item_id: str, content: str, tag: str | None):
+    item = _item_of(todo, item_id)
+    item.content = content.strip()
+    item.tag = tag
+    await db.flush()
+    return item
+
+
+async def delete_item(db: AsyncSession, todo: Todo, item_id: str) -> None:
+    """항목 삭제. 완료된 항목이면 올려 둔 진도를 먼저 되돌린다."""
+    item = _item_of(todo, item_id)
+    if item.is_done and item.progress_delta:
+        goal = await db.get(Goal, todo.goal_id)
+        apply_progress_delta(goal, -item.progress_delta)
+        await sync_milestones(db, goal)
+    todo.items.remove(item)
+    await db.flush()
