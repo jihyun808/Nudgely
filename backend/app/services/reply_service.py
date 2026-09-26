@@ -45,6 +45,31 @@ MAX_QUICK_REPLIES = 4
 #: 버튼에 들어갈 글자 수 상한. 길면 칩이 줄바꿈되며 읽기 어려워진다.
 MAX_QUICK_REPLY_LENGTH = 20
 
+#: 메신저 말풍선에 그대로 보이면 안 되는 마크다운 표기들.
+#: 프롬프트로 금지해 두었지만 모델이 자주 새서, 화면에 나가기 전에 떼어낸다.
+#: (요청만으로 막는 데는 한계가 있고, 별표가 보이는 건 바로 눈에 띈다)
+_MARKDOWN_SUBS = (
+    # **굵게** / __굵게__ → 안쪽 글자만
+    (re.compile(r"\*\*(.+?)\*\*", re.DOTALL), r"\1"),
+    (re.compile(r"__(.+?)__", re.DOTALL), r"\1"),
+    # 줄 앞 제목 기호(#, ##, …)
+    (re.compile(r"^#{1,6}[ \t]+", re.MULTILINE), ""),
+    # 줄 앞 목록 기호(-, *, +). 들여쓰기도 함께 없앤다
+    (re.compile(r"^[ \t]*[-*+][ \t]+", re.MULTILINE), ""),
+)
+
+
+def strip_markdown(text: str) -> str:
+    """말풍선에 보이면 안 되는 마크다운 표기를 떼어낸다.
+
+    *한 개* 기울임이나 코드블록(```)은 건드리지 않는다 — 곱셈이나 실제 코드일 수
+    있어서 잘못 떼면 뜻이 바뀐다. 눈에 제일 거슬리는 것만 보수적으로 지운다.
+    """
+    for pattern, replacement in _MARKDOWN_SUBS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
 #: 프롬프트가 약속한 선택지 표기. 마지막 줄에 "[선택: 추가해줘 / 아니]" 로 적는다.
 _CHOICE_RE = re.compile(r"\n?\s*\[선택:\s*(?P<options>[^\]]+)\]\s*$")
 
@@ -142,7 +167,7 @@ async def _run(
 
         # 선택지 표기를 먼저 떼어낸 뒤 말풍선을 나눈다
         # (표기가 별도 말풍선으로 떨어지면 빈 말풍선이 생긴다)
-        body, quick_replies = extract_quick_replies(full)
+        body, quick_replies = extract_quick_replies(strip_markdown(full))
 
         # 빈 응답은 저장하지 않는다. 말풍선만 덩그러니 남는다
         if not body.strip():

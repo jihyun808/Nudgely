@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.ai.streaming import get_reply_streamer
 from app.main import app
 from app.models.goal import Message
-from app.services.reply_service import MAX_BUBBLES, split_bubbles
-from tests.helpers import auth, token_for
+from app.services.reply_service import MAX_BUBBLES, split_bubbles, strip_markdown
+from tests.helpers import auth, create_goal, token_for
 
 # ── 자르기 규칙 ──
 
@@ -119,5 +119,66 @@ async def test_done_carries_every_bubble(client: AsyncClient):
         ]
         # id 는 서로 달라야 한다(화면 key 로 쓴다)
         assert len({m["messageId"] for m in done["messages"]}) == 3
+    finally:
+        app.dependency_overrides.pop(get_reply_streamer, None)
+
+
+# ── 마크다운 제거 ──
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("내일 할 **1-2 소주제** 계획", "내일 할 1-2 소주제 계획"),
+        ("__굵게__ 쓴 말", "굵게 쓴 말"),
+        ("## 계획\n- 수업\n- 정리", "계획\n수업\n정리"),
+        ("  - 들여쓴 목록", "들여쓴 목록"),
+        ("### 제목만", "제목만"),
+    ],
+)
+def test_markdown_is_stripped(text: str, expected: str):
+    """프롬프트로 금지했지만 모델이 자주 샌다. 화면에 별표가 보이면 바로 눈에 띈다."""
+    assert strip_markdown(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # 곱셈·뺄셈을 목록 기호로 오해하면 뜻이 바뀐다
+        "3 * 4 = 12 이고 2 - 1 = 1",
+        # 한 개 별표는 곱셈일 수 있어 건드리지 않는다
+        "2*3 은 6",
+        # 코드블록은 실제 코드일 수 있다
+        "코드는 ```print(1)``` 이야",
+        "평범한 문장",
+    ],
+)
+def test_safe_text_is_left_alone(text: str):
+    """보수적으로만 지운다. 잘못 떼면 뜻이 바뀐다."""
+    assert strip_markdown(text) == text
+
+
+class _MarkdownStreamer:
+    async def stream(self, **_) -> AsyncIterator[str]:
+        yield "좋습니다. 내일 할 **1-2 소주제** 계획입니다.\n\n- 수업 듣기\n- 정리하기"
+
+
+async def test_saved_message_has_no_markdown(client: AsyncClient):
+    """저장되는 내용 자체에 표기가 남지 않아야 한다(다음 턴 히스토리에도 들어간다)."""
+    app.dependency_overrides[get_reply_streamer] = lambda: _MarkdownStreamer()
+    try:
+        token = await token_for(client, "md@b.com")
+        goal_id = await create_goal(client, token)
+
+        await client.post(
+            f"/api/goals/{goal_id}/messages", headers=auth(token), json={"content": "안녕"}
+        )
+
+        page = (await client.get(f"/api/goals/{goal_id}/messages", headers=auth(token))).json()
+        contents = [m["content"] for m in page["messages"] if m["role"] == "assistant"]
+
+        assert contents, "답변이 저장되지 않았다"
+        assert not any("**" in c or c.startswith("- ") for c in contents)
+        assert any("1-2 소주제" in c for c in contents)
     finally:
         app.dependency_overrides.pop(get_reply_streamer, None)
