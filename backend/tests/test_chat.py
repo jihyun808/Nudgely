@@ -390,3 +390,15 @@ def test_examples_are_per_persona(monkeypatch):
 
     examples = [m["content"] for m in msgs if m.get("name")]
     assert examples == ["선생님만 하는 말", "선생님만 하는 답"]
+
+
+def test_policy_requires_reporting_tool_use():
+    """도구로 바꾼 걸 말하지 않으면 사용자는 화면이 왜 바뀌었는지 모른다."""
+    policy = [
+        m["content"]
+        for m in build_chat_messages(persona=None, user_prompt=None, goal_title="T", history=[])
+        if isinstance(m["content"], str) and "list_todos" in m["content"]
+    ][0]
+
+    assert "반드시 말로 알린다" in policy
+    assert "성공한 척하지 않는다" in policy
