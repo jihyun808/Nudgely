@@ -4,3 +4,7 @@ build
 coverage
 *.min.js
 package-lock.json
+
+# Capacitor 가 생성·관리하는 네이티브 프로젝트 (웹 빌드 사본이 들어 있다)
+ios
+android
