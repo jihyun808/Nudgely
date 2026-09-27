@@ -1,0 +1,8 @@
+node_modules
+
+# macOS
+.DS_Store
+
+# FCM 서비스 계정 키. 이 파일 하나면 누구에게든 푸시를 보낼 수 있다
+*-firebase-adminsdk-*.json
+fcm-service-account*.json

@@ -1,0 +1,56 @@
+// types/archive.ts
+
+/** 모아보기에 쌓이는 첨부 종류. 동영상은 받지 않는다(용량이 커서 제외) */
+export type AttachmentKind = 'file' | 'image';
+
+/** 채팅에서 주고받은 첨부 하나 */
+export interface Attachment {
+  id: string;
+  kind: AttachmentKind;
+  name: string;
+  /** 파일 크기(byte) */
+  sizeBytes: number;
+  /** 올린 시각 (ISO 8601). 연-월로 묶는 기준 */
+  uploadedAt: string;
+  /** 원본 URL. 뷰어와 다운로드가 쓴다 */
+  url?: string;
+  /** 목록에 작게 그릴 때 쓰는 썸네일. 사진에만 있고, 없으면 url로 대체한다 */
+  thumbnailUrl?: string;
+}
+
+/** 진도 로드맵의 한 지점 */
+export interface ProgressMilestone {
+  id: string;
+  /** 예: '7월까지 20강 완료' */
+  title: string;
+  /** 완료 / 진행 중 / 예정 */
+  status: 'done' | 'current' | 'upcoming';
+}
+
+/** 분량 진도 ({current, total, unit}) */
+export interface GoalProgressCount {
+  current: number;
+  total: number;
+  unit: string;
+}
+
+/** 목표 하나의 진도 로드맵 */
+export interface GoalProgress {
+  goalId: string;
+  /** 목표 이름 (Goal.title) */
+  goalTitle: string;
+  /** 목표를 시작한 날 (ISO 8601) */
+  startedAt: string;
+  /** 목표를 끝낸 날. 아직 진행 중이면 없다 */
+  completedAt?: string;
+  /** 분량 진도. 홈 목표 카드와 같은 값이다. AI가 아직 안 세웠으면 없다 */
+  progress?: GoalProgressCount;
+  milestones: ProgressMilestone[];
+
+  /** 이 목표에 쓴 집중 시간(초). 집중 세션에 목표 id가 붙어야 계산할 수 있다 */
+  focusedSeconds?: number;
+  /** 이 목표에서 완료한 투두 개수 */
+  completedTodoCount?: number;
+  /** 가장 많이 집중한 달 (YYYY-MM) */
+  bestMonth?: string;
+}

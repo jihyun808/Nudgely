@@ -1,0 +1,124 @@
+// pages/chat/ChatDetail.tsx
+import { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import CelebrationOverlay from '@/components/CelebrationOverlay';
+import ImageViewer from '@/components/ImageViewer';
+import { Button } from '@/components/ui/button';
+import DetailHeader from '@/components/DetailHeader';
+import ChatInputBar from '@/pages/chat/components/ChatInputBar';
+import ChatMessageList from '@/pages/chat/components/ChatMessageList';
+import QuickReplyBar from '@/pages/chat/components/QuickReplyBar';
+import { useChatRoom } from '@/pages/chat/useChatRoom';
+
+/**
+ * 채팅방 상세.
+ * 헤더(뒤로가기/이름/모아보기) + 말풍선 목록 + 하단 입력 바.
+ * 데이터와 전송 동작은 useChatRoom이 담당한다.
+ */
+export default function ChatDetail() {
+  const { goalId = '' } = useParams();
+  const navigate = useNavigate();
+  const chat = useChatRoom(goalId);
+
+  /** 크게 보고 있는 사진 */
+  const [viewerImage, setViewerImage] = useState<{ src: string; name: string }>();
+
+  if (chat.isLoading) {
+    return (
+      <div className="flex h-dvh items-center justify-center text-sm text-muted-foreground">
+        불러오는 중...
+      </div>
+    );
+  }
+
+  if (chat.hasError || !chat.goal) {
+    return (
+      <div className="flex h-dvh flex-col items-center justify-center gap-3">
+        <p className="text-sm text-muted-foreground">채팅방을 불러오지 못했어요</p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate('/chat')}>
+            목록으로
+          </Button>
+          <Button size="sm" onClick={chat.reload}>
+            다시 시도
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    // pt: 헤더가 노치·상태바에 가리지 않도록 안전 영역만큼 내린다
+    <div className="mx-auto flex h-dvh max-w-md flex-col bg-background pt-[env(safe-area-inset-top)]">
+      <DetailHeader
+        title={chat.goal.name}
+        subtitle={chat.goal.title}
+        onBack={() => navigate('/chat')}
+        className="px-3"
+        action={
+          <button
+            type="button"
+            onClick={() => navigate(`/chat/${goalId}/archive`)}
+            aria-label="모아보기"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors active:bg-primary/20"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+              <rect x="4" y="4" width="7" height="7" rx="1.5" />
+              <rect x="13" y="4" width="7" height="7" rx="1.5" />
+              <rect x="4" y="13" width="7" height="7" rx="1.5" />
+              <rect x="13" y="13" width="7" height="7" rx="1.5" />
+            </svg>
+          </button>
+        }
+      />
+
+      <ChatMessageList
+        messages={chat.messages}
+        goal={chat.goal}
+        isReplying={chat.isReplying}
+        isLoadingOlder={chat.isLoadingOlder}
+        listRef={chat.listRef}
+        bottomRef={chat.bottomRef}
+        onScroll={chat.onListScroll}
+        onRetry={chat.onRetry}
+        onOpenImage={(src, name) => setViewerImage({ src, name })}
+      />
+
+      {viewerImage && (
+        <ImageViewer
+          src={viewerImage.src}
+          alt={viewerImage.name}
+          fileName={viewerImage.name}
+          onClose={() => setViewerImage(undefined)}
+        />
+      )}
+
+      {/* AI 가 보기를 물었을 때만. 누르면 그 글자를 그대로 보낸다 */}
+      <QuickReplyBar
+        replies={chat.quickReplies}
+        onPick={chat.onSend}
+        disabled={chat.isSending || chat.isReplying}
+      />
+
+      {/* key: 방을 옮기면 입력 바를 새로 만들어 그 방의 쓰다 만 글을 꺼내 오게 한다 */}
+      <ChatInputBar
+        key={goalId}
+        goalId={goalId}
+        onSend={chat.onSend}
+        onAttach={chat.onAttach}
+        disabled={chat.isSending || chat.isReplying}
+      />
+
+      {/* AI 가 방금 완주 처리했을 때. 모아보기까지 들어가지 않아도 바로 축하한다 */}
+      {chat.hasJustCompleted && (
+        <CelebrationOverlay
+          onClose={chat.dismissCompletion}
+          emoji="🏆"
+          isLooping={false}
+          title="목표 완주!"
+          description={`'${chat.goal.title ?? chat.goal.name}' 를 끝까지 해냈어요. 정말 고생했어요!`}
+        />
+      )}
+    </div>
+  );
+}

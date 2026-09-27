@@ -1,0 +1,13 @@
+# 이미지에 들어가면 안 되는 것들. 비밀·로컬 상태·빌드 부산물.
+.env
+.env.*
+!.env.example
+*.db
+.venv
+media/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.git/
+tests/

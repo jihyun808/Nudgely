@@ -1,0 +1,67 @@
+"""테스트 공통 픽스처.
+
+각 테스트는 격리된 인메모리 SQLite 를 쓴다.
+- engine: StaticPool 단일 연결이라 :memory: DB 가 테스트 동안 유지된다.
+- client: 앱의 get_db 를 테스트 세션으로 교체한 httpx 클라이언트.
+- session: 같은 DB 를 직접 조작할 때(메시지 사전 삽입 등) 쓰는 세션.
+"""
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
+
+import app.models  # noqa: F401  (모델을 메타데이터에 등록)
+from app.core.config import settings
+from app.core.db import Base, enable_sqlite_foreign_keys, get_db, get_session_factory
+from app.main import app
+
+
+@pytest.fixture(autouse=True)
+def _tmp_media(tmp_path, monkeypatch):
+    """업로드가 실제 ./media 를 더럽히지 않도록 테스트마다 임시 디렉토리로."""
+    monkeypatch.setattr(settings, "storage_dir", str(tmp_path / "media"))
+    monkeypatch.setattr(settings, "public_base_url", "http://test")
+
+
+@pytest_asyncio.fixture
+async def engine():
+    eng = create_async_engine(
+        "sqlite+aiosqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    # 앱 엔진과 같은 조건으로 둔다. 안 켜면 ON DELETE 동작이 테스트에서만 조용히 빠진다
+    enable_sqlite_foreign_keys(eng)
+    async with eng.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield eng
+    await eng.dispose()
+
+
+@pytest_asyncio.fixture
+async def session_factory(engine):
+    return async_sessionmaker(engine, expire_on_commit=False)
+
+
+@pytest_asyncio.fixture
+async def client(session_factory) -> AsyncClient:
+    async def _override_get_db():
+        async with session_factory() as session:
+            yield session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    # 백그라운드 응답 생성도 같은 인메모리 DB 를 보게 한다
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def session(session_factory):
+    """DB 를 직접 조작할 때 쓰는 세션(픽스처 종료 시 닫힌다)."""
+    async with session_factory() as s:
+        yield s

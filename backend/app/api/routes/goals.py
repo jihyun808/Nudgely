@@ -1,0 +1,604 @@
+"""목표(=채팅방) · 메시지 엔드포인트 (api.md §3).
+
+    GET    /api/goals                    목록 (hidden/completed 필터)
+    POST   /api/goals                    개설 (multipart)
+    GET    /api/goals/{id}               단건 → GoalDetail
+    PATCH  /api/goals/{id}               수정 → GoalDetail
+    POST   /api/goals/{id}/complete      완료 처리 (204)
+    DELETE /api/goals/{id}               삭제 (204)
+    DELETE /api/goals/{id}/messages      대화만 삭제 (204)
+    GET    /api/goals/{id}/messages      메시지 조회 (커서 페이지네이션)
+    POST   /api/goals/{id}/messages      메시지 전송 → AI 응답 SSE 스트리밍
+    POST   /api/goals/{id}/read          읽음 처리 (204)
+
+PATCH 는 JSON·multipart 둘 다 받는다(사진 교체는 multipart image).
+"""
+
+import json
+from datetime import UTC, date, datetime
+
+from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile, status
+from fastapi.responses import StreamingResponse
+from sqlalchemy import delete, select, tuple_
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from app.ai.attachments import AttachmentContent, load_attachment
+from app.ai.prompts import GoalState, today_for
+from app.ai.streaming import ReplyStreamer, get_reply_streamer
+from app.api.deps import get_current_user
+from app.core.db import get_db, get_session_factory
+from app.core.errors import AppError
+from app.core.storage import (
+    CHAT_ALLOWED,
+    chat_max_bytes,
+    image_max_bytes,
+    save_upload,
+    storage_root,
+)
+from app.models.attachment import Attachment
+from app.models.goal import Goal, Message, ReadState
+from app.models.planner import Planner, PlannerBlock
+from app.models.todo import Todo
+from app.models.user import User, UserSettings
+from app.schemas.archive import AttachmentOut, GoalProgressOut
+from app.schemas.goal import (
+    MESSAGE_CONTENT_MAX,
+    NAME_MAX,
+    PERSONAS,
+    PROMPT_MAX,
+    TITLE_MAX,
+    GoalDetailOut,
+    GoalOut,
+    MessageFile,
+    MessageOut,
+    MessagePage,
+    UpdateGoalIn,
+)
+from app.services.attachment_service import create_attachment, list_attachments
+from app.services.goal_service import (
+    build_goal_detail,
+    build_goal_out,
+    get_owned_goal,
+    routine_applies_today,
+    routines_of,
+    set_progress,
+)
+from app.services.progress_service import build_goal_progress, sync_milestones
+from app.services.reply_service import start_reply
+
+router = APIRouter()
+
+# 메시지 페이지 크기 상한(프론트 권장 30, 서버가 상한을 둔다: api.md §3.3)
+MESSAGE_LIMIT_MAX = 50
+MESSAGE_LIMIT_DEFAULT = 30
+# AI 에 넘길 대화 히스토리 최대 길이(최근 N개)
+HISTORY_LIMIT = 40
+
+
+def _sse(event: str, data: dict) -> str:
+    """SSE 한 이벤트를 직렬화 (api.md §3.4 포맷)."""
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _validate_persona(persona: str | None) -> None:
+    if persona is not None and persona not in PERSONAS:
+        raise AppError("INVALID_PERSONA", "지원하지 않는 페르소나입니다.", status_code=422)
+
+
+async def _files_for(db: AsyncSession, message_ids: list[str]) -> dict[str, MessageFile]:
+    """메시지 id 목록에 붙은 첨부를 {message_id: MessageFile} 로."""
+    if not message_ids:
+        return {}
+    rows = (
+        (await db.execute(select(Attachment).where(Attachment.message_id.in_(message_ids))))
+        .scalars()
+        .all()
+    )
+    return {
+        a.message_id: MessageFile(name=a.name, url=a.url) for a in rows if a.message_id is not None
+    }
+
+
+@router.get("/goals", response_model=list[GoalOut])
+async def list_goals(
+    hidden: bool = Query(default=False),
+    completed: bool = Query(default=False),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[GoalOut]:
+    stmt = select(Goal).where(Goal.user_id == user.id)
+    if completed:
+        # 완주한 목표(마이페이지). 숨긴 것도 포함한다.
+        stmt = stmt.where(Goal.completed_at.is_not(None))
+    elif hidden:
+        stmt = stmt.where(Goal.is_hidden.is_(True))
+    else:
+        # 기본 목록: 숨긴 목표는 제외
+        stmt = stmt.where(Goal.is_hidden.is_(False))
+
+    stmt = stmt.order_by(Goal.created_at.desc())
+    goals = (await db.execute(stmt)).scalars().all()
+    return [await build_goal_out(db, g, user.id) for g in goals]
+
+
+@router.post("/goals", response_model=GoalDetailOut, status_code=status.HTTP_201_CREATED)
+async def create_goal(
+    name: str = Form(..., min_length=1, max_length=NAME_MAX),
+    title: str = Form(default="", max_length=TITLE_MAX),
+    prompt: str = Form(default="", max_length=PROMPT_MAX),
+    persona: str | None = Form(default=None),
+    image: UploadFile | None = File(default=None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GoalDetailOut:
+    _validate_persona(persona)
+    image_url = None
+    if image is not None and image.filename:
+        saved = save_upload(
+            await image.read(),
+            image.filename,
+            allowed_exts={"jpg", "jpeg", "png"},
+            max_bytes=image_max_bytes(),
+        )
+        image_url = saved.url
+    goal = Goal(
+        user_id=user.id,
+        name=name.strip(),
+        title=title.strip() or None,
+        prompt=prompt.strip() or None,
+        persona=persona,
+        image_url=image_url,
+    )
+    db.add(goal)
+    await db.commit()
+    await db.refresh(goal)
+    return await build_goal_detail(db, goal, user.id)
+
+
+@router.get("/goals/{goal_id}", response_model=GoalDetailOut)
+async def get_goal(
+    goal_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GoalDetailOut:
+    goal = await get_owned_goal(db, user.id, goal_id)
+    return await build_goal_detail(db, goal, user.id)
+
+
+# 폼은 값이 전부 문자열로 오므로 불리언 필드만 되돌린다
+_BOOL_FORM_FIELDS = ("isNotificationMuted", "isHidden", "is_notification_muted", "is_hidden")
+#: 폼에서 빈 문자열로 오면 null 로 읽을 필드(폼은 null 을 실을 수 없다)
+_EMPTY_MEANS_NULL = ("dueDate", "due_date", "persona")
+
+
+async def _parse_goal_patch(
+    request: Request,
+) -> tuple[UpdateGoalIn, tuple[bytes, str | None] | None]:
+    """PATCH 본문에서 (수정 필드, (사진 바이트, 파일명)) 을 뽑는다.
+
+    - multipart/form-data: 보낸 필드 + image(선택)
+    - 그 외(JSON): 보낸 필드만
+    """
+    ctype = request.headers.get("content-type", "")
+    if not ctype.startswith(("multipart/form-data", "application/x-www-form-urlencoded")):
+        return UpdateGoalIn.model_validate(await request.json()), None
+
+    form = await request.form()
+    image = None
+    upload = form.get("image")
+    if upload is not None and hasattr(upload, "read"):
+        image = (await upload.read(), upload.filename)
+
+    fields: dict[str, object] = {}
+    for key, value in form.items():
+        if key == "image" or not isinstance(value, str):
+            continue
+        if key in _EMPTY_MEANS_NULL and value == "":
+            # 폼은 null 을 못 싣는다. 빈 문자열을 '지움' 으로 읽는다
+            # (날짜를 비우면 기한 없음, AI 성격을 비우면 선택 안 함)
+            fields[key] = None
+        elif key in _BOOL_FORM_FIELDS:
+            fields[key] = value.lower() == "true"
+        else:
+            fields[key] = value
+    return UpdateGoalIn.model_validate(fields), image
+
+
+@router.patch("/goals/{goal_id}", response_model=GoalDetailOut)
+async def update_goal(
+    goal_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GoalDetailOut:
+    """목표 수정. 사진은 multipart(image), 나머지는 form/JSON 모두 받는다."""
+    goal = await get_owned_goal(db, user.id, goal_id)
+    body, image = await _parse_goal_patch(request)
+    _validate_persona(body.persona)
+
+    if image is not None:
+        saved = save_upload(
+            image[0],
+            image[1],
+            allowed_exts={"jpg", "jpeg", "png"},
+            max_bytes=image_max_bytes(),
+        )
+        goal.image_url = saved.url
+
+    if body.name is not None:
+        goal.name = body.name.strip()
+    if body.title is not None:
+        goal.title = body.title.strip() or None
+    if body.prompt is not None:
+        goal.prompt = body.prompt.strip() or None
+    # null 을 보내면 '선택 안 함' 으로 되돌린다(기한과 같은 방식).
+    # is not None 으로 보면 지울 수가 없어 설정 화면의 '선택 안 함' 이 먹지 않는다.
+    if "persona" in body.model_fields_set:
+        goal.persona = body.persona
+    if "due_date" in body.model_fields_set:
+        goal.due_date = body.due_date
+    if "progress" in body.model_fields_set:
+        if body.progress is None:
+            goal.progress = None
+        else:
+            # set_progress 를 거쳐야 0 ≤ current ≤ total 로 잘린다(AI 경로와 같은 규칙)
+            set_progress(
+                goal,
+                current=body.progress.current,
+                total=body.progress.total,
+                unit=body.progress.unit,
+            )
+        # 진도가 바뀌었으니 로드맵 단계도 다시 맞춘다
+        await sync_milestones(db, goal)
+    if body.is_notification_muted is not None:
+        goal.is_notification_muted = body.is_notification_muted
+    if body.is_hidden is not None:
+        goal.is_hidden = body.is_hidden
+
+    await db.commit()
+    await db.refresh(goal)
+    return await build_goal_detail(db, goal, user.id)
+
+
+@router.post("/goals/{goal_id}/complete", status_code=status.HTTP_204_NO_CONTENT)
+async def complete_goal(
+    goal_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    goal = await get_owned_goal(db, user.id, goal_id)
+    if goal.completed_at is None:
+        goal.completed_at = datetime.now(UTC)
+        await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/goals/{goal_id}/messages", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_messages(
+    goal_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    goal = await get_owned_goal(db, user.id, goal_id)
+    await db.execute(delete(Message).where(Message.goal_id == goal.id))
+    # 읽음 기준도 초기화
+    read = await db.get(ReadState, (user.id, goal.id))
+    if read is not None:
+        read.last_read_message_id = None
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/goals/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_goal(
+    goal_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    goal = await get_owned_goal(db, user.id, goal_id)
+    # ⚠️ 딸린 데이터(투두·플래너) 처리 정책 미확정(api.md §8-7). 지금은 대화·읽음만 함께 지운다.
+    await db.execute(delete(Message).where(Message.goal_id == goal.id))
+    await db.execute(delete(ReadState).where(ReadState.goal_id == goal.id))
+    await db.delete(goal)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/goals/{goal_id}/progress", response_model=GoalProgressOut)
+async def get_goal_progress(
+    goal_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> GoalProgressOut:
+    goal = await get_owned_goal(db, user.id, goal_id)
+    return await build_goal_progress(db, goal)
+
+
+@router.get("/goals/{goal_id}/attachments", response_model=list[AttachmentOut])
+async def get_attachments(
+    goal_id: str,
+    kind: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AttachmentOut]:
+    if kind not in ("file", "image"):
+        raise AppError("INVALID_KIND", "kind 는 file 또는 image 여야 합니다.", status_code=422)
+    goal = await get_owned_goal(db, user.id, goal_id)
+    return await list_attachments(db, goal.id, kind)
+
+
+@router.get("/goals/{goal_id}/messages", response_model=MessagePage)
+async def list_messages(
+    goal_id: str,
+    cursor: str | None = Query(default=None),
+    limit: int = Query(default=MESSAGE_LIMIT_DEFAULT, ge=1),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessagePage:
+    goal = await get_owned_goal(db, user.id, goal_id)
+    limit = min(limit, MESSAGE_LIMIT_MAX)
+
+    stmt = (
+        select(Message)
+        .where(Message.goal_id == goal.id)
+        .order_by(Message.created_at.desc(), Message.id.desc())
+    )
+    if cursor is not None:
+        anchor = await db.get(Message, cursor)
+        if anchor is None or anchor.goal_id != goal.id:
+            raise AppError("INVALID_CURSOR", "잘못된 커서입니다.", status_code=400)
+        # 커서보다 과거(자기 자신 제외)
+        stmt = stmt.where(
+            tuple_(Message.created_at, Message.id) < tuple_(anchor.created_at, anchor.id)
+        )
+
+    # 다음 페이지 존재 여부를 알려고 limit+1 개를 떠본다
+    rows = (await db.execute(stmt.limit(limit + 1))).scalars().all()
+    has_more = len(rows) > limit
+    page = rows[:limit]
+
+    files = await _files_for(db, [m.id for m in page])
+    messages = [
+        MessageOut(
+            id=m.id,
+            role=m.role,
+            content=m.content,
+            created_at=m.created_at,
+            file=files.get(m.id),
+        )
+        for m in page
+    ]
+    next_cursor = page[-1].id if (has_more and page) else None
+    return MessagePage(messages=messages, next_cursor=next_cursor)
+
+
+async def _find_by_client_id(
+    db: AsyncSession, goal_id: str, client_id: str | None
+) -> Message | None:
+    """이미 저장된 전송인지 확인한다(멱등키). clientId 가 없으면 항상 새 메시지."""
+    if not client_id:
+        return None
+    return (
+        await db.execute(
+            select(Message).where(Message.goal_id == goal_id, Message.client_id == client_id)
+        )
+    ).scalar_one_or_none()
+
+
+async def _goal_state(db: AsyncSession, goal: Goal, today: date) -> GoalState:
+    """지금 대화가 어느 단계인지 판단할 사실들을 모은다(prompts._stage_line 이 쓴다)."""
+    progress = goal.progress or {}
+    total = int(progress.get("total") or 0)
+
+    todo = (
+        await db.execute(select(Todo).where(Todo.goal_id == goal.id, Todo.date == today))
+    ).scalar_one_or_none()
+
+    plan = (
+        await db.execute(
+            select(PlannerBlock.id)
+            .join(Planner, PlannerBlock.planner_id == Planner.id)
+            .where(
+                Planner.user_id == goal.user_id,
+                Planner.date == today,
+                # 이 목표의 계획만 본다. 다른 목표에 시간을 잡아 뒀다고
+                # 이 목표까지 '계획 있음' 으로 보면 시간 잡기를 건너뛴다.
+                PlannerBlock.goal_id == goal.id,
+                PlannerBlock.kind.is_(None),  # 계획 블록만(실제 기록 말고)
+            )
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    routines = await routines_of(db, goal.id)
+    today_routines = [r for r in routines if routine_applies_today(r, today)]
+    summary = ", ".join(
+        r.content + (f"({r.duration_minutes}분)" if r.duration_minutes else "")
+        for r in today_routines
+    )
+
+    return GoalState(
+        has_progress=total > 0,
+        is_progress_done=total > 0 and int(progress.get("current") or 0) >= total,
+        routine_summary=summary or None,
+        has_todo_today=todo is not None and bool(todo.items),
+        has_plan_today=plan is not None,
+        is_overdue=goal.due_date is not None
+        and goal.due_date < today
+        and goal.completed_at is None,
+    )
+
+
+async def _attachment_of(db: AsyncSession, message_id: str) -> Attachment | None:
+    """메시지에 붙은 첨부."""
+    return (
+        await db.execute(select(Attachment).where(Attachment.message_id == message_id))
+    ).scalar_one_or_none()
+
+
+def _attachment_content(attachment: Attachment | None) -> AttachmentContent | None:
+    """첨부를 AI 가 읽을 형태로. url 마지막 조각이 디스크의 파일명이다."""
+    if attachment is None:
+        return None
+    stored_name = attachment.url.rsplit("/", 1)[-1]
+    return load_attachment(storage_root() / stored_name, attachment.name)
+
+
+async def _parse_send_body(
+    request: Request,
+) -> tuple[str, tuple[bytes, str | None] | None, str | None]:
+    """전송 본문에서 (content, (파일 바이트, 파일명), clientId) 를 뽑는다.
+
+    - multipart/form-data: content(선택) + file(선택) + clientId(선택)
+    - 그 외(JSON): {content, clientId?}
+
+    clientId 는 프론트가 만든 전송 키(멱등키)다. 재시도가 같은 값으로 오면
+    메시지를 새로 만들지 않고 기존 것을 재사용한다.
+    """
+    ctype = request.headers.get("content-type", "")
+    if ctype.startswith("multipart/form-data"):
+        form = await request.form()
+        content = str(form.get("content") or "").strip()
+        upload = form.get("file")
+        file = None
+        if upload is not None and hasattr(upload, "read"):
+            file = (await upload.read(), upload.filename)
+        return content, file, str(form.get("clientId") or "") or None
+    data = await request.json()
+    return (
+        str(data.get("content") or "").strip(),
+        None,
+        str(data.get("clientId") or "") or None,
+    )
+
+
+@router.post("/goals/{goal_id}/messages")
+async def send_message(
+    goal_id: str,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    streamer: ReplyStreamer = Depends(get_reply_streamer),
+    session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
+) -> StreamingResponse:
+    """메시지 전송 → AI 응답 SSE 스트리밍 (api.md §3.4).
+
+    텍스트는 JSON {content}, 파일 첨부는 multipart(content?+file).
+    이벤트: message_start → delta* → done, 실패 시 error.
+    """
+    goal = await get_owned_goal(db, user.id, goal_id)
+
+    content, file, client_id = await _parse_send_body(request)
+    if len(content) > MESSAGE_CONTENT_MAX:
+        raise AppError("VALIDATION_ERROR", "메시지가 너무 깁니다.", status_code=422)
+    if not content and file is None:
+        raise AppError("VALIDATION_ERROR", "내용이나 파일이 필요합니다.", status_code=422)
+
+    # 1) 내 메시지 저장 (+ 첨부)
+    existing = await _find_by_client_id(db, goal.id, client_id)
+    if existing is not None:
+        user_msg = existing
+        saved_attachment = await _attachment_of(db, user_msg.id)
+    else:
+        user_msg = Message(goal_id=goal.id, role="user", content=content, client_id=client_id)
+        db.add(user_msg)
+        await db.flush()
+
+        saved_attachment = None
+        if file is not None:
+            saved = save_upload(
+                file[0], file[1], allowed_exts=CHAT_ALLOWED, max_bytes=chat_max_bytes()
+            )
+            await create_attachment(db, goal.id, user_msg.id, saved)
+            saved_attachment = await _attachment_of(db, user_msg.id)
+        await db.commit()
+
+    # 2) AI 에 넘길 히스토리(오래된 → 최신, 최근 N개)
+    rows = (
+        (
+            await db.execute(
+                select(Message)
+                .where(Message.goal_id == goal.id)
+                .order_by(Message.created_at.desc(), Message.id.desc())
+                .limit(HISTORY_LIMIT)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    history = [(m.role, m.content) for m in reversed(rows)]
+    # 이번 턴 첨부는 내용까지 읽어 넘긴다(지난 첨부는 히스토리에 글로만 남는다)
+    attachment = _attachment_content(saved_attachment)
+
+    # AI 가 create_todos/create_planner 의 date 를 찍으려면 '오늘'을 알아야 한다.
+    # 서버 UTC 가 아니라 그 사람 타임존 기준이어야 기록 화면과 같은 날에 들어간다.
+    user_settings = await db.get(UserSettings, goal.user_id)
+    today = today_for(user_settings.timezone if user_settings else None)
+
+    # 3) 응답 생성은 백그라운드로 돌린다.
+    #    사용자가 답이 오는 중에 채팅방을 나가면 이 SSE 는 끊기지만, 생성은 끝까지
+    #    돌아 메시지를 저장한다. 나갔다 와도 답이 와 있다(reply_service 주석 참고).
+    state = await _goal_state(db, goal, today)
+
+    assistant_id, queue, listener = start_reply(
+        session_factory=session_factory,
+        streamer=streamer,
+        goal_id=goal.id,
+        persona=goal.persona,
+        user_prompt=goal.prompt,
+        goal_title=goal.title,
+        history=history,
+        today=today,
+        goal_progress=goal.progress,
+        due_date=goal.due_date,
+        attachment=attachment,
+        state=state,
+    )
+
+    async def event_stream():
+        """큐에 쌓이는 이벤트를 그대로 흘려보낸다(중계만 한다).
+
+        끊길 때 청취 중단을 알린다. 사용자가 답을 못 본 채 나간 것이므로
+        생성 쪽이 푸시로 알려야 한다(reply_service.Listener).
+        """
+        try:
+            yield _sse("message_start", {"messageId": assistant_id, "role": "assistant"})
+            while True:
+                event = await queue.get()
+                if event is None:
+                    return
+                name, data = event
+                yield _sse(name, data)
+        finally:
+            # 끝까지 흘려보냈든 중간에 끊겼든 여기서 내린다. 끝까지 봤다면 생성 쪽은
+            # 이미 판단을 마친 뒤라(저장 직전에 읽는다) 푸시가 나가지 않는다.
+            listener.active = False
+
+    headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)
+
+
+@router.post("/goals/{goal_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_read(
+    goal_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    goal = await get_owned_goal(db, user.id, goal_id)
+    latest = (
+        await db.execute(
+            select(Message.id)
+            .where(Message.goal_id == goal.id)
+            .order_by(Message.created_at.desc(), Message.id.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    read = await db.get(ReadState, (user.id, goal.id))
+    if read is None:
+        read = ReadState(user_id=user.id, goal_id=goal.id, last_read_message_id=latest)
+        db.add(read)
+    else:
+        read.last_read_message_id = latest
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

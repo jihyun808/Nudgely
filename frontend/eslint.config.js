@@ -7,7 +7,8 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import prettier from 'eslint-config-prettier';
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // ios·android 는 Capacitor 가 생성한다(안에 웹 빌드 사본이 들어 있다)
+  globalIgnores(['dist', 'ios', 'android']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

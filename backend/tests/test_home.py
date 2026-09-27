@@ -1,0 +1,221 @@
+"""홈 미리보기 · 알림 테스트."""
+
+from datetime import UTC, datetime, timedelta
+
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker
+
+from app.ai.tools import dispatch_tool_call
+from app.models.goal import Goal, Message
+from app.models.notification import Notification
+from app.models.user import UserSettings
+from app.services.notification_service import should_notify
+from tests.helpers import auth, token_for
+
+
+async def _user_id(client: AsyncClient, token: str) -> str:
+    return (await client.get("/api/me", headers=auth(token))).json()["id"]
+
+
+async def _make_goal(client: AsyncClient, token: str, name: str = "Buddy") -> str:
+    res = await client.post("/api/goals", headers=auth(token), data={"name": name, "title": "T"})
+    return res.json()["id"]
+
+
+# ── 설정 기반 발송 판단 (순수) ──
+
+
+def test_should_notify_respects_toggles():
+    s = UserSettings.defaults("u1")
+    assert should_notify(s, "todoAdded") is True
+
+    s.notif_todo = False
+    assert should_notify(s, "todoAdded") is False  # todo 토글 off
+    assert should_notify(s, "nudge") is True  # 다른 종류는 영향 없음
+
+    s.notif_enabled = False
+    assert should_notify(s, "nudge") is False  # 전체 off 면 전부 차단
+
+
+def test_should_notify_dnd_window():
+    s = UserSettings.defaults("u1")  # timezone = Asia/Seoul
+    s.dnd_enabled = True
+    s.dnd_start_hour = 23
+    s.dnd_end_hour = 7  # 자정 넘김
+
+    # 한국 새벽 2시 == UTC 전날 17시
+    assert should_notify(s, "todoIncomplete", datetime(2026, 8, 2, 17, tzinfo=UTC)) is False
+    # 한국 낮 12시 == UTC 새벽 3시
+    assert should_notify(s, "todoIncomplete", datetime(2026, 8, 3, 3, tzinfo=UTC)) is True
+    # now_utc 를 안 주면 DnD 무시(즉시 알림)
+    assert should_notify(s, "todoIncomplete") is True
+
+
+def test_should_notify_dnd_uses_the_users_timezone():
+    """UTC 로 판단하면 엉뚱한 시간대가 막힌다."""
+    utc_3am = datetime(2026, 8, 3, 3, tzinfo=UTC)
+
+    seoul = UserSettings.defaults("u1")  # 한국 기준 낮 12시
+    seoul.dnd_enabled = True
+    seoul.dnd_start_hour, seoul.dnd_end_hour = 23, 7
+    assert should_notify(seoul, "todoIncomplete", utc_3am) is True
+
+    new_york = UserSettings.defaults("u2")  # 같은 순간, 뉴욕은 밤 11시
+    new_york.timezone = "America/New_York"
+    new_york.dnd_enabled = True
+    new_york.dnd_start_hour, new_york.dnd_end_hour = 23, 7
+    assert should_notify(new_york, "todoIncomplete", utc_3am) is False
+
+
+# ── 홈 미리보기 ──
+
+
+async def test_home_previews_unread_only_one_per_goal(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    token = await token_for(client)
+    g1 = await _make_goal(client, token, "A")
+    await _make_goal(client, token, "B")  # 메시지 없음 → 미리보기 없음
+
+    async with session_factory() as s:
+        base = datetime(2026, 8, 3, tzinfo=UTC)
+        # g1: assistant 메시지 2개(안 읽음)
+        s.add(Message(goal_id=g1, role="assistant", content="옛날", created_at=base))
+        s.add(
+            Message(
+                goal_id=g1,
+                role="assistant",
+                content="최신 안읽음",
+                created_at=base + timedelta(hours=1),
+            )
+        )
+        await s.commit()
+
+    res = await client.get("/api/home/previews", headers=auth(token))
+    body = res.json()
+    assert len(body) == 1  # 목표당 한 장, g2 는 제외
+    assert body[0]["kind"] == "message"
+    assert body[0]["title"] == "A"
+    assert body[0]["content"] == "최신 안읽음"
+    # 홈 미리보기 카드는 누르면 그 채팅방으로 간다(알림과 달리 이동 대상이 분명하다)
+    assert body[0]["linkTo"] == f"/chat/{g1}"
+
+
+async def test_home_previews_excludes_read(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    token = await token_for(client)
+    g = await _make_goal(client, token)
+
+    async with session_factory() as s:
+        s.add(
+            Message(
+                goal_id=g,
+                role="assistant",
+                content="읽을 거야",
+                created_at=datetime(2026, 8, 3, tzinfo=UTC),
+            )
+        )
+        await s.commit()
+
+    # 읽음 처리 → 미리보기에서 사라짐
+    await client.post(f"/api/goals/{g}/read", headers=auth(token))
+    res = await client.get("/api/home/previews", headers=auth(token))
+    assert res.json() == []
+
+
+# ── 알림 목록·읽음 ──
+
+
+async def test_notifications_list_and_read(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    token = await token_for(client)
+    uid = await _user_id(client, token)
+
+    async with session_factory() as s:
+        base = datetime(2026, 8, 3, tzinfo=UTC)
+        for i in range(7):  # 7개 넣어도 최대 5개만 내려온다
+            s.add(
+                Notification(
+                    user_id=uid,
+                    type="todoAdded",
+                    title="Buddy",
+                    body=f"n{i}",
+                    created_at=base + timedelta(minutes=i),
+                )
+            )
+        await s.commit()
+
+    listed = await client.get("/api/notifications", headers=auth(token))
+    body = listed.json()
+    assert len(body) == 5  # 최대 5
+    assert body[0]["body"] == "n6"  # 최신순
+    assert all(n["isRead"] is False for n in body)
+
+    # 전체 읽음
+    assert (await client.post("/api/notifications/read", headers=auth(token))).status_code == 204
+    after = await client.get("/api/notifications", headers=auth(token))
+    assert all(n["isRead"] is True for n in after.json())
+
+
+async def test_notifications_isolated_by_user(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    t1 = await token_for(client, "u1@b.com")
+    t2 = await token_for(client, "u2@b.com")
+    uid1 = await _user_id(client, t1)
+
+    async with session_factory() as s:
+        s.add(Notification(user_id=uid1, type="todoAdded", title="x", body="mine"))
+        await s.commit()
+
+    assert (await client.get("/api/notifications", headers=auth(t2))).json() == []
+
+
+# ── AI 도구 → 알림 연동 ──
+
+
+async def test_ai_create_todos_makes_notification(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    token = await token_for(client)
+    goal_id = await _make_goal(client, token)
+
+    async with session_factory() as s:
+        goal = await s.get(Goal, goal_id)
+        await dispatch_tool_call(
+            s, goal, "create_todos", {"date": "2026-08-03", "items": [{"content": "3강"}]}
+        )
+
+    res = await client.get("/api/notifications", headers=auth(token))
+    body = res.json()
+    assert len(body) == 1
+    assert body[0]["type"] == "todoAdded"
+    # 알림은 이동 대상을 싣지 않는다. 눌러도 앱이 열리는 것까지가 역할이다
+    assert "linkTo" not in body[0]
+
+
+async def test_ai_todo_notification_suppressed_when_toggle_off(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    token = await token_for(client)
+    goal_id = await _make_goal(client, token)
+    uid = await _user_id(client, token)
+
+    # 투두 알림 토글 off
+    async with session_factory() as s:
+        settings = await s.get(UserSettings, uid)
+        settings.notif_todo = False
+        await s.commit()
+
+    async with session_factory() as s:
+        goal = await s.get(Goal, goal_id)
+        await dispatch_tool_call(
+            s, goal, "create_todos", {"date": "2026-08-03", "items": [{"content": "3강"}]}
+        )
+
+    # 투두는 만들어지되 알림은 안 생김
+    assert (await client.get("/api/notifications", headers=auth(token))).json() == []
+    todos = await client.get("/api/todos", headers=auth(token), params={"date": "2026-08-03"})
+    assert len(todos.json()) == 1
