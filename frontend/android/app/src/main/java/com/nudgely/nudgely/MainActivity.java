@@ -1,4 +1,4 @@
-package com.nudgely.app;
+package com.nudgely.nudgely;
 
 import com.getcapacitor.BridgeActivity;
 
