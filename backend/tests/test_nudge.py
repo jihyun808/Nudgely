@@ -260,3 +260,23 @@ async def test_default_writer_names_the_plan(client: AsyncClient, session_factor
     await _run(session_factory, _kst(9, START_DELAY_MINUTES))
 
     assert "1-1 수업" in (await _messages(session_factory))[0]
+
+
+async def test_nudge_is_stamped_with_the_judged_time(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """알림 시각은 '판단에 쓴 시각' 이어야 한다.
+
+    진짜 현재 시각으로 찍으면 하루 상한을 세는 쪽이 보는 날짜와 어긋난다.
+    자정을 넘긴 틱에서는 그 날 보낸 선톡이 0건으로 세어져 상한이 풀린다
+    (실제로 날짜가 바뀐 날 CI 에서 터졌다).
+    """
+    await _setup(client, session_factory, with_todo=True, email="n14@b.com")
+    at = _kst(9, START_DELAY_MINUTES)
+
+    await _run(session_factory, at)
+
+    async with session_factory() as db:
+        rows = await db.execute(select(Notification).where(Notification.type == "nudge"))
+        notif = rows.scalars().one()
+    assert notif.created_at == at
