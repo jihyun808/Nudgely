@@ -39,10 +39,15 @@ class _GatedStreamer:
     """
 
     def __init__(self) -> None:
+        #: 첫 조각이 큐에 들어갔다. yield 다음 줄은 제너레이터가 **다시 불릴 때**
+        #: 실행되고, 그 전에 부르는 쪽이 큐에 넣는다. 그래서 이 신호는
+        #: '큐에 하나 들어간 뒤' 를 정확히 가리킨다.
+        self.first_queued = asyncio.Event()
         self.released = asyncio.Event()
 
     async def stream(self, **_) -> AsyncIterator[str]:
         yield CHUNKS[0]
+        self.first_queued.set()
         await self.released.wait()
         for chunk in CHUNKS[1:]:
             yield chunk
@@ -99,6 +104,11 @@ async def test_reply_completes_with_nobody_listening(
         goal_title="T",
         history=[("user", "안녕")],
     )
+
+    # start_reply 는 태스크를 만들기만 하고 곧바로 돌아온다. 첫 조각이 큐에
+    # 들어갈 때까지 기다린다 — 기다리지 않으면 바쁜 CI 에서 간헐적으로 떨어진다
+    # (아직 시작도 안 한 태스크를 두고 "왜 비었냐" 고 묻는 꼴이었다)
+    await asyncio.wait_for(streamer.first_queued.wait(), timeout=5.0)
 
     # 큐를 한 번도 읽지 않는다(= 듣던 사람이 나감).
     # 첫 조각에서 막아 뒀으니 이 시점에는 아직 저장 전이어야 한다.
