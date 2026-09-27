@@ -11,7 +11,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * 넣어야 한다(.env.production 참고).
  */
 const config: CapacitorConfig = {
-  appId: 'com.nudgely.app',
+  appId: 'com.nudgely.nudgely',
   appName: 'Nudgely',
   webDir: 'dist',
 

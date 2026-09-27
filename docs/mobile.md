@@ -61,7 +61,7 @@ VITE_API_BASE_URL=https://api.example.com/api
 ### 3.1 Firebase 프로젝트
 
 콘솔에서 프로젝트를 만들고 앱 두 개를 등록한다. 번들 id 는
-`capacitor.config.ts` 의 `appId` 와 **정확히 같아야 한다**: `com.nudgely.app`
+`capacitor.config.ts` 의 `appId` 와 **정확히 같아야 한다**: `com.nudgely.nudgely`
 
 | 받는 파일                     | 넣는 곳                              |
 | --------------------------- | ----------------------------------- |
