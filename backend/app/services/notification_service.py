@@ -138,11 +138,20 @@ async def mark_all_read(db: AsyncSession, user_id: str) -> None:
 
 
 async def send_nudge(
-    db: AsyncSession, goal: Goal, content: str, *, ref: str | None = None
+    db: AsyncSession,
+    goal: Goal,
+    content: str,
+    *,
+    ref: str | None = None,
+    now_utc: datetime | None = None,
 ) -> Message | None:
     """AI 선톡(독촉): 채팅방에 assistant 메시지를 남기고 nudge 알림을 만든다.
 
     muted·완주 목표는 대상에서 제외하고, 알림 설정이 nudge 를 끄면 아예 보내지 않는다.
+
+    now_utc 는 **판단에 쓴 시각**이다. 이걸 넘기지 않으면 알림이 진짜 현재 시각으로
+    찍혀서, 하루 상한을 세는 쪽(nudge_service._nudges_today)이 보는 날짜와 어긋난다.
+    자정을 넘긴 틱에서는 그 날 보낸 선톡이 0건으로 세어져 상한이 풀린다.
     """
     if goal.is_notification_muted or goal.completed_at is not None:
         return None
@@ -151,6 +160,8 @@ async def send_nudge(
         return None
 
     msg = Message(goal_id=goal.id, role="assistant", content=content)
+    if now_utc is not None:
+        msg.created_at = now_utc
     db.add(msg)
     await db.flush()
     await create_notification(
@@ -161,6 +172,7 @@ async def send_nudge(
         body=content,
         goal_id=goal.id,
         ref=ref,
+        now_utc=now_utc,
     )
     return msg
 

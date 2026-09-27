@@ -198,7 +198,7 @@ async def run_plan_nudges(
                 logger.exception("선톡 문구 생성 실패(goal=%s)", goal.id)
                 content = await default_writer(ctx)
 
-            message = await send_nudge(db, goal, content, ref=ref)
+            message = await send_nudge(db, goal, content, ref=ref, now_utc=now_utc)
             if message is not None:
                 sent += 1
 
