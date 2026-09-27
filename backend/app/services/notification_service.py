@@ -156,7 +156,10 @@ async def send_nudge(
     if goal.is_notification_muted or goal.completed_at is not None:
         return None
     settings = await db.get(UserSettings, goal.user_id)
-    if not should_notify(settings, "nudge"):
+    # now_utc 를 함께 넘겨 방해 금지까지 여기서 본다. 이걸 빠뜨리면 메시지는
+    # 만들어지고 알림만 막혀서, 중복 방지 표식(ref)이 알림에 붙는 탓에
+    # 다음 틱마다 같은 말이 채팅방에 다시 쌓인다.
+    if not should_notify(settings, "nudge", now_utc):
         return None
 
     msg = Message(goal_id=goal.id, role="assistant", content=content)

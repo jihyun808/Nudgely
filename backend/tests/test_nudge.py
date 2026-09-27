@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.goal import Goal, Message
 from app.models.notification import Notification
+from app.models.user import UserSettings
 from app.services.nudge_service import (
     END_DELAY_MINUTES,
     MAX_NUDGES_PER_GOAL_PER_DAY,
@@ -280,3 +281,37 @@ async def test_nudge_is_stamped_with_the_judged_time(
         rows = await db.execute(select(Notification).where(Notification.type == "nudge"))
         notif = rows.scalars().one()
     assert notif.created_at == at
+
+
+async def test_dnd_stops_the_message_too(client: AsyncClient, session_factory: async_sessionmaker):
+    """방해 금지면 알림뿐 아니라 채팅 메시지도 안 남는다.
+
+    메시지만 만들어지고 알림이 막히면, 중복 방지 표식(ref)이 알림에 붙어 있는
+    탓에 다음 틱마다 같은 말이 다시 쌓인다. 새벽 계획 하나로 방해 금지 시간
+    내내 도배된다.
+    """
+    token = await token_for(client, "n15@b.com")
+    goal_id = await create_goal(client, token, name="선대냥이")
+    async with session_factory() as db:
+        goal = await db.get(Goal, goal_id)
+        await add_block(
+            db,
+            goal.user_id,
+            ON,
+            title="새벽 공부",
+            start_minutes=3 * 60,
+            duration_minutes=60,
+            goal_id=goal_id,
+        )
+        await create_daily_todo(db, goal, ON, [{"content": "1강 듣기"}])
+        settings = await db.get(UserSettings, goal.user_id)
+        settings.dnd_enabled = True
+        settings.dnd_start_hour = 0
+        settings.dnd_end_hour = 7
+        await db.commit()
+
+    at = _kst(3, START_DELAY_MINUTES)  # 방해 금지 한가운데
+    for _ in range(3):  # 스케줄러가 세 번 돈다
+        await _run(session_factory, at)
+
+    assert await _messages(session_factory) == []
