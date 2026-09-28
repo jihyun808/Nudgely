@@ -84,7 +84,7 @@ export default function NotificationBell() {
             aria-hidden
             className="absolute -top-1.5 right-4 h-3 w-3 rotate-45 border-t border-l border-border bg-background"
           />
-          <div className="max-h-96 overflow-y-auto border border-border bg-background shadow-lg">
+          <div className="scroll-touch max-h-96 overflow-y-auto border border-border bg-background shadow-lg">
             <NotificationList notifications={notifications} onSelect={handleSelect} />
           </div>
         </div>

@@ -12,6 +12,11 @@ import { enablePush } from '@/lib/push';
 export async function bootstrapNative(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
 
+  // 앱 안에서만 켜지는 CSS 를 위한 표식(styles/index.css 맨 아래).
+  // 웹뷰라 기본값이 브라우저와 같아서, 손대지 않으면 '웹 티' 가 그대로 난다 —
+  // 입력창을 누르면 화면이 확대되고, 길게 누르면 글자가 선택된다.
+  document.documentElement.classList.add('native');
+
   try {
     // 배경이 흰색이라 상태바 글씨는 검정이어야 보인다
     await StatusBar.setStyle({ style: Style.Light });

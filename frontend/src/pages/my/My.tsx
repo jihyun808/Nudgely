@@ -1,5 +1,5 @@
 // pages/my/My.tsx
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchDailyFocus, fetchFocusSummary } from '@/api/focus';
 import { fetchCompletedGoals } from '@/api/goal';
@@ -13,6 +13,7 @@ import FocusHeatmap from '@/pages/my/components/FocusHeatmap';
 import ProfileEditModal from '@/pages/my/components/ProfileEditModal';
 import StatCards from '@/pages/my/components/StatCards';
 import WeeklyFocusCard from '@/pages/my/components/WeeklyFocusCard';
+import { useCachedQuery } from '@/lib/useCachedQuery';
 import { useAuthStore } from '@/stores/authStore';
 import { showToast } from '@/stores/toastStore';
 import type { Goal } from '@/types/goal';
@@ -28,53 +29,34 @@ export default function My() {
   // 프로필은 전역 상태에 두고 다른 화면과 함께 쓴다
   const profile = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
-  const [isLoading, setIsLoading] = useState(true);
+  // 프로필은 스토어에 남아 있다. 있으면 스켈레톤 없이 바로 그리고 뒤에서 갱신한다
+  const [isLoading, setIsLoading] = useState(!profile);
   const [hasError, setHasError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  /** 완주한 목표. 없으면 화면에 섹션 자체가 생기지 않는다 */
-  const [completedGoals, setCompletedGoals] = useState<Goal[]>([]);
-  /** 가입일부터 오늘까지의 날짜별 집중 시간(초). 요약 카드와 히트맵이 함께 쓴다 */
-  const [secondsByDate, setSecondsByDate] = useState<Record<string, number>>({});
-  /** 연속 달성일 (서버 계산) */
-  const [streakDays, setStreakDays] = useState(0);
 
-  useEffect(() => {
-    let isStale = false;
-    fetchCompletedGoals()
-      .then((data) => {
-        if (!isStale) setCompletedGoals(data);
-      })
-      .catch(() => {
-        // 못 받아도 나머지 화면은 그대로 둔다
-      });
-    return () => {
-      isStale = true;
-    };
-  }, []);
+  /** 완주한 목표. 없으면 화면에 섹션 자체가 생기지 않는다 */
+  const loadCompleted = useCallback(() => fetchCompletedGoals(), []);
+  const { data: completedGoalsData } = useCachedQuery('my:completed', loadCompleted);
+  const completedGoals: Goal[] = completedGoalsData ?? [];
 
   const joinedAt = profile?.createdAt;
 
-  useEffect(() => {
-    if (!joinedAt) return;
-    let isStale = false;
-    // 집중 기록은 한 번만 받아 요약 카드와 히트맵이 나눠 쓴다
-    Promise.all([
+  // 집중 기록은 한 번만 받아 요약 카드와 히트맵이 나눠 쓴다.
+  // 캐시해 두지 않으면 탭을 옮길 때마다 잔디가 빈 칸에서 다시 그려진다
+  const loadFocus = useCallback(async () => {
+    if (!joinedAt) return { secondsByDate: {} as Record<string, number>, streakDays: 0 };
+    const [secondsByDate, summary] = await Promise.all([
       fetchDailyFocus(formatDateKey(new Date(joinedAt)), formatDateKey(new Date())),
       fetchFocusSummary(),
-    ])
-      .then(([byDate, summary]) => {
-        if (isStale) return;
-        setSecondsByDate(byDate);
-        setStreakDays(summary.streakDays);
-      })
-      .catch(() => {
-        // 못 받아도 0으로 그린다
-      });
-    return () => {
-      isStale = true;
-    };
+    ]);
+    return { secondsByDate, streakDays: summary.streakDays };
   }, [joinedAt]);
+  const { data: focusData } = useCachedQuery(`my:focus:${joinedAt ?? ''}`, loadFocus);
+  /** 가입일부터 오늘까지의 날짜별 집중 시간(초) */
+  const secondsByDate: Record<string, number> = focusData?.secondsByDate ?? {};
+  /** 연속 달성일 (서버 계산) */
+  const streakDays = focusData?.streakDays ?? 0;
 
   useEffect(() => {
     let isStale = false;
@@ -85,7 +67,8 @@ export default function My() {
         setHasError(false);
       })
       .catch(() => {
-        if (!isStale) setHasError(true);
+        // 이미 보여줄 프로필이 있으면 화면을 비우지 않는다. 잠깐 끊긴 것일 수 있다
+        if (!isStale && !useAuthStore.getState().user) setHasError(true);
       })
       .finally(() => {
         if (!isStale) setIsLoading(false);

@@ -1,9 +1,10 @@
 // pages/chat/Chat.tsx
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { createGoal, fetchGoals } from '@/api/goal';
 import CreateGoalModal from '@/components/CreateGoalModal';
 import ErrorRetry from '@/components/ErrorRetry';
+import { useCachedQuery } from '@/lib/useCachedQuery';
 import PageHeader from '@/components/PageHeader';
 import ChatListItem from '@/pages/chat/components/ChatListItem';
 import ChatListItemSkeleton from '@/pages/chat/components/ChatListItemSkeleton';
@@ -24,46 +25,19 @@ export default function Chat() {
     (location.state as { openCreateGoal?: boolean } | null)?.openCreateGoal,
   );
 
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
   const [keyword, setKeyword] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(openedFromHome);
 
-  // 값을 늘려 목록 조회를 다시 트리거한다 (다시 시도 버튼용)
-  const [reloadKey, setReloadKey] = useState(0);
-
-  // 첫 진입은 isLoading=true로 시작하므로 여기서는 응답 결과만 반영한다
-  useEffect(() => {
-    let isStale = false;
-    fetchGoals()
-      .then((data) => {
-        if (isStale) return;
-        setGoals(data);
-        setHasError(false);
-      })
-      .catch(() => {
-        if (!isStale) setHasError(true);
-      })
-      .finally(() => {
-        if (!isStale) setIsLoading(false);
-      });
-    // 언마운트/재요청 시 이전 응답이 늦게 도착해 상태를 덮어쓰지 않게 막는다
-    return () => {
-      isStale = true;
-    };
-  }, [reloadKey]);
+  const load = useCallback(() => fetchGoals(), []);
+  // 받아둔 목록이 있으면 먼저 그리고 뒤에서 갱신한다(탭을 옮길 때마다 스켈레톤이 뜨지 않게)
+  const { data, isLoading, hasError, reload, setData } = useCachedQuery('chat:goals', load);
+  // ?? [] 를 그대로 쓰면 렌더마다 새 배열이 되어 아래 useMemo 가 매번 다시 돈다
+  const goals: Goal[] = useMemo(() => data ?? [], [data]);
 
   // 팝업을 띄우라는 신호는 한 번만 쓰고 지운다 (뒤로가기로 돌아왔을 때 다시 열리지 않도록)
   useEffect(() => {
     if (openedFromHome) navigate('/chat', { replace: true, state: null });
   }, [openedFromHome, navigate]);
-
-  const handleRetry = () => {
-    setIsLoading(true);
-    setHasError(false);
-    setReloadKey((key) => key + 1);
-  };
 
   // 최신순으로 정렬한 뒤, 이름/최근 메시지로 검색한다
   const visibleGoals = useMemo(() => {
@@ -78,7 +52,7 @@ export default function Chat() {
 
   const handleCreate = async (input: CreateGoalInput) => {
     const created = await createGoal(input);
-    setGoals((prev) => [created, ...prev]);
+    setData([created, ...goals]);
     showToast(`'${created.name}' 목표를 만들었어요`, { variant: 'success' });
     navigate(`/chat/${created.id}`);
   };
@@ -148,7 +122,7 @@ export default function Chat() {
           ))}
         </div>
       ) : hasError ? (
-        <ErrorRetry message="채팅 목록을 불러오지 못했어요" onRetry={handleRetry} />
+        <ErrorRetry message="채팅 목록을 불러오지 못했어요" onRetry={reload} />
       ) : visibleGoals.length > 0 ? (
         <ul className="-mx-6 mt-4 divide-y divide-border border-t border-border">
           {visibleGoals.map((goal) => (

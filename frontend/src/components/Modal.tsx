@@ -43,7 +43,7 @@ export default function Modal({ title, onClose, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-background p-5 shadow-xl"
+        className="scroll-touch max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-background p-5 shadow-xl"
       >
         <h2 id={titleId} className="text-lg font-bold">
           {title}

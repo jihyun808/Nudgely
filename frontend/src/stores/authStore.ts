@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { User } from '@/types/auth';
 import { getToken, setToken, removeToken } from '@/lib/auth';
 import { disablePush, enablePush } from '@/lib/push';
+import { clearQueryCache } from '@/lib/useCachedQuery';
 
 interface AuthState {
   user: User | null;
@@ -31,6 +32,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     // 토큰을 지우기 전에 부른다(요청에 실을 액세스 토큰이 필요하다).
     // 안 지우면 이 기기에 이전 사용자의 선톡이 계속 뜬다
     disablePush();
+    // 화면 캐시를 비운다. 안 비우면 다음에 로그인한 사람이 이전 사용자의
+    // 홈·투두를 잠깐 본다(뒤에서 갱신되기 전까지)
+    clearQueryCache();
     removeToken();
     set({ user: null, isLoggedIn: false });
   },

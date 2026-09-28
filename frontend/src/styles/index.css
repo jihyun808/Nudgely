@@ -130,3 +130,50 @@
     font-family: -apple-system, 'Pretendard', sans-serif;
   }
 }
+
+/*
+ * 앱(Capacitor) 전용 손질. lib/native.ts 가 html 에 .native 를 붙인다.
+ *
+ * @layer 밖에 둔다 — Tailwind 의 utilities 레이어가 base 보다 뒤에 와서,
+ * base 안에 두면 text-sm 같은 유틸리티에 밀린다(레이어가 우선순위를 이긴다).
+ */
+
+/*
+ * iOS 는 16px 미만 입력창에 포커스가 가면 화면을 확대한다. 되돌리는 방법이
+ * 없어서 한 번 확대되면 그 화면이 계속 커진 채로 남는다.
+ * 확대를 막는 viewport 설정(maximum-scale)은 손가락 확대까지 막아 쓰지 않는다.
+ */
+html.native input,
+html.native textarea,
+html.native select {
+  font-size: 16px;
+}
+
+html.native {
+  /* 탭할 때 번쩍이는 회색 사각형. 네이티브 앱에는 없는 동작이다 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 길게 눌러 글자를 선택하고 돋보기가 뜨는 것. 읽는 화면에서는 방해만 된다 */
+html.native body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 입력창과 말풍선은 예외 — 복사할 수 있어야 한다 */
+html.native input,
+html.native textarea,
+html.native [data-selectable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/*
+ * 관성 스크롤. 안쪽 스크롤 영역(채팅 목록 등)은 이걸 켜지 않으면
+ * 손을 떼는 순간 멈춰서 뻣뻣하게 느껴진다.
+ * overscroll-behavior: 끝에 닿았을 때 바깥 화면까지 같이 밀리는 것을 막는다.
+ */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
