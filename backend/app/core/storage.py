@@ -10,6 +10,7 @@
 """
 
 import io
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +25,8 @@ _IMAGE_EXTS = {"jpg", "jpeg", "png"}
 _FILE_EXTS = {"pdf", "txt"}
 
 THUMB_MAX = (320, 320)
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -52,6 +55,26 @@ def _sniff_ext(data: bytes) -> str | None:
         except UnicodeDecodeError:
             return None
     return None
+
+
+def assert_writable() -> None:
+    """업로드 디렉터리에 쓸 수 있는지 시작할 때 확인한다.
+
+    못 쓰면 사진 업로드가 전부 500 으로 죽는데, 화면에는 "안 올라간다" 로만
+    보여서 원인을 찾는 데 한참 걸린다. 여기서 한 줄 남겨 두면 로그 맨 앞에 뜬다.
+    (호스팅이 볼륨을 root 소유로 붙이면 실제로 이렇게 된다 — docker-entrypoint.sh)
+    """
+    root = storage_root()
+    probe = root / ".write-probe"
+    try:
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError as exc:
+        logger.error(
+            "업로드 디렉터리에 쓸 수 없습니다(%s): %s. 사진 업로드가 모두 실패합니다.",
+            root,
+            exc,
+        )
 
 
 def storage_root() -> Path:

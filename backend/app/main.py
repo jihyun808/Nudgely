@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.core.db import init_models
 from app.core.errors import register_error_handlers
 from app.core.scheduler import shutdown_scheduler, start_scheduler
+from app.core.storage import assert_writable
 
 
 @asynccontextmanager
@@ -27,6 +28,8 @@ async def lifespan(_: FastAPI):
     # 운영에서는 auto_create_tables=False 로 두고 `alembic upgrade head` 를 쓴다.
     if settings.auto_create_tables:
         await init_models()
+    # 업로드 디렉터리를 못 쓰면 사진이 전부 실패한다. 로그 맨 앞에서 알린다
+    assert_writable()
     if settings.scheduler_enabled:
         start_scheduler()  # 밤 11시 점검 스케줄러
     yield
