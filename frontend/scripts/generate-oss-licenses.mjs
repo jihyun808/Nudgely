@@ -103,9 +103,9 @@ for (const p of packages) {
   }
   if (BOILERPLATE.has(p.license) && canonical.has(p.license)) {
     p.text = canonical.get(p.license);
-    p.textSource = 'spdx';        // 정형문이라 다른 패키지 것과 동일
+    p.textSource = 'spdx'; // 정형문이라 다른 패키지 것과 동일
   } else {
-    p.textSource = 'missing';     // 사람이 확인해야 한다
+    p.textSource = 'missing'; // 사람이 확인해야 한다
   }
 }
 
