@@ -58,12 +58,7 @@ def _sniff_ext(data: bytes) -> str | None:
 
 
 def assert_writable() -> None:
-    """업로드 디렉터리에 쓸 수 있는지 시작할 때 확인한다.
-
-    못 쓰면 사진 업로드가 전부 500 으로 죽는데, 화면에는 "안 올라간다" 로만
-    보여서 원인을 찾는 데 한참 걸린다. 여기서 한 줄 남겨 두면 로그 맨 앞에 뜬다.
-    (호스팅이 볼륨을 root 소유로 붙이면 실제로 이렇게 된다 — docker-entrypoint.sh)
-    """
+    """못 쓰면 업로드가 전부 죽는데 화면에는 "안 올라간다" 로만 보인다."""
     root = storage_root()
     probe = root / ".write-probe"
     try:
@@ -92,14 +87,9 @@ def _static_prefix() -> str:
 
 
 def is_our_url(url: str) -> bool:
-    """우리가 발급한 파일 주소인지.
+    """우리가 발급한 파일 주소인지. 아무 주소나 받으면 프로필 사진이
 
-    사용자가 주소를 직접 보낼 수 있는 자리(PATCH /me 의 imageUrl)에서 쓴다.
-    아무 주소나 받으면 프로필 사진이 남의 서버를 가리키게 되고, 그 서버는
-    화면을 여는 사람의 IP 를 그대로 본다(추적 픽셀).
-
-    파일명에 경로 구분자가 없어야 한다 — '/static/../..' 같은 값으로
-    위쪽 경로를 가리키지 못하게 막는다.
+    남의 서버를 가리키고, 그 서버가 조회자 IP 를 본다.
     """
     prefix = _static_prefix()
     if not url.startswith(prefix):

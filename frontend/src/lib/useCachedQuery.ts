@@ -3,22 +3,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 
 /**
- * 탭을 오갈 때 스켈레톤이 매번 뜨지 않게 한다.
+ * 먼저 보여주고 뒤에서 갱신한다. 탭을 오갈 때 스켈레톤이 매번 뜨지 않게.
+ * 값은 메모리에만 둔다 — 앱을 껐다 켜면 비는 게 맞다.
  *
- * 라우터는 탭이 바뀌면 화면을 통째로 내린다. 그래서 다시 들어올 때마다
- * "받아온 적 없는 상태"에서 시작해 빈 화면 → 스켈레톤 → 내용을 반복한다.
- * 이미 본 내용인데도 매번 처음 보는 것처럼 군다.
- *
- * 여기서는 **먼저 보여주고 뒤에서 갱신한다**:
- * - 받아둔 게 있으면 즉시 그리고, 조용히 다시 받아 바꿔 끼운다
- * - 처음일 때만 스켈레톤을 띄운다
- *
- * 값은 메모리에만 둔다. 앱을 껐다 켜면 비는 게 맞다 — 오래된 진도나 투두를
- * 되살려 보여주면 '고쳤는데 그대로네' 가 된다.
- *
- * ⚠️ **key 에는 loader 가 보는 값이 전부 들어가야 한다.** 날짜별 투두라면
- * key 에도 날짜가 있어야 한다. 고정 문자열을 쓰면 날짜를 바꿔도 같은 칸을
- * 보게 되어, 화면이 영영 갱신되지 않는다(조용히 틀리는 쪽이라 더 나쁘다).
+ * ⚠️ key 에는 loader 가 보는 값이 전부 들어가야 한다. 빠뜨리면 화면이
+ * 영영 갱신되지 않는다(조용히 틀리는 쪽이라 더 나쁘다).
  */
 const cache = new Map<string, unknown>();
 
@@ -51,8 +40,7 @@ export function useCachedQuery<T>(key: string, loader: () => Promise<T>, fallbac
   const [hasError, setHasError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  // key 가 바뀌면 보여줄 값도 갈아끼운다. 효과에서 setState 하면 한 번 더
-  // 그려지며 이전 화면이 잠깐 비친다(렌더 중 조정이 React 가 권하는 방식이다)
+  // key 가 바뀌면 값도 갈아끼운다. 효과에서 하면 이전 화면이 한 번 비친다
   const [renderedKey, setRenderedKey] = useState(key);
   if (renderedKey !== key) {
     setRenderedKey(key);
@@ -61,8 +49,7 @@ export function useCachedQuery<T>(key: string, loader: () => Promise<T>, fallbac
     setHasError(false);
   }
 
-  // loader 는 렌더마다 새로 만들어지기 쉽다. 의존성에 넣으면 끝없이 다시 받는다.
-  // 아래 효과보다 먼저 선언해야 최신 값으로 갱신된 뒤에 쓰인다(효과는 위에서부터 돈다)
+  // 의존성에 넣으면 끝없이 다시 받는다. 아래 효과보다 먼저 선언해야 한다
   const loaderRef = useRef(loader);
   useEffect(() => {
     loaderRef.current = loader;
@@ -109,10 +96,7 @@ export function useCachedQuery<T>(key: string, loader: () => Promise<T>, fallbac
     [key],
   );
 
-  // 받아오기 전에 보여줄 빈 값. 첫 렌더의 것을 붙들어 둔다 —
-  // 호출부가 [] 나 {} 를 그 자리에서 넘겨도 매 렌더 새 객체가 되지 않는다
-  // (그대로 두면 이 값을 useMemo 에 넣는 화면이 매번 다시 계산한다).
-  // ref 가 아니라 state 인 이유: 렌더 중에 읽어야 한다
+  // 첫 렌더의 것을 붙들어 둔다. 호출부가 [] 를 그 자리에 넘겨도 안전하게
   const [emptyValue] = useState(fallback);
 
   const refresh = useCallback(() => {
@@ -128,8 +112,7 @@ export function useCachedQuery<T>(key: string, loader: () => Promise<T>, fallbac
   }, [key]);
 
   return {
-    // fallback 을 안 넘기면 undefined 가 섞인다. 그 경우 위 오버로드가
-    // Result<T | undefined> 로 받아 주므로 호출부에서는 정확하다
+    // fallback 이 없으면 undefined 가 섞인다. 오버로드가 그걸 타입에 반영한다
     data: (data ?? emptyValue) as T,
     isLoading,
     hasError,

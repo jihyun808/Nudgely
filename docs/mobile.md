@@ -117,7 +117,16 @@ FCM 토큰은 재설치·오랜 미사용으로 조용히 바뀐다. 앱을 열 
 
 ---
 
-## 5. 지금 상태
+## 5. Xcode Cloud
+
+`ci_scripts/ci_post_clone.sh` 가 저장소를 받은 직후 `npm ci` → `npm run build` →
+`cap sync ios` 를 돌린다. node_modules 를 커밋하지 않는데 Capacitor 의 SPM 패키지가
+그 경로를 가리켜서, 이게 없으면 "package ... doesn't exist in file system" 으로 실패한다.
+
+서버 주소는 `frontend/.env.production` 에서 온다. 이 파일은 **커밋한다** —
+비밀이 아니고(앱 바이너리에 박혀 나간다) 빌드 머신에도 있어야 한다.
+
+## 6. 지금 상태
 
 | | 상태 |
 | --- | --- |

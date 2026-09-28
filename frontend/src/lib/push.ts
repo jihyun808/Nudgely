@@ -1,11 +1,7 @@
 // lib/push.ts
 // 네이티브 푸시 알림 (Capacitor + FCM).
 //
-// 앱이 꺼져 있을 때 선톡이 닿는 유일한 길이다. 종 아이콘은 앱을 열어야 보이고,
-// 채팅 SSE 는 방을 보고 있어야 살아 있다.
-//
-// 웹에서는 아무것도 하지 않는다. 브라우저는 OS 푸시를 받을 수 없고,
-// 개발은 대부분 브라우저에서 하므로 조용히 넘어가야 한다.
+// 앱이 꺼져 있을 때 선톡이 닿는 유일한 길. 웹에서는 아무것도 하지 않는다.
 import { FirebaseMessaging } from '@capacitor-firebase/messaging';
 import { Capacitor } from '@capacitor/core';
 import { registerDevice, unregisterDevice, type DevicePlatform } from '@/api/device';
@@ -41,13 +37,8 @@ async function sendToken(token: string): Promise<void> {
 }
 
 /**
- * 알림 권한을 받고 토큰을 서버에 등록한다.
- *
- * **로그인한 뒤에 부른다.** 등록은 인증이 필요하고, 로그인 화면에서 권한을
- * 물어봐야 무엇에 쓰는지 모르는 채로 거절당한다. iOS 는 한 번 거절당하면
- * 다시 묻지 못하므로(설정 앱으로 보내야 한다) 묻는 시점이 중요하다.
- *
- * 실패해도 앱은 그대로 쓴다 — 푸시가 없을 뿐이다.
+ * 알림 권한을 받고 토큰을 서버에 등록한다. 로그인한 뒤에 부른다 —
+ * iOS 는 한 번 거절당하면 다시 묻지 못한다.
  */
 export async function enablePush(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
@@ -61,13 +52,11 @@ export async function enablePush(): Promise<void> {
 
     if (!isListening) {
       isListening = true;
-      // FCM 이 토큰을 새로 발급하면(재설치·오랜 미사용) 알려준다.
-      // 이때 다시 등록하지 않으면 그 뒤로 푸시가 조용히 끊긴다
+      // 재발급 때 다시 등록하지 않으면 푸시가 조용히 끊긴다
       await FirebaseMessaging.addListener('tokenReceived', ({ token: next }) => {
         if (next && getToken()) void sendToken(next).catch(() => {});
       });
-      // 알림을 눌렀을 때. **아무 데도 이동하지 않는다** — 앱이 열리는 것까지가
-      // 알림의 역할이고, 어디로 갈지는 사용자가 정한다(api.md §5.2)
+      // 알림을 눌러도 아무 데도 이동하지 않는다(api.md §5.2)
       await FirebaseMessaging.addListener('notificationActionPerformed', () => {});
     }
   } catch (error) {
@@ -75,12 +64,7 @@ export async function enablePush(): Promise<void> {
   }
 }
 
-/**
- * 등록을 지운다. 로그아웃 직전에 부른다.
- *
- * 액세스 토큰을 지금 붙잡아 둔다 — 로그아웃이 곧 토큰을 지우기 때문에
- * 요청이 나갈 때쯤이면 인터셉터가 붙일 게 없다.
- */
+/** 로그아웃 직전에 부른다. 토큰이 지워지기 전에 붙잡아 둬야 한다. */
 export function disablePush(): void {
   const fcmToken = readStoredToken();
   const accessToken = getToken();

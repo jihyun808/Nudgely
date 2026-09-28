@@ -166,3 +166,42 @@ async def test_permanent_error_is_not_retried(monkeypatch):
 async def test_max_rounds_is_bounded(rounds: int):
     """무한 루프 방지 상한이 살아 있는지."""
     assert 1 <= rounds <= 10
+
+
+async def test_tool_failure_is_told_to_the_model_and_user(monkeypatch):
+    """도구를 못 썼는데 모델이 "투두에 넣었어" 라고 하면 사용자는 빈 기록 탭을 본다."""
+    seen: list[dict] = []
+
+    async def fails(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(streaming, "_tool_round", fails)
+
+    class _Client:
+        def __init__(self):
+            self.chat = self
+            self.completions = self
+
+        async def create(self, **kwargs):
+            seen.extend(kwargs["messages"])
+
+            async def _empty():
+                return
+                yield
+
+            return _empty()
+
+    monkeypatch.setattr("app.ai.client.get_openai_client", lambda: _Client())
+
+    streamer = streaming.OpenAIReplyStreamer()
+    async for _ in streamer.stream(
+        persona=None,
+        user_prompt=None,
+        goal_title="T",
+        history=[("user", "투두 넣어줘")],
+        dispatch=lambda *_: None,
+    ):
+        pass
+
+    assert streamer.tool_failed is True
+    assert any("저장했다고 말하지 마라" in str(m.get("content")) for m in seen)

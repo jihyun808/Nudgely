@@ -252,6 +252,8 @@ async def _generate(
         }
         if quick_replies:
             done["quickReplies"] = quick_replies
+        if getattr(streamer, "tool_failed", False):
+            done["warning"] = "저장에 실패했어요. 투두·플래너는 아직 반영되지 않았어요."
         # 이번 턴에 AI 가 완주 처리했으면 프론트 축하 연출 신호를 얹는다(api.md §3.2).
         if not was_completed and goal.completed_at is not None:
             done["goalCompleted"] = True
