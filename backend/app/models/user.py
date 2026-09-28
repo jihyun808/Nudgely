@@ -42,6 +42,13 @@ class User(Base):
     )
 
 
+#: 탈퇴한 계정이 비켜 주는 자리. email 은 unique 라, 주소를 그대로 두면
+#: 그 사람이 마음을 바꿔 돌아와도 "이미 사용 중인 이메일" 에 막힌다.
+#: .invalid 는 예약된 TLD(RFC 2606)라 실제 주소와 절대 겹치지 않는다.
+def released_email(user_id: str) -> str:
+    return f"deleted+{user_id}@nudgely.invalid"
+
+
 class UserSettings(Base):
     __tablename__ = "user_settings"
 

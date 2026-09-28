@@ -17,7 +17,7 @@ from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.storage import image_max_bytes, save_upload
-from app.models.user import User
+from app.models.user import User, released_email
 from app.schemas.user import NICKNAME_MAX, NICKNAME_MIN, UpdateProfileIn, UserOut
 
 router = APIRouter()
@@ -77,8 +77,11 @@ async def update_me(
 async def delete_me(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> Response:
-    # 소프트 삭제: deleted_at 만 채운다.
+    # 소프트 삭제: 기록은 남기고 로그인만 막는다.
     # ⚠️ 딸린 데이터(목표·대화·기록) 처리 정책은 미확정(api.md §8-7).
     user.deleted_at = datetime.now(UTC)
+    # 이메일 자리를 비켜 준다. 안 그러면 마음을 바꿔 돌아와도 같은 주소로
+    # 다시 가입할 수 없다("이미 사용 중인 이메일" 만 보고 영문을 모른 채 떠난다).
+    user.email = released_email(user.id)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
