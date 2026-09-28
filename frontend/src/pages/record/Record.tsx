@@ -1,7 +1,8 @@
 // pages/record/Record.tsx
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { fetchDailyTodos, fetchTodoMarks } from '@/api/record';
 import Skeleton from '@/components/Skeleton';
+import { useCachedQuery } from '@/lib/useCachedQuery';
 import PageHeader from '@/components/PageHeader';
 import SegmentedTabs from '@/components/SegmentedTabs';
 import { Button } from '@/components/ui/button';
@@ -28,63 +29,27 @@ export default function Record() {
   /** 탭이 오른쪽으로 이동했는지 (내용 애니메이션 방향 결정용) */
   const [isMovingRight, setIsMovingRight] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [todos, setTodos] = useState<DailyTodo[]>([]);
-  const [isLoadingTodos, setIsLoadingTodos] = useState(true);
-  const [hasTodoError, setHasTodoError] = useState(false);
-  /** 값을 늘려 같은 날짜로 다시 조회를 트리거한다 (다시 시도 버튼용) */
-  const [reloadKey, setReloadKey] = useState(0);
-
   const dateKey = useMemo(() => formatDateKey(selectedDate), [selectedDate]);
-  /** 캘린더에 꽃 모양으로 표시할 완료 기록 */
-  const [marks, setMarks] = useState<TodoMark[]>([]);
-  /** 항목을 체크·삭제해 완료 개수가 바뀌면 올려 꽃 표시를 다시 받는다 */
-  const [marksKey, setMarksKey] = useState(0);
   const [visibleMonth, setVisibleMonth] = useState(() => dateKey.slice(0, 7));
 
-  // 보이는 달이 바뀌면 그 달의 완료 표시를 다시 불러온다
-  useEffect(() => {
-    let isStale = false;
-    fetchTodoMarks(visibleMonth)
-      .then((data) => {
-        if (!isStale) setMarks(data);
-      })
-      .catch(() => {
-        // 표시를 못 받아도 캘린더는 쓸 수 있다
-      });
-    return () => {
-      isStale = true;
-    };
-  }, [visibleMonth, marksKey]);
-  // 선택한 날짜가 바뀌면 그 날짜에 할당된 투두를 다시 불러온다
-  useEffect(() => {
-    let isStale = false;
-    fetchDailyTodos(dateKey)
-      .then((data) => {
-        if (isStale) return;
-        setTodos(data);
-        setHasTodoError(false);
-      })
-      .catch(() => {
-        if (!isStale) setHasTodoError(true);
-      })
-      .finally(() => {
-        if (!isStale) setIsLoadingTodos(false);
-      });
-    return () => {
-      isStale = true;
-    };
-  }, [dateKey, reloadKey]);
+  // 날짜·달을 키로 캐시한다. 어제 본 날짜로 돌아가거나 탭을 옮겨도
+  // 스켈레톤이 다시 뜨지 않고, 뒤에서 조용히 갱신된다
+  const loadTodos = useCallback(() => fetchDailyTodos(dateKey), [dateKey]);
+  const {
+    data: todos,
+    isLoading: isLoadingTodos,
+    hasError: hasTodoError,
+    reload: reloadTodos,
+    setData: setTodos,
+  } = useCachedQuery<DailyTodo[]>(`record:todos:${dateKey}`, loadTodos, []);
 
-  const handleSelectDate = (date: Date) => {
-    setSelectedDate(date);
-    setIsLoadingTodos(true);
-  };
-
-  const handleRetryTodos = () => {
-    setIsLoadingTodos(true);
-    setHasTodoError(false);
-    setReloadKey((key) => key + 1);
-  };
+  /** 캘린더에 꽃 모양으로 표시할 완료 기록 */
+  const loadMarks = useCallback(() => fetchTodoMarks(visibleMonth), [visibleMonth]);
+  const { data: marks, refresh: refreshMarks } = useCachedQuery<TodoMark[]>(
+    `record:marks:${visibleMonth}`,
+    loadMarks,
+    [],
+  );
 
   const handleTabChange = (next: RecordTab) => {
     const currentIndex = TABS.findIndex(({ value }) => value === tab);
@@ -110,7 +75,7 @@ export default function Record() {
             <div className="mt-5">
               <Calendar
                 selected={selectedDate}
-                onSelect={handleSelectDate}
+                onSelect={setSelectedDate}
                 marks={marks}
                 onMonthChange={setVisibleMonth}
               />
@@ -125,7 +90,7 @@ export default function Record() {
               ) : hasTodoError ? (
                 <div className="flex flex-col items-center gap-3 rounded-2xl bg-muted-foreground/5 py-8">
                   <p className="text-sm text-muted-foreground">투두를 불러오지 못했어요</p>
-                  <Button variant="outline" size="sm" onClick={handleRetryTodos}>
+                  <Button variant="outline" size="sm" onClick={reloadTodos}>
                     다시 시도
                   </Button>
                 </div>
@@ -138,7 +103,7 @@ export default function Record() {
                   // 지난 날짜는 읽기 전용이다 — 나중에 고치면 꽃 표시와 진도가
                   // 뒤늦게 흔들린다
                   isToday={dateKey === formatDateKey(new Date())}
-                  onCompletionChanged={() => setMarksKey((key) => key + 1)}
+                  onCompletionChanged={refreshMarks}
                 />
               )}
             </div>

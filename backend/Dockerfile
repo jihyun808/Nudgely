@@ -32,10 +32,13 @@ WORKDIR /app
 COPY --from=deps /venv /venv
 COPY --chown=app:app . .
 
-# 업로드 디렉터리. 볼륨을 붙이지 않으면 재배포 때 사라진다(README 참고)
+# 업로드 디렉터리. 볼륨을 붙이지 않으면 재배포 때 사라진다(docs/deploy.md 참고)
 RUN mkdir -p /app/media && chown -R app:app /app/media
 
-USER app
+# ⚠️ USER 를 여기서 바꾸지 않는다. 호스팅이 실행 시점에 /app/media 에 볼륨을
+# 덮어씌우는데, 그 볼륨은 root 소유라 빌드 때 맞춰 둔 주인이 가려진다.
+# 시작점이 root 로 주인을 맞춘 **뒤에** app 으로 내려간다.
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 EXPOSE 8000
 

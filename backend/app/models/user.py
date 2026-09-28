@@ -34,12 +34,27 @@ class User(Base):
     # 회원 탈퇴 시각. NULL 이면 활성 계정. (탈퇴 데이터 처리 정책은 미확정, api.md §8-7)
     deleted_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
+    # 발급해 둔 토큰을 한 번에 무효로 만드는 번호. 토큰에 함께 담기고,
+    # 여기 값과 다르면 거절한다(app/api/deps.py).
+    #
+    # 무상태 JWT 라 로그아웃만으로는 토큰이 죽지 않는다 — 기기를 잃어버렸을 때
+    # 끊을 방법이 있어야 해서 둔다. 비밀번호를 바꾸면 올라가고,
+    # 그 순간 모든 기기가 로그아웃된다(다른 기기를 정리하는 방법이기도 하다).
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     settings: Mapped["UserSettings"] = relationship(
         back_populates="user",
         uselist=False,
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+
+
+#: 탈퇴한 계정이 비켜 주는 자리. email 은 unique 라, 주소를 그대로 두면
+#: 그 사람이 마음을 바꿔 돌아와도 "이미 사용 중인 이메일" 에 막힌다.
+#: .invalid 는 예약된 TLD(RFC 2606)라 실제 주소와 절대 겹치지 않는다.
+def released_email(user_id: str) -> str:
+    return f"deleted+{user_id}@nudgely.invalid"
 
 
 class UserSettings(Base):

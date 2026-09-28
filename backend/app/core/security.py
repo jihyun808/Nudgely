@@ -25,11 +25,16 @@ def verify_password(plain: str, hashed: str) -> bool:
     return _pwd_context.verify(plain, hashed)
 
 
-def create_access_token(subject: str) -> str:
-    """subject(보통 user id)를 담은 JWT 를 발급."""
+def create_access_token(subject: str, token_version: int = 0) -> str:
+    """subject(보통 user id)를 담은 JWT 를 발급.
+
+    token_version 을 함께 담는다. 사용자 쪽 값이 올라가면(비밀번호 변경 등)
+    이미 나가 있던 토큰이 전부 거절된다 — 무상태 JWT 를 끊는 유일한 수단이다.
+    """
     now = datetime.now(UTC)
     payload = {
         "sub": subject,
+        "ver": token_version,
         "iat": now,
         "exp": now + timedelta(minutes=settings.access_token_expire_minutes),
     }

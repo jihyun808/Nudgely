@@ -121,6 +121,8 @@ export default function ChatMessageBubble({
     </button>
   ) : (
     <div
+      // 앱에서는 글자 선택을 전역으로 막아 뒀다. 말풍선은 예외 — 복사할 수 있어야 한다
+      data-selectable
       className={cn(
         'max-w-full rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed break-words whitespace-pre-wrap',
         // 파일 카드는 양쪽 모두 흰 배경, 일반 텍스트는 내 것만 브랜드 색

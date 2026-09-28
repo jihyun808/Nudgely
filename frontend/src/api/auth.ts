@@ -28,14 +28,6 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
   return data;
 }
 
-/** 이메일 중복 확인. 회원가입 전에 미리 알려주기 위한 용도 */
-export async function checkEmailAvailable(email: string): Promise<boolean> {
-  const { data } = await api.get<{ isAvailable: boolean }>('/auth/email-available', {
-    params: { email: email.trim() },
-  });
-  return data.isAvailable;
-}
-
 /**
  * 소셜 로그인 (카카오·구글).
  * TODO(M3): 서버에 `/auth/social`이 아직 없다. 키 발급 후 붙인다.

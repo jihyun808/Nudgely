@@ -40,4 +40,8 @@ async def get_current_user(
     user = await db.get(User, user_id)
     if user is None or user.deleted_at is not None:
         raise _unauthorized()
+    # 비밀번호를 바꾸면 번호가 올라가 이미 나가 있던 토큰이 전부 죽는다.
+    # 옛 토큰에는 ver 이 없으므로 0 으로 본다
+    if payload.get("ver", 0) != user.token_version:
+        raise _unauthorized()
     return user
