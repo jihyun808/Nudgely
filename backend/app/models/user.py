@@ -34,6 +34,14 @@ class User(Base):
     # 회원 탈퇴 시각. NULL 이면 활성 계정. (탈퇴 데이터 처리 정책은 미확정, api.md §8-7)
     deleted_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
+    # 발급해 둔 토큰을 한 번에 무효로 만드는 번호. 토큰에 함께 담기고,
+    # 여기 값과 다르면 거절한다(app/api/deps.py).
+    #
+    # 무상태 JWT 라 로그아웃만으로는 토큰이 죽지 않는다 — 기기를 잃어버렸을 때
+    # 끊을 방법이 있어야 해서 둔다. 비밀번호를 바꾸면 올라가고,
+    # 그 순간 모든 기기가 로그아웃된다(다른 기기를 정리하는 방법이기도 하다).
+    token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     settings: Mapped["UserSettings"] = relationship(
         back_populates="user",
         uselist=False,

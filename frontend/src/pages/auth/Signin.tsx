@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signin } from '@/api/auth';
@@ -27,8 +28,13 @@ export default function Signin() {
       const { accessToken, user } = await signin({ email: email.trim(), password });
       login(accessToken, user);
       navigate('/home', { replace: true });
-    } catch {
-      setError('이메일 또는 비밀번호를 다시 확인해주세요.');
+    } catch (error) {
+      // 횟수 제한에 걸린 것을 '비밀번호가 틀렸다' 로 보여주면 계속 다시 눌러본다
+      if (isAxiosError(error) && error.response?.status === 429) {
+        setError(error.response.data?.message ?? '시도가 너무 잦아요. 잠시 후 다시 해주세요.');
+      } else {
+        setError('이메일 또는 비밀번호를 다시 확인해주세요.');
+      }
     } finally {
       setIsSubmitting(false);
     }

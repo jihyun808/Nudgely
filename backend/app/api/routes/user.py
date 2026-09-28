@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.core.errors import AppError
-from app.core.storage import image_max_bytes, save_upload
+from app.core.storage import image_max_bytes, is_our_url, save_upload
 from app.models.user import User, released_email
 from app.schemas.user import NICKNAME_MAX, NICKNAME_MIN, UpdateProfileIn, UserOut
 
@@ -66,6 +66,12 @@ async def update_me(
         if body.nickname is not None:
             user.nickname = _validate_nickname(body.nickname)
         if body.image_url is not None:
+            # 우리가 발급한 주소만 받는다. 아무 주소나 받으면 프로필 사진이
+            # 남의 서버를 가리키고, 그 서버는 화면을 여는 사람의 IP 를 본다
+            if not is_our_url(body.image_url):
+                raise AppError(
+                    "VALIDATION_ERROR", "이미지 주소가 올바르지 않습니다.", status_code=422
+                )
             user.image_url = body.image_url
 
     await db.commit()

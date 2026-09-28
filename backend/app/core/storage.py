@@ -61,7 +61,28 @@ def storage_root() -> Path:
 
 
 def _public_url(name: str) -> str:
-    return f"{settings.public_base_url.rstrip('/')}/static/{name}"
+    return f"{_static_prefix()}{name}"
+
+
+def _static_prefix() -> str:
+    return f"{settings.public_base_url.rstrip('/')}/static/"
+
+
+def is_our_url(url: str) -> bool:
+    """우리가 발급한 파일 주소인지.
+
+    사용자가 주소를 직접 보낼 수 있는 자리(PATCH /me 의 imageUrl)에서 쓴다.
+    아무 주소나 받으면 프로필 사진이 남의 서버를 가리키게 되고, 그 서버는
+    화면을 여는 사람의 IP 를 그대로 본다(추적 픽셀).
+
+    파일명에 경로 구분자가 없어야 한다 — '/static/../..' 같은 값으로
+    위쪽 경로를 가리키지 못하게 막는다.
+    """
+    prefix = _static_prefix()
+    if not url.startswith(prefix):
+        return False
+    name = url[len(prefix) :]
+    return bool(name) and "/" not in name and ".." not in name
 
 
 def _clean_display_name(filename: str | None, ext: str) -> str:
