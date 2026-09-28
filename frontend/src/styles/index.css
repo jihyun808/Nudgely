@@ -172,6 +172,9 @@ html.native [data-selectable] {
  * 관성 스크롤. 안쪽 스크롤 영역(채팅 목록 등)은 이걸 켜지 않으면
  * 손을 떼는 순간 멈춰서 뻣뻣하게 느껴진다.
  * overscroll-behavior: 끝에 닿았을 때 바깥 화면까지 같이 밀리는 것을 막는다.
+ *
+ * 여기만 .native 밖에 둔다 — 웹에서도 바람직한 동작이고, 웹뷰가 아닌 곳에서는
+ * -webkit- 속성이 그냥 무시된다.
  */
 .scroll-touch {
   -webkit-overflow-scrolling: touch;

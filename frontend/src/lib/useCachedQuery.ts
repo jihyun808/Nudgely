@@ -15,6 +15,10 @@ import type { Dispatch, SetStateAction } from 'react';
  *
  * 값은 메모리에만 둔다. 앱을 껐다 켜면 비는 게 맞다 — 오래된 진도나 투두를
  * 되살려 보여주면 '고쳤는데 그대로네' 가 된다.
+ *
+ * ⚠️ **key 에는 loader 가 보는 값이 전부 들어가야 한다.** 날짜별 투두라면
+ * key 에도 날짜가 있어야 한다. 고정 문자열을 쓰면 날짜를 바꿔도 같은 칸을
+ * 보게 되어, 화면이 영영 갱신되지 않는다(조용히 틀리는 쪽이라 더 나쁘다).
  */
 const cache = new Map<string, unknown>();
 
@@ -24,7 +28,7 @@ export function clearQueryCache(): void {
 }
 
 interface Result<T> {
-  data: T | undefined;
+  data: T;
   /** 보여줄 게 아무것도 없을 때만 true. 뒤에서 갱신하는 중에는 false 다 */
   isLoading: boolean;
   hasError: boolean;
@@ -39,7 +43,9 @@ interface Result<T> {
   setData: Dispatch<SetStateAction<T>>;
 }
 
-export function useCachedQuery<T>(key: string, loader: () => Promise<T>): Result<T> {
+export function useCachedQuery<T>(key: string, loader: () => Promise<T>): Result<T | undefined>;
+export function useCachedQuery<T>(key: string, loader: () => Promise<T>, fallback: T): Result<T>;
+export function useCachedQuery<T>(key: string, loader: () => Promise<T>, fallback?: T): Result<T> {
   const [data, setRawData] = useState<T | undefined>(() => cache.get(key) as T | undefined);
   const [isLoading, setIsLoading] = useState(!cache.has(key));
   const [hasError, setHasError] = useState(false);
@@ -103,6 +109,12 @@ export function useCachedQuery<T>(key: string, loader: () => Promise<T>): Result
     [key],
   );
 
+  // 받아오기 전에 보여줄 빈 값. 첫 렌더의 것을 붙들어 둔다 —
+  // 호출부가 [] 나 {} 를 그 자리에서 넘겨도 매 렌더 새 객체가 되지 않는다
+  // (그대로 두면 이 값을 useMemo 에 넣는 화면이 매번 다시 계산한다).
+  // ref 가 아니라 state 인 이유: 렌더 중에 읽어야 한다
+  const [emptyValue] = useState(fallback);
+
   const refresh = useCallback(() => {
     setReloadKey((n) => n + 1);
   }, []);
@@ -115,5 +127,14 @@ export function useCachedQuery<T>(key: string, loader: () => Promise<T>): Result
     setReloadKey((n) => n + 1);
   }, [key]);
 
-  return { data, isLoading, hasError, refresh, reload, setData };
+  return {
+    // fallback 을 안 넘기면 undefined 가 섞인다. 그 경우 위 오버로드가
+    // Result<T | undefined> 로 받아 주므로 호출부에서는 정확하다
+    data: (data ?? emptyValue) as T,
+    isLoading,
+    hasError,
+    refresh,
+    reload,
+    setData,
+  };
 }

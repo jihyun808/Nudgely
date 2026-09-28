@@ -24,6 +24,16 @@ import { formatDateKey } from '@/utils/date';
  * 마이페이지.
  * 헤더(+설정) / 프로필 / 요약 카드 3개 / 이번 주 집중 / 집중 히트맵.
  */
+interface FocusRecord {
+  /** 가입일부터 오늘까지의 날짜별 집중 시간(초). 요약 카드와 히트맵이 함께 쓴다 */
+  secondsByDate: Record<string, number>;
+  /** 연속 달성일 (서버 계산) */
+  streakDays: number;
+}
+
+/** 아직 못 받았을 때. 잔디는 빈 칸으로, 연속일은 0으로 그린다 */
+const EMPTY_FOCUS: FocusRecord = { secondsByDate: {}, streakDays: 0 };
+
 export default function My() {
   const navigate = useNavigate();
   // 프로필은 전역 상태에 두고 다른 화면과 함께 쓴다
@@ -37,26 +47,24 @@ export default function My() {
 
   /** 완주한 목표. 없으면 화면에 섹션 자체가 생기지 않는다 */
   const loadCompleted = useCallback(() => fetchCompletedGoals(), []);
-  const { data: completedGoalsData } = useCachedQuery('my:completed', loadCompleted);
-  const completedGoals: Goal[] = completedGoalsData ?? [];
+  const { data: completedGoals } = useCachedQuery<Goal[]>('my:completed', loadCompleted, []);
 
   const joinedAt = profile?.createdAt;
 
   // 집중 기록은 한 번만 받아 요약 카드와 히트맵이 나눠 쓴다.
   // 캐시해 두지 않으면 탭을 옮길 때마다 잔디가 빈 칸에서 다시 그려진다
-  const loadFocus = useCallback(async () => {
-    if (!joinedAt) return { secondsByDate: {} as Record<string, number>, streakDays: 0 };
+  const loadFocus = useCallback(async (): Promise<FocusRecord> => {
+    // 가입일을 모르면 범위를 못 잡는다. 프로필이 도착하면 key 가 바뀌어 다시 받는다
+    if (!joinedAt) return EMPTY_FOCUS;
     const [secondsByDate, summary] = await Promise.all([
       fetchDailyFocus(formatDateKey(new Date(joinedAt)), formatDateKey(new Date())),
       fetchFocusSummary(),
     ]);
     return { secondsByDate, streakDays: summary.streakDays };
   }, [joinedAt]);
-  const { data: focusData } = useCachedQuery(`my:focus:${joinedAt ?? ''}`, loadFocus);
-  /** 가입일부터 오늘까지의 날짜별 집중 시간(초) */
-  const secondsByDate: Record<string, number> = focusData?.secondsByDate ?? {};
-  /** 연속 달성일 (서버 계산) */
-  const streakDays = focusData?.streakDays ?? 0;
+  const {
+    data: { secondsByDate, streakDays },
+  } = useCachedQuery(`my:focus:${joinedAt ?? ''}`, loadFocus, EMPTY_FOCUS);
 
   useEffect(() => {
     let isStale = false;

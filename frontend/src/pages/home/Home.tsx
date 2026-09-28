@@ -18,6 +18,28 @@ import type { Goal } from '@/types/goal';
 // 같은 이름의 컴포넌트가 있어 타입은 별칭으로 가져온다
 import type { FocusSummary as FocusSummaryData } from '@/types/focus';
 import type { HomePreview } from '@/types/home';
+import type { AppNotification } from '@/types/notification';
+
+interface HomeData {
+  previews: HomePreview[];
+  goals: Goal[];
+  notifications: AppNotification[];
+  focus: FocusSummaryData;
+}
+
+/** 아직 받아오기 전에 그릴 값. 스켈레톤이 걷힌 뒤 잠깐 이 모습이 된다 */
+const EMPTY: HomeData = {
+  previews: [],
+  goals: [],
+  notifications: [],
+  focus: {
+    focusedSeconds: 0,
+    targetMinutes: 0,
+    streakDays: 0,
+    bestStreakDays: 0,
+    isBestStreak: false,
+  },
+};
 
 /**
  * 홈 화면.
@@ -27,7 +49,7 @@ export default function Home() {
   const setNotifications = useNotificationStore((state) => state.setNotifications);
   const navigate = useNavigate();
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<HomeData> => {
     const [previews, goals, notifications, focus] = await Promise.all([
       fetchHomePreviews(),
       fetchGoals(),
@@ -45,21 +67,17 @@ export default function Home() {
 
   // 받아둔 게 있으면 먼저 그리고 뒤에서 갱신한다 — 탭을 옮길 때마다
   // 스켈레톤이 다시 뜨지 않게(useCachedQuery)
-  const { data, isLoading, hasError, refresh, reload, setData } = useCachedQuery('home', load);
+  const { data, isLoading, hasError, refresh, reload, setData } = useCachedQuery(
+    'home',
+    load,
+    EMPTY,
+  );
+  const { previews, goals, focus } = data;
 
-  const previews: HomePreview[] = data?.previews ?? [];
-  const goals: Goal[] = data?.goals ?? [];
-  const focus: FocusSummaryData = data?.focus ?? {
-    focusedSeconds: 0,
-    targetMinutes: 0,
-    streakDays: 0,
-    bestStreakDays: 0,
-    isBestStreak: false,
-  };
-
-  // 알림 목록은 전역 스토어가 들고 있다(종 아이콘이 어디서든 쓴다)
+  // 알림 목록은 전역 스토어가 들고 있다(종 아이콘이 어디서든 쓴다).
+  // 받아오기 전(EMPTY)에는 넣지 않는다 — 넣으면 종에 있던 표시가 잠깐 사라진다
   useEffect(() => {
-    if (data) setNotifications(data.notifications);
+    if (data !== EMPTY) setNotifications(data.notifications);
   }, [data, setNotifications]);
 
   // 채팅방에 다녀오거나 앱을 다시 열었을 때 안 읽은 메시지·목표를 최신 상태로 맞춘다
@@ -82,8 +100,11 @@ export default function Home() {
    * (서버 읽음 처리는 채팅방 진입 시 이뤄지고, 다음 홈 조회 때 최종 반영된다)
    */
   const handleOpenPreview = (preview: HomePreview) => {
-    if (preview.kind === 'message' && data) {
-      setData({ ...data, previews: previews.filter(({ id }) => id !== preview.id) });
+    if (preview.kind === 'message') {
+      setData((prev) => ({
+        ...prev,
+        previews: prev.previews.filter(({ id }) => id !== preview.id),
+      }));
     }
     if (preview.linkTo) navigate(preview.linkTo);
   };

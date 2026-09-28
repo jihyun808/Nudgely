@@ -36,23 +36,20 @@ export default function Record() {
   // 스켈레톤이 다시 뜨지 않고, 뒤에서 조용히 갱신된다
   const loadTodos = useCallback(() => fetchDailyTodos(dateKey), [dateKey]);
   const {
-    data: todoData,
+    data: todos,
     isLoading: isLoadingTodos,
     hasError: hasTodoError,
     reload: reloadTodos,
     setData: setTodos,
-  } = useCachedQuery(`record:todos:${dateKey}`, loadTodos);
-  const todos: DailyTodo[] = useMemo(() => todoData ?? [], [todoData]);
+  } = useCachedQuery<DailyTodo[]>(`record:todos:${dateKey}`, loadTodos, []);
 
   /** 캘린더에 꽃 모양으로 표시할 완료 기록 */
   const loadMarks = useCallback(() => fetchTodoMarks(visibleMonth), [visibleMonth]);
-  const { data: marksData, refresh: refreshMarks } = useCachedQuery(
+  const { data: marks, refresh: refreshMarks } = useCachedQuery<TodoMark[]>(
     `record:marks:${visibleMonth}`,
     loadMarks,
+    [],
   );
-  const marks: TodoMark[] = useMemo(() => marksData ?? [], [marksData]);
-
-  const handleSelectDate = (date: Date) => setSelectedDate(date);
 
   const handleTabChange = (next: RecordTab) => {
     const currentIndex = TABS.findIndex(({ value }) => value === tab);
@@ -78,7 +75,7 @@ export default function Record() {
             <div className="mt-5">
               <Calendar
                 selected={selectedDate}
-                onSelect={handleSelectDate}
+                onSelect={setSelectedDate}
                 marks={marks}
                 onMonthChange={setVisibleMonth}
               />

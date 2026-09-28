@@ -30,9 +30,13 @@ export default function Chat() {
 
   const load = useCallback(() => fetchGoals(), []);
   // 받아둔 목록이 있으면 먼저 그리고 뒤에서 갱신한다(탭을 옮길 때마다 스켈레톤이 뜨지 않게)
-  const { data, isLoading, hasError, reload, setData } = useCachedQuery('chat:goals', load);
-  // ?? [] 를 그대로 쓰면 렌더마다 새 배열이 되어 아래 useMemo 가 매번 다시 돈다
-  const goals: Goal[] = useMemo(() => data ?? [], [data]);
+  const {
+    data: goals,
+    isLoading,
+    hasError,
+    reload,
+    setData,
+  } = useCachedQuery<Goal[]>('chat:goals', load, []);
 
   // 팝업을 띄우라는 신호는 한 번만 쓰고 지운다 (뒤로가기로 돌아왔을 때 다시 열리지 않도록)
   useEffect(() => {
