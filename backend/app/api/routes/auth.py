@@ -14,11 +14,14 @@
 같은 일을 하므로 화면에서도 필요 없었다.
 """
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.ratelimit import RateLimit
@@ -54,6 +57,45 @@ def _issue(user: User) -> AuthResult:
     return AuthResult(access_token=token, user=UserOut.model_validate(user))
 
 
+# 필수 동의 항목: (요청 필드, User 컬럼)
+_REQUIRED_CONSENTS = (
+    ("agreed_to_terms", "terms_agreed_at", "이용약관"),
+    ("agreed_to_privacy", "privacy_agreed_at", "개인정보 처리방침"),
+    ("is_over14", "age_confirmed_at", "만 14세 이상 확인"),
+)
+
+
+def _apply_consents(user: User, body: SignupIn) -> None:
+    """가입 동의 기록.
+
+    "동의를 받았다" 를 입증하려면 시각이 남아야 해서 불리언이 아니라 시각을 저장한다.
+    약관을 개정하면 재동의를 받아야 하므로 동의한 버전도 함께 남긴다.
+
+    ⚠️ 가입 화면에 동의 UI 가 아직 없어서 **생략된 항목은 통과**시킨다(전환기).
+    프론트가 보내기 시작하면 SignupIn 의 필드를 필수로 바꾸고 이 관용을 없앤다.
+    명시적으로 False 를 보낸 경우는 "동의하지 않음" 이므로 지금도 거부한다.
+    """
+    now = datetime.now(UTC)
+
+    for field, column, label in _REQUIRED_CONSENTS:
+        value = getattr(body, field)
+        if value is False:
+            raise AppError(
+                "CONSENT_REQUIRED",
+                f"{label}에 동의해야 가입할 수 있습니다.",
+                status_code=400,
+            )
+        if value is True:
+            setattr(user, column, now)
+
+    if body.agreed_to_terms:
+        user.terms_version = settings.terms_version
+
+    # 선택 항목이라 거부해도 가입은 진행된다
+    if body.agreed_to_marketing:
+        user.marketing_agreed_at = now
+
+
 @router.post("/signup", response_model=AuthResult, status_code=status.HTTP_201_CREATED)
 async def signup(
     body: SignupIn,
@@ -69,6 +111,7 @@ async def signup(
         password_hash=hash_password(body.password),
         nickname=body.nickname.strip(),
     )
+    _apply_consents(user, body)
     user.settings = UserSettings.defaults(user.id)
     db.add(user)
     await db.commit()
