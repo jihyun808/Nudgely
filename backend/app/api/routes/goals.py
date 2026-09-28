@@ -417,10 +417,17 @@ async def _goal_state(db: AsyncSession, goal: Goal, today: date) -> GoalState:
         for r in today_routines
     )
 
+    # 확인 지시를 넣는 이번 턴에 표시를 내린다. 안 내리면 매 턴 다시 묻는다
+    needs_confirm = todo is not None and todo.needs_confirm and bool(todo.items)
+    if needs_confirm:
+        todo.needs_confirm = False
+        await db.commit()
+
     return GoalState(
         has_progress=total > 0,
         is_progress_done=total > 0 and int(progress.get("current") or 0) >= total,
         routine_summary=summary or None,
+        todos_need_confirm=needs_confirm,
         has_todo_today=todo is not None and bool(todo.items),
         has_plan_today=plan is not None,
         is_overdue=goal.due_date is not None

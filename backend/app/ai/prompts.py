@@ -181,6 +181,8 @@ class GoalState:
     #: 오늘 할 반복 계획 요약. 없으면 None (2단계에서 제안 근거로 쓴다)
     routine_summary: str | None = None
     has_todo_today: bool = False
+    #: 반복 계획으로 서버가 미리 넣어 둔 투두를 아직 확인받지 않았다
+    todos_need_confirm: bool = False
     has_plan_today: bool = False
     is_overdue: bool = False
 
@@ -212,6 +214,13 @@ def _stage_line(state: GoalState | None) -> str | None:
             f"[4단계: 완주] {reason}. 이 목표를 완료한 목표로 바꿀지 먼저 물어라. "
             "사용자가 확실히 답하기 전에는 complete_goal 을 부르지 마라. "
             "아니라고 하면 남은 일을 정리해 주고 격려한다."
+        )
+
+    if state.todos_need_confirm:
+        return (
+            "[2단계: 확인] 오늘 할 일을 반복 계획대로 미리 넣어 뒀다. "
+            "무엇을 넣었는지 먼저 알려주고 이대로 할지 물어라. "
+            "바꾸겠다고 하면 고쳐 주고, 시간까지 정하면 create_planner 로 넣어라."
         )
 
     if not state.has_todo_today:

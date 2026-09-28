@@ -39,6 +39,10 @@ class Todo(Base):
     date: Mapped[date] = mapped_column(Date, index=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now)
 
+    # 반복 계획으로 서버가 미리 만들어 둔 묶음. AI 가 한 번 확인받으면 내린다.
+    # 없으면 사용자가 오지 않은 날에는 투두가 없어 밤 11시 독촉도 못 간다.
+    needs_confirm: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     items: Mapped[list["TodoItem"]] = relationship(
         back_populates="todo",
         cascade="all, delete-orphan",
