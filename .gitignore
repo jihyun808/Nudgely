@@ -1,4 +1,5 @@
-node_modules
+# 루트에만 적용한다. frontend/.gitignore 가 그쪽을 따로 다룬다
+/node_modules
 
 # macOS
 .DS_Store

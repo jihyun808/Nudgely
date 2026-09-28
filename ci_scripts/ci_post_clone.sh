@@ -1,10 +1,9 @@
 #!/bin/sh
-# Xcode Cloud 가 저장소를 받은 직후 실행한다.
-# node_modules 는 커밋하지 않는데 Capacitor 의 SPM 패키지가 그 경로를 가리켜,
-# 설치와 sync 를 먼저 해야 빌드가 된다.
+# Xcode Cloud 가 저장소를 받은 직후 실행한다. 웹 빌드를 만들어 ios 에 넣는다.
+# (SPM 이 경로로 가리키는 패키지들은 저장소에 있다 — frontend/.gitignore)
 set -e
 
-brew install node
+command -v node >/dev/null || brew install node
 
 cd "$CI_PRIMARY_REPOSITORY_PATH/frontend"
 npm ci
