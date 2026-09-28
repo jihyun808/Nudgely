@@ -16,6 +16,9 @@ dist-ssr
 .env
 .env.*
 !.env.example
+# 배포 앱이 볼 서버 주소. 비밀이 아니고(앱 바이너리에 박혀 나간다)
+# 빌드 머신에도 있어야 해서 커밋한다
+!.env.production
 
 # Editor directories and files
 .vscode/*
