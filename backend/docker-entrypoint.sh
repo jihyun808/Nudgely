@@ -8,6 +8,9 @@ MEDIA_DIR="${STORAGE_DIR:-/app/media}"
 if [ "$(id -u)" = "0" ]; then
     mkdir -p "$MEDIA_DIR"
     chown -R app:app "$MEDIA_DIR"
+    # setpriv 는 uid 만 바꾸고 환경은 물려준다. HOME 이 /root 로 남으면
+    # asyncpg 가 SSL 인증서를 /root 에서 찾다가 권한 오류로 죽는다
+    export HOME=/home/app
     exec setpriv --reuid=app --regid=app --init-groups "$@"
 fi
 

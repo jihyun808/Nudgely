@@ -42,7 +42,4 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 EXPOSE 8000
 
-# 서버를 켜기 전에 마이그레이션을 적용한다. 순서가 반대면 새 컬럼을 읽는 코드가
-# 옛 스키마를 만나 첫 요청부터 깨진다.
-# PORT 는 호스팅이 정해준다(Railway·Render 모두 주입한다).
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["/app/start.sh"]
