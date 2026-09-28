@@ -1,14 +1,7 @@
-"""요청 횟수 제한 (로그인·가입 등 인증 경로).
+"""인증 경로의 요청 횟수 제한.
 
-없으면 `POST /auth/login` 을 초당 수백 번 때릴 수 있다. 최소 8자 비밀번호에
-흔한 단어를 쓰는 사람은 그대로 뚫린다.
-
-**메모리에 센다.** 프로세스가 하나라는 전제다(railway.json 의 numReplicas: 1 —
-스케줄러가 컨테이너 안에서 돌기 때문에 늘릴 수도 없다). 여러 대로 늘리는 날에는
-Redis 같은 공용 저장소로 옮겨야 하고, 그 전까지는 이게 정확하다.
-
-시간을 고정 구간(fixed window)으로 나눠 센다. 구간 경계에서 최대 두 배까지
-통과할 수 있지만, 무차별 대입을 막는 데는 충분하고 상태가 단순하다.
+메모리에 센다 — 프로세스가 하나라는 전제다(railway.json numReplicas: 1).
+여러 대로 늘리는 날에는 Redis 로 옮겨야 한다.
 """
 
 import time
@@ -28,12 +21,7 @@ _last_sweep = 0.0
 
 
 def client_key(request: Request) -> str:
-    """요청자를 가리키는 키.
-
-    운영에서는 프록시(Railway) 뒤에 있어 request.client 가 늘 같은 주소다.
-    그대로 쓰면 **모든 사용자가 한 덩어리로 세어져** 한 명이 다 써버린다.
-    X-Forwarded-For 의 맨 앞이 원래 클라이언트다.
-    """
+    """요청자 키. 프록시 뒤라 X-Forwarded-For 를 봐야 사용자별로 갈린다."""
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         return forwarded.split(",")[0].strip()
@@ -76,12 +64,7 @@ def reset() -> None:
 
 
 class RateLimit:
-    """라우트에 붙이는 의존성.
-
-        _: None = Depends(RateLimit("login", limit=10, window_seconds=300))
-
-    scope 를 나눠야 로그인 실패가 가입까지 막지 않는다.
-    """
+    """라우트 의존성. scope 를 나눠야 로그인 실패가 가입까지 막지 않는다."""
 
     def __init__(self, scope: str, *, limit: int, window_seconds: int) -> None:
         self.scope = scope

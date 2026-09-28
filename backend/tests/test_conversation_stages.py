@@ -175,3 +175,11 @@ async def test_routine_summary_respects_weekdays(
 
     assert "매일(30분)" in state.routine_summary
     assert "평일만" not in state.routine_summary
+
+
+def test_routine_todos_are_confirmed_before_anything_else():
+    """서버가 미리 넣어 둔 것을 말없이 두면 사용자는 누가 넣었는지 모른다."""
+    text = _stage_text(GoalState(has_progress=True, has_todo_today=True, todos_need_confirm=True))
+
+    assert "미리 넣어 뒀다" in text
+    assert "이대로 할지" in text

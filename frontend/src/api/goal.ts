@@ -135,6 +135,8 @@ export interface SendResult {
    * 누르면 그 글자를 그대로 보낸다(전송 경로는 직접 입력과 같다).
    */
   quickReplies: string[];
+  /** 도구를 못 써서 아무것도 저장되지 않았을 때 */
+  warning?: string;
 }
 
 /** SSE 이벤트 한 덩어리 */
@@ -229,6 +231,7 @@ export async function sendMessage(
   /** 이번 턴에 AI 가 완주 처리했는지 */
   let goalCompleted = false;
   let quickReplies: string[] = [];
+  let warning: string | undefined;
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -269,6 +272,7 @@ export async function sendMessage(
             createdAt: String(item.createdAt ?? new Date().toISOString()),
           };
         });
+        warning = typeof event.data.warning === 'string' ? event.data.warning : undefined;
         isComplete = true;
       }
     }
@@ -292,6 +296,7 @@ export async function sendMessage(
         ],
     goalCompleted,
     quickReplies,
+    warning,
   };
 }
 

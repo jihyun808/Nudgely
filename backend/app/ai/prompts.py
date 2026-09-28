@@ -43,6 +43,9 @@ _TOOL_POLICY = """\
 - 도구로 무언가를 바꿨으면 반드시 말로 알린다. "투두에 1-1 수업 넣었어",
   "진도 3소주제로 고쳤어", "기한 10월 20일로 잡았어" 처럼 무엇을 어떻게 바꿨는지
   한 마디 붙인다. 화면은 바뀌었는데 말이 없으면 사용자는 무슨 일이 일어났는지 모른다.
+- 도구를 부르지 않았으면 저장된 것이 없다. 도구 결과를 받기 전에
+  "투두에 넣었어", "기한 잡았어" 처럼 말하지 마라. 사용자는 그 말을 믿고
+  기록 탭을 여는데 아무것도 없다. 넣어야 하면 지금 도구를 불러라.
 - 도구가 실패했으면 성공한 척하지 않는다. 안 됐다고 말하고 사유를 전한다.
 
 할 일을 끝냈다고 할 때:
@@ -178,6 +181,8 @@ class GoalState:
     #: 오늘 할 반복 계획 요약. 없으면 None (2단계에서 제안 근거로 쓴다)
     routine_summary: str | None = None
     has_todo_today: bool = False
+    #: 반복 계획으로 서버가 미리 넣어 둔 투두를 아직 확인받지 않았다
+    todos_need_confirm: bool = False
     has_plan_today: bool = False
     is_overdue: bool = False
 
@@ -209,6 +214,13 @@ def _stage_line(state: GoalState | None) -> str | None:
             f"[4단계: 완주] {reason}. 이 목표를 완료한 목표로 바꿀지 먼저 물어라. "
             "사용자가 확실히 답하기 전에는 complete_goal 을 부르지 마라. "
             "아니라고 하면 남은 일을 정리해 주고 격려한다."
+        )
+
+    if state.todos_need_confirm:
+        return (
+            "[2단계: 확인] 오늘 할 일을 반복 계획대로 미리 넣어 뒀다. "
+            "무엇을 넣었는지 먼저 알려주고 이대로 할지 물어라. "
+            "바꾸겠다고 하면 고쳐 주고, 시간까지 정하면 create_planner 로 넣어라."
         )
 
     if not state.has_todo_today:

@@ -156,6 +156,7 @@ export function useChatRoom(goalId: string) {
         messages: replies,
         goalCompleted,
         quickReplies: asked,
+        warning,
       } = await sendMessage(
         goalId,
         { content: payload.content, file: payload.file, clientId: localId },
@@ -166,6 +167,7 @@ export function useChatRoom(goalId: string) {
       // (말이 길면 서버가 여러 말풍선으로 나눠 준다)
       setMessages((prev) => [...prev, ...replies]);
       setQuickReplies(asked);
+      if (warning) showToast(warning, { variant: 'warning' });
 
       // 방에서 보고 있는 중에 온 답이니 읽음으로 찍는다.
       // 입장 때만 찍으면, 그 뒤에 온 답이 홈에 계속 '안 읽음' 으로 남는다.
