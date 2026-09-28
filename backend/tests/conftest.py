@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  (모델을 메타데이터에 등록)
+from app.core import ratelimit
 from app.core.config import settings
 from app.core.db import Base, enable_sqlite_foreign_keys, get_db, get_session_factory
 from app.main import app
@@ -23,6 +24,18 @@ def _tmp_media(tmp_path, monkeypatch):
     """업로드가 실제 ./media 를 더럽히지 않도록 테스트마다 임시 디렉토리로."""
     monkeypatch.setattr(settings, "storage_dir", str(tmp_path / "media"))
     monkeypatch.setattr(settings, "public_base_url", "http://test")
+
+
+@pytest.fixture(autouse=True)
+def _no_rate_limit(monkeypatch):
+    """횟수 제한을 꺼 둔다.
+
+    모든 테스트가 같은 주소에서 가입·로그인해서, 켜 두면 서로를 막는다
+    (한 테스트가 쓴 횟수가 다음 테스트에 남는다). 제한 자체는
+    test_ratelimit.py 에서 따로 켜고 확인한다.
+    """
+    monkeypatch.setattr(settings, "rate_limit_enabled", False)
+    ratelimit.reset()
 
 
 @pytest_asyncio.fixture

@@ -1,4 +1,5 @@
 // pages/settings/components/PasswordChangeModal.tsx
+import { isAxiosError } from 'axios';
 import { useState, type FormEvent } from 'react';
 import { changePassword } from '@/api/settings';
 import InputField from '@/components/InputField';
@@ -39,10 +40,14 @@ export default function PasswordChangeModal({
     setError(undefined);
     try {
       await changePassword(current, next);
-      showToast('비밀번호를 변경했어요', { variant: 'success' });
+      showToast('비밀번호를 변경했어요. 다른 기기는 로그아웃돼요', { variant: 'success' });
       onClose();
-    } catch {
-      setError('비밀번호를 변경하지 못했어요. 현재 비밀번호를 확인해주세요.');
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 429) {
+        setError('시도가 너무 잦아요. 잠시 후 다시 해주세요.');
+      } else {
+        setError('비밀번호를 변경하지 못했어요. 현재 비밀번호를 확인해주세요.');
+      }
     } finally {
       setIsSubmitting(false);
     }

@@ -1,5 +1,6 @@
 // api/settings.ts
 import api from './axios';
+import { setToken } from '@/lib/auth';
 import type { AppSettings } from '@/types/settings';
 
 /** 설정 조회 */
@@ -14,9 +15,18 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
   return data;
 }
 
-/** 비밀번호 변경 */
+/**
+ * 비밀번호 변경.
+ *
+ * 바꾸는 순간 **다른 기기는 전부 로그아웃된다**(서버가 토큰 번호를 올린다).
+ * 이 기기까지 끊기지 않도록 새 토큰을 받아 갈아 끼운다.
+ */
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  await api.post('/auth/password', { currentPassword, newPassword });
+  const { data } = await api.post<{ accessToken: string }>('/auth/password', {
+    currentPassword,
+    newPassword,
+  });
+  setToken(data.accessToken);
 }
 
 /**

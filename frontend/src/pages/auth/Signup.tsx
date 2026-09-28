@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { checkEmailAvailable, signup } from '@/api/auth';
+import { isAxiosError } from 'axios';
+import { signup } from '@/api/auth';
 import InputField from '@/components/InputField';
 import { Button } from '@/components/ui/button';
 import AuthLayout from '@/layouts/AuthLayout';
@@ -33,12 +34,6 @@ export default function Signup() {
     setIsSubmitting(true);
     setError(undefined);
     try {
-      // 이미 쓰는 이메일이면 가입 요청 전에 알려준다
-      if (!(await checkEmailAvailable(email))) {
-        setError('이미 가입된 이메일이에요.');
-        return;
-      }
-
       const { accessToken, user } = await signup({
         nickname: nickname.trim(),
         email: email.trim(),
@@ -46,8 +41,13 @@ export default function Signup() {
       });
       login(accessToken, user);
       navigate('/home', { replace: true });
-    } catch {
-      setError('가입하지 못했어요. 잠시 후 다시 시도해주세요.');
+    } catch (error) {
+      // 이메일 중복은 가입을 눌렀을 때 알게 된다. 미리 물어보는 엔드포인트가
+      // 있었지만, 그거 하나로 가입자 명단을 통째로 뽑을 수 있어 없앴다
+      const status = isAxiosError(error) ? error.response?.status : undefined;
+      if (status === 409) setError('이미 가입된 이메일이에요.');
+      else if (status === 429) setError('시도가 너무 잦아요. 잠시 후 다시 해주세요.');
+      else setError('가입하지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
       setIsSubmitting(false);
     }

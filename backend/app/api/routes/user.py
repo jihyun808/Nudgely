@@ -16,8 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.core.errors import AppError
-from app.core.storage import image_max_bytes, save_upload
-from app.models.user import User
+from app.core.storage import image_max_bytes, is_our_url, save_upload
+from app.models.user import User, released_email
 from app.schemas.user import NICKNAME_MAX, NICKNAME_MIN, UpdateProfileIn, UserOut
 
 router = APIRouter()
@@ -66,6 +66,12 @@ async def update_me(
         if body.nickname is not None:
             user.nickname = _validate_nickname(body.nickname)
         if body.image_url is not None:
+            # 우리가 발급한 주소만 받는다. 아무 주소나 받으면 프로필 사진이
+            # 남의 서버를 가리키고, 그 서버는 화면을 여는 사람의 IP 를 본다
+            if not is_our_url(body.image_url):
+                raise AppError(
+                    "VALIDATION_ERROR", "이미지 주소가 올바르지 않습니다.", status_code=422
+                )
             user.image_url = body.image_url
 
     await db.commit()
@@ -77,8 +83,11 @@ async def update_me(
 async def delete_me(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> Response:
-    # 소프트 삭제: deleted_at 만 채운다.
+    # 소프트 삭제: 기록은 남기고 로그인만 막는다.
     # ⚠️ 딸린 데이터(목표·대화·기록) 처리 정책은 미확정(api.md §8-7).
     user.deleted_at = datetime.now(UTC)
+    # 이메일 자리를 비켜 준다. 안 그러면 마음을 바꿔 돌아와도 같은 주소로
+    # 다시 가입할 수 없다("이미 사용 중인 이메일" 만 보고 영문을 모른 채 떠난다).
+    user.email = released_email(user.id)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

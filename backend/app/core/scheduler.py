@@ -33,6 +33,7 @@ async def _tick() -> None:
     from app.core.db import async_session
     from app.services.notification_service import run_nightly_check
     from app.services.nudge_service import default_writer, run_plan_nudges
+    from app.services.routine_service import run_routine_todos
 
     now = datetime.now(UTC)
     async with async_session() as db:
@@ -42,6 +43,13 @@ async def _tick() -> None:
         except Exception:  # noqa: BLE001 - 다음 틱에 다시 시도한다
             await db.rollback()
             logger.exception("밤 점검 실패")
+
+        try:
+            await run_routine_todos(db, now, target_hour=settings.routine_hour)
+            await db.commit()
+        except Exception:  # noqa: BLE001
+            await db.rollback()
+            logger.exception("반복 계획 투두 생성 실패")
 
         try:
             # 문구는 싼 모델이 쓴다. 키가 없는 개발 환경에서는 템플릿으로 돈다

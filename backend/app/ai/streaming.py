@@ -62,11 +62,10 @@ class ReplyStreamer(Protocol):
 
 
 class OpenAIReplyStreamer:
-    """OpenAI 기반 실제 구현. 클라이언트는 첫 스트림 시점에 지연 생성한다.
+    """OpenAI 기반 실제 구현. 클라이언트는 첫 스트림 시점에 지연 생성한다."""
 
-    (지연 생성 덕분에 키가 없으면 요청 처리 중 명확한 에러가 나고,
-    SSE error 이벤트로 감싸 프론트에 전달할 수 있다.)
-    """
+    #: 이번 턴에 도구를 못 썼는지. 화면이 경고를 띄우는 근거가 된다
+    tool_failed = False
 
     async def stream(
         self,
@@ -106,7 +105,19 @@ class OpenAIReplyStreamer:
             for round_index in range(MAX_TOOL_ROUNDS):
                 msg = await _tool_round(client, model, messages)
                 if msg is None:
-                    # 도구 라운드가 끝내 실패했다. 도구 없이 답이라도 하게 둔다
+                    # 안 알리면 저장한 적 없는 일을 "투두에 넣었어" 라고 말한다
+                    self.tool_failed = True
+                    messages.append(
+                        {
+                            "role": "system",
+                            "content": (
+                                "지금 도구를 쓸 수 없다. 투두·플래너·진도·완주 중 "
+                                "무엇도 저장되지 않았다. 저장했다고 말하지 마라. "
+                                "잠시 문제가 있어 저장하지 못했다고 알리고 "
+                                "다시 말해 달라고 해라."
+                            ),
+                        }
+                    )
                     break
                 if not msg.tool_calls:
                     break

@@ -55,11 +55,18 @@ class Settings(BaseSettings):
     # 액세스 토큰 만료(분). 현재는 리프레시 토큰 없이 만료 시 재로그인(api.md §8-2).
     access_token_expire_minutes: int = 60 * 24 * 7  # 7일
 
+    # ── 요청 횟수 제한 ──
+    # 인증 경로(로그인·가입·비밀번호)에 건다. 테스트에서는 꺼 둔다 —
+    # 모든 테스트가 같은 주소에서 가입해서, 켜 두면 서로를 막는다.
+    rate_limit_enabled: bool = True
+
     # ── 스케줄러(밤 11시 점검) ──
     scheduler_enabled: bool = True
     # 점검 실행 시각(시). **사용자 로컬 시각 기준** — 스케줄러가 매시간 깨어나
     # 지금 로컬로 이 시각인 사용자만 처리한다. 타임존은 UserSettings.timezone.
     nightly_hour: int = 23
+    # 반복 계획으로 오늘 투두를 만들어 두는 시각(사용자 로컬 기준)
+    routine_hour: int = 6
 
     # ── 푸시(FCM HTTP v1) ──
     # 앱이 꺼져 있을 때 알릴 유일한 수단이다. 자격 증명이 없으면 조용히 건너뛴다

@@ -1,8 +1,5 @@
 // lib/native.ts
-// 네이티브 껍데기(Capacitor) 안에서만 해야 하는 초기화.
-//
-// 브라우저에서는 전부 건너뛴다 — 개발은 대부분 브라우저에서 하고,
-// 여기서 실패하면 앱이 아예 안 뜬다.
+// Capacitor 안에서만 하는 초기화. 브라우저에서는 전부 건너뛴다.
 import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -11,6 +8,9 @@ import { enablePush } from '@/lib/push';
 
 export async function bootstrapNative(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
+
+  // 앱 전용 CSS 표식(styles/index.css 맨 아래)
+  document.documentElement.classList.add('native');
 
   try {
     // 배경이 흰색이라 상태바 글씨는 검정이어야 보인다
@@ -26,6 +26,6 @@ export async function bootstrapNative(): Promise<void> {
     // iOS 전용이다
   }
 
-  // 이미 로그인된 채로 앱을 다시 연 경우. 토큰이 바뀌었을 수 있어 매번 확인한다
+  // 토큰이 바뀌었을 수 있어 열 때마다 확인한다
   if (isAuthenticated()) await enablePush();
 }

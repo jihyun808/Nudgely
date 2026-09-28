@@ -1,20 +1,8 @@
 """FCM 푸시 발송 (api.md §5.3).
 
-**앱이 꺼져 있을 때 사용자에게 닿는 유일한 길이다.** 종 아이콘 목록은 앱을 열어야
-보이고, SSE 는 채팅방을 보고 있어야 살아 있다. 선톡을 밤 11시에 보내 봐야 다음 날
-앱을 열 때 읽히면 선톡이 아니다.
-
-설계에서 고집한 것 세 가지:
-
-1. **절대 호출자를 깨뜨리지 않는다.** 푸시는 부가 기능이다. FCM 이 죽었다고 투두
-   저장이 실패하면 안 된다. 모든 예외를 여기서 삼키고 로그만 남긴다.
-2. **자격 증명이 없으면 조용히 건너뛴다.** 개발·테스트·CI 에서 푸시 설정 없이
-   전부 돌아가야 한다(push_configured 가 False 면 아무 일도 안 한다).
-3. **죽은 토큰은 그 자리에서 지운다.** 토큰은 앱 재설치·오랜 미사용으로 조용히
-   만료된다. 안 지우면 보낼 때마다 실패하는 토큰이 계정마다 쌓인다.
-
-인증은 서비스 계정 키로 OAuth2 액세스 토큰을 받아 쓴다(FCM HTTP v1). 토큰은
-한 시간짜리라 메모리에 캐시한다 — 푸시 한 번에 토큰 요청 한 번이면 두 배로 느리다.
+앱이 꺼져 있을 때 닿는 유일한 길. 세 가지를 지킨다:
+호출자를 절대 깨뜨리지 않고, 자격 증명이 없으면 조용히 건너뛰고,
+죽은 토큰은 보내다가 알게 되는 즉시 지운다.
 """
 
 import asyncio
@@ -109,11 +97,7 @@ async def _fetch_access_token(client: httpx.AsyncClient) -> str:
 
 
 async def _get_access_token(client: httpx.AsyncClient) -> str:
-    """캐시된 액세스 토큰. 만료가 가까우면 새로 받는다.
-
-    락을 잡는 이유: 스케줄러가 여러 사용자에게 동시에 보낼 때 락이 없으면
-    같은 순간 열 번 토큰을 요청한다.
-    """
+    """캐시된 액세스 토큰. 락이 없으면 같은 순간 여러 번 요청하게 된다."""
     global _access_token
     async with _token_lock:
         if _access_token is not None and time.time() < _access_token[1]:
@@ -130,11 +114,7 @@ def reset_access_token() -> None:
 
 
 def _message(token: str, title: str, body: str, data: dict[str, str] | None) -> dict:
-    """FCM HTTP v1 메시지 한 통.
-
-    누르면 앱만 열린다 — 이동 경로를 싣지 않는다(§5.2 에서 정한 규칙).
-    data 는 프론트가 필요하면 쓰는 부가 정보이고, 없어도 알림은 뜬다.
-    """
+    """FCM HTTP v1 메시지 한 통. 이동 경로는 싣지 않는다(§5.2)."""
     return {
         "message": {
             "token": token,
@@ -177,11 +157,7 @@ async def send_to_user(
     body: str,
     data: dict[str, str] | None = None,
 ) -> int:
-    """한 사용자의 모든 기기로 보낸다. 성공한 기기 수를 반환.
-
-    발송 여부(알림 설정·방해 금지) 판단은 **호출하는 쪽** 책임이다. 여기서 또 보면
-    notification_service 와 규칙이 두 군데로 갈라진다.
-    """
+    """한 사용자의 모든 기기로. 발송 여부 판단은 호출하는 쪽 책임이다."""
     if not settings.push_configured:
         return 0
 
@@ -221,13 +197,9 @@ async def send_to_user(
 def push_in_background(
     user_id: str, *, title: str, body: str, data: dict[str, str] | None = None
 ) -> None:
-    """푸시를 백그라운드로 던진다. 호출자는 기다리지 않는다.
+    """백그라운드로 던진다. FCM 왕복 수백 ms 를 사용자가 기다릴 이유가 없다.
 
-    FCM 왕복은 수백 ms 다. 대화 응답이나 도구 실행 경로에서 이걸 기다리면
-    사용자가 그만큼 더 기다린다. 결과도, 실패도 호출자에게 돌려주지 않는다.
-
-    세션은 따로 연다. 호출한 쪽의 세션은 요청이 끝나면 닫히고, 죽은 토큰을
-    지우는 것이 남의 트랜잭션에 섞여 들어가서도 안 된다.
+    세션은 따로 연다 — 호출한 쪽 세션은 요청이 끝나면 닫힌다.
     """
     if not settings.push_configured:
         return

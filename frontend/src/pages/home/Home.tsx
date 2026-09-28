@@ -1,5 +1,5 @@
 // pages/home/Home.tsx
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchFocusSummary } from '@/api/focus';
 import { fetchHomePreviews, fetchNotifications } from '@/api/home';
@@ -12,60 +12,79 @@ import FocusSummary from '@/pages/home/components/FocusSummary';
 import GoalList from '@/pages/home/components/GoalList';
 import NotificationBell from '@/pages/home/components/NotificationBell';
 import PreviewSwiper from '@/pages/home/components/PreviewSwiper';
+import { useCachedQuery } from '@/lib/useCachedQuery';
 import { useNotificationStore } from '@/stores/notificationStore';
 import type { Goal } from '@/types/goal';
 // 같은 이름의 컴포넌트가 있어 타입은 별칭으로 가져온다
 import type { FocusSummary as FocusSummaryData } from '@/types/focus';
 import type { HomePreview } from '@/types/home';
+import type { AppNotification } from '@/types/notification';
+
+interface HomeData {
+  previews: HomePreview[];
+  goals: Goal[];
+  notifications: AppNotification[];
+  focus: FocusSummaryData;
+}
+
+/** 아직 받아오기 전에 그릴 값. 스켈레톤이 걷힌 뒤 잠깐 이 모습이 된다 */
+const EMPTY: HomeData = {
+  previews: [],
+  goals: [],
+  notifications: [],
+  focus: {
+    focusedSeconds: 0,
+    targetMinutes: 0,
+    streakDays: 0,
+    bestStreakDays: 0,
+    isBestStreak: false,
+  },
+};
 
 /**
  * 홈 화면.
  * 헤더(+알림) / 안 읽은 메시지 미리보기 / 오늘의 집중 / 집중 시작 CTA / 진행 중인 목표.
  */
 export default function Home() {
-  const [previews, setPreviews] = useState<HomePreview[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  /** 오늘 집중 요약 (집중 탭에서 쌓인 값) */
-  const [focus, setFocus] = useState<FocusSummaryData>({
-    focusedSeconds: 0,
-    targetMinutes: 0,
-    streakDays: 0,
-    bestStreakDays: 0,
-    isBestStreak: false,
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
   const setNotifications = useNotificationStore((state) => state.setNotifications);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    let isStale = false;
-    Promise.all([fetchHomePreviews(), fetchGoals(), fetchNotifications(), fetchFocusSummary()])
-      .then(([previewData, goalData, notificationData, focusData]) => {
-        if (isStale) return;
-        setPreviews(previewData);
-        // 완주한 목표는 '진행 중인 목표'에서 뺀다 (마이페이지에서 볼 수 있다)
-        setGoals(goalData.filter(({ completedAt }) => !completedAt));
-        setNotifications(notificationData);
-        setFocus(focusData);
-        setHasError(false);
-      })
-      .catch(() => {
-        if (!isStale) setHasError(true);
-      })
-      .finally(() => {
-        if (!isStale) setIsLoading(false);
-      });
-    return () => {
-      isStale = true;
+  const load = useCallback(async (): Promise<HomeData> => {
+    const [previews, goals, notifications, focus] = await Promise.all([
+      fetchHomePreviews(),
+      fetchGoals(),
+      fetchNotifications(),
+      fetchFocusSummary(),
+    ]);
+    // 완주한 목표는 '진행 중인 목표'에서 뺀다 (마이페이지에서 볼 수 있다)
+    return {
+      previews,
+      goals: goals.filter(({ completedAt }) => !completedAt),
+      notifications,
+      focus,
     };
-  }, [reloadKey, setNotifications]);
+  }, []);
+
+  // 받아둔 게 있으면 먼저 그리고 뒤에서 갱신한다 — 탭을 옮길 때마다
+  // 스켈레톤이 다시 뜨지 않게(useCachedQuery)
+  const { data, isLoading, hasError, refresh, reload, setData } = useCachedQuery(
+    'home',
+    load,
+    EMPTY,
+  );
+  const { previews, goals, focus } = data;
+
+  // 알림 목록은 전역 스토어가 들고 있다(종 아이콘이 어디서든 쓴다).
+  // 받아오기 전(EMPTY)에는 넣지 않는다 — 넣으면 종에 있던 표시가 잠깐 사라진다
+  useEffect(() => {
+    if (data !== EMPTY) setNotifications(data.notifications);
+  }, [data, setNotifications]);
 
   // 채팅방에 다녀오거나 앱을 다시 열었을 때 안 읽은 메시지·목표를 최신 상태로 맞춘다
   useEffect(() => {
     const refresh = () => {
-      if (document.visibilityState === 'visible') setReloadKey((key) => key + 1);
+      // 조용히 갱신한다 — 돌아올 때마다 스켈레톤이 뜨면 안 읽은 표시만 보러 와도 깜빡인다
+      if (document.visibilityState === 'visible') refresh();
     };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
@@ -73,13 +92,7 @@ export default function Home() {
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, []);
-
-  const handleRetry = () => {
-    setIsLoading(true);
-    setHasError(false);
-    setReloadKey((key) => key + 1);
-  };
+  }, [refresh]);
 
   /**
    * 미리보기 카드를 누르면 해당 화면으로 이동한다.
@@ -88,7 +101,10 @@ export default function Home() {
    */
   const handleOpenPreview = (preview: HomePreview) => {
     if (preview.kind === 'message') {
-      setPreviews((prev) => prev.filter(({ id }) => id !== preview.id));
+      setData((prev) => ({
+        ...prev,
+        previews: prev.previews.filter(({ id }) => id !== preview.id),
+      }));
     }
     if (preview.linkTo) navigate(preview.linkTo);
   };
@@ -109,7 +125,7 @@ export default function Home() {
           <Skeleton className="h-12" />
         </div>
       ) : hasError ? (
-        <ErrorRetry message="홈 정보를 불러오지 못했어요" onRetry={handleRetry} />
+        <ErrorRetry message="홈 정보를 불러오지 못했어요" onRetry={reload} />
       ) : (
         <>
           <div className="mt-4">

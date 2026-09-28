@@ -55,7 +55,7 @@ export default function ChatMessageList({
     <div
       ref={listRef}
       onScroll={onScroll}
-      className="flex-1 space-y-2 overflow-y-auto bg-muted-foreground/5 px-3 py-3"
+      className="scroll-touch flex-1 space-y-2 overflow-y-auto bg-muted-foreground/5 px-3 py-3"
     >
       {isLoadingOlder && (
         <p className="py-2 text-center text-xs text-muted-foreground">이전 대화를 불러오는 중...</p>
