@@ -20,6 +20,8 @@ node_modules/@capacitor/*
 !node_modules/@capacitor-firebase
 node_modules/@capacitor-firebase/*
 !node_modules/@capacitor-firebase/messaging
+# Xcode 가 패키지 폴더 안에 만드는 로컬 상태
+node_modules/**/.swiftpm
 dist
 dist-ssr
 *.local
