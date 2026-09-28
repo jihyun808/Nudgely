@@ -219,16 +219,20 @@ def _stage_line(state: GoalState | None) -> str | None:
     if state.todos_need_confirm:
         return (
             "[2단계: 확인] 오늘 할 일을 반복 계획대로 미리 넣어 뒀다. "
-            "무엇을 넣었는지 먼저 알려주고 이대로 할지 물어라. "
-            "바꾸겠다고 하면 고쳐 주고, 시간까지 정하면 create_planner 로 넣어라."
+            "무엇을 넣었는지 알려주고 이대로 할지 물어라. 바꾸겠다고 하면 고쳐 준다. "
+            "그대로 하겠다고 하면 이어서 '몇 시에 할까요?' 를 묻고 create_planner 로 넣어라."
         )
 
     if not state.has_todo_today:
         routine = f" 정해 둔 반복 계획: {state.routine_summary}." if state.routine_summary else ""
         return (
             f"[2단계: 오늘 할 일] 오늘 잡힌 투두가 없다.{routine} "
-            "오늘 뭘 할지 묻고, 정해지면 할 일에 추가할지 확인한 뒤 create_todos 로 넣어라. "
-            "모르겠다고 하면 진도를 보고 먼저 제안해라."
+            "순서를 지켜라. 먼저 오늘 무엇을 할지 정한다(모르겠다고 하면 진도를 보고 "
+            "먼저 제안한다). 그다음 정해진 내용을 그대로 '투두에 남길까요?' 하고 묻는다. "
+            "그러자고 하면 create_todos 로 넣고, 넣었다고 알린 뒤 "
+            "이어서 '몇 시에 할까요?' 를 묻는다. "
+            "안내만 하고 넘어가지 마라 — 안 남기면 기록 탭에 아무것도 없다. "
+            "남길지 말지를 되묻지 말고 남기는 쪽을 제안해라."
         )
 
     if not state.has_plan_today:

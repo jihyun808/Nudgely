@@ -183,3 +183,11 @@ def test_routine_todos_are_confirmed_before_anything_else():
 
     assert "미리 넣어 뒀다" in text
     assert "이대로 할지" in text
+
+
+def test_todo_stage_asks_to_save_then_asks_the_time():
+    """안내만 하고 넘어가면 기록 탭이 비어 있고, 시간도 안 잡힌다."""
+    text = _stage_text(GoalState(has_progress=True))
+
+    assert "투두에 남길까요" in text
+    assert "몇 시에 할까요" in text

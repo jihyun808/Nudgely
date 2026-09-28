@@ -1,5 +1,5 @@
 // pages/record/components/Calendar.tsx
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import StepperButton from '@/components/StepperButton';
 import CalendarDay from '@/pages/record/components/CalendarDay';
@@ -38,6 +38,15 @@ export default function Calendar({ selected, onSelect, marks = [], onMonthChange
   );
   /** 방금 누른 날짜. 꽃이 한 번 흔들리고 비워진다 */
   const [wiggledDate, setWiggledDate] = useState<string>();
+  const wiggleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // animationend 만 믿으면 '동작 줄이기' 를 켠 기기에서 영영 안 풀린다
+  // (애니메이션이 없으니 이벤트도 안 온다). 같은 날짜를 다시 눌러도 반응이 없어진다
+  const wiggle = (dateKey: string) => {
+    setWiggledDate(dateKey);
+    clearTimeout(wiggleTimer.current);
+    wiggleTimer.current = setTimeout(() => setWiggledDate(undefined), 400);
+  };
   const today = new Date();
 
   const { leadingBlanks, days } = useMemo(() => {
@@ -112,7 +121,7 @@ export default function Calendar({ selected, onSelect, marks = [], onMonthChange
                 isWiggling={wiggledDate === dateKey}
                 onSelect={() => {
                   onSelect(date);
-                  setWiggledDate(dateKey);
+                  wiggle(dateKey);
                 }}
                 onWiggleEnd={() => setWiggledDate(undefined)}
               />
