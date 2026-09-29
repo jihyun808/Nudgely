@@ -120,6 +120,7 @@ async def list_notifications(db: AsyncSession, user_id: str) -> list[Notificatio
             body=n.body,
             created_at=n.created_at,
             is_read=n.is_read,
+            goal_id=n.goal_id,
         )
         for n in rows
     ]
