@@ -42,6 +42,18 @@ class User(Base):
     # 그 순간 모든 기기가 로그아웃된다(다른 기기를 정리하는 방법이기도 하다).
     token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    # ── 가입 시 동의 기록 (이용약관 §4) ──
+    # "동의를 받았다" 를 나중에 입증하려면 시각이 남아야 한다. 불리언만으로는 부족하다.
+    # 약관을 개정하면 재동의를 받아야 하므로 어느 버전에 동의했는지도 함께 남긴다.
+    # ⚠️ 가입 화면에 동의 UI 가 붙기 전까지는 비어 있을 수 있어 전부 nullable 이다.
+    terms_agreed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    privacy_agreed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    terms_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    # 만 14세 이상임을 확인한 시각. 개인정보 보호법 §22조의2 대응
+    age_confirmed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    # 광고성 정보 수신 동의(선택). 정보통신망법상 사전 동의가 필요하다
+    marketing_agreed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
     settings: Mapped["UserSettings"] = relationship(
         back_populates="user",
         uselist=False,

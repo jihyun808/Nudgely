@@ -14,6 +14,18 @@ class SignupIn(CamelModel):
     email: EmailStr
     password: str = Field(min_length=PASSWORD_MIN)
 
+    # ── 동의 항목 (이용약관 §4) ──
+    # 가입 화면에 동의 UI 가 아직 없어서 지금은 **선택**이다.
+    # 프론트가 보내기 시작하면 필수(bool)로 바꾼다. 아래 규칙은 지금도 적용된다:
+    #   True  → 동의 시각을 기록
+    #   False → 가입 거부 (필수 항목에 동의하지 않은 것)
+    #   생략  → 기록 없이 통과 (전환기 한정)
+    agreed_to_terms: bool | None = None
+    agreed_to_privacy: bool | None = None
+    is_over14: bool | None = None
+    # 선택 항목. 거부해도 가입된다
+    agreed_to_marketing: bool | None = None
+
 
 class LoginIn(CamelModel):
     email: EmailStr

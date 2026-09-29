@@ -98,6 +98,30 @@ def is_our_url(url: str) -> bool:
     return bool(name) and "/" not in name and ".." not in name
 
 
+def delete_by_url(url: str | None) -> bool:
+    """우리가 발급한 주소의 파일을 지운다. 지웠으면 True.
+
+    회원 탈퇴 시 디스크의 실물까지 지우려고 쓴다. DB 행은 FK CASCADE 로 사라지지만
+    파일은 남기 때문이다(이용약관 §14: 탈퇴 시 지체 없이 파기).
+
+    남의 주소이거나 이미 없는 파일이면 조용히 False. 파기 중 파일 하나 때문에
+    전체가 멈추면 안 된다.
+    """
+    if not url or not is_our_url(url):
+        return False
+
+    name = url[len(_static_prefix()) :]
+    try:
+        path = storage_root() / name
+        # storage_root 밖을 가리키면 지우지 않는다 (is_our_url 로 한 번 걸렀지만 이중 확인)
+        if path.resolve().parent != storage_root().resolve():
+            return False
+        path.unlink()
+    except OSError:
+        return False
+    return True
+
+
 def _clean_display_name(filename: str | None, ext: str) -> str:
     base = (filename or "file").rsplit("/", 1)[-1].rsplit("\\", 1)[-1].strip()
     if not base:

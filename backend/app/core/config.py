@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # 앱 시작 시 테이블 자동 생성(개발 편의). 운영은 False + Alembic 마이그레이션.
     auto_create_tables: bool = True
 
+    # ── 약관 ──
+    # 회원이 어느 버전에 동의했는지 기록해 둔다. 약관을 개정하면 이 값을 올리고
+    # 값이 다른 회원에게 재동의를 받아야 한다. 시행일(YYYY-MM-DD)을 쓰면 편하다.
+    terms_version: str = "2026-09-29"
+
     # ── 인증(JWT) ──
     # ⚠️ 운영에서는 반드시 .env 로 강력한 비밀키를 주입할 것.
     #: 아래 값 그대로면 운영에서 起動을 막는다(assert_production_ready)

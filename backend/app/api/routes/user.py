@@ -8,8 +8,6 @@
 지금은 JSON(imageUrl) 로만 받는다.
 """
 
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,8 +15,9 @@ from app.api.deps import get_current_user
 from app.core.db import get_db
 from app.core.errors import AppError
 from app.core.storage import image_max_bytes, is_our_url, save_upload
-from app.models.user import User, released_email
+from app.models.user import User
 from app.schemas.user import NICKNAME_MAX, NICKNAME_MIN, UpdateProfileIn, UserOut
+from app.services.withdrawal_service import withdraw
 
 router = APIRouter()
 
@@ -83,11 +82,10 @@ async def update_me(
 async def delete_me(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> Response:
-    # 소프트 삭제: 기록은 남기고 로그인만 막는다.
-    # ⚠️ 딸린 데이터(목표·대화·기록) 처리 정책은 미확정(api.md §8-7).
-    user.deleted_at = datetime.now(UTC)
-    # 이메일 자리를 비켜 준다. 안 그러면 마음을 바꿔 돌아와도 같은 주소로
-    # 다시 가입할 수 없다("이미 사용 중인 이메일" 만 보고 영문을 모른 채 떠난다).
-    user.email = released_email(user.id)
-    await db.commit()
+    # 탈퇴하면 딸린 데이터까지 지체 없이 파기한다 (이용약관 §14, 개인정보 보호법 §21).
+    # 예전에는 deleted_at 만 찍는 소프트 삭제였는데, 그러면 목표·대화·기록이
+    # 그대로 남아 "파기한다" 는 약관과 어긋난다.
+    #
+    # 이메일도 함께 사라지므로 같은 주소로 다시 가입할 수 있다.
+    await withdraw(db, user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
