@@ -14,6 +14,14 @@ class SignupIn(CamelModel):
     email: EmailStr
     password: str = Field(min_length=PASSWORD_MIN)
 
+    # ── 동의 항목 (이용약관 §4) ──
+    # 필수 셋은 반드시 보내야 하고, false 면 가입이 거부된다.
+    agreed_to_terms: bool
+    agreed_to_privacy: bool
+    is_over14: bool
+    # 선택 항목. 거부해도 가입된다
+    agreed_to_marketing: bool = False
+
 
 class LoginIn(CamelModel):
     email: EmailStr

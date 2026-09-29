@@ -180,3 +180,18 @@ html.native [data-selectable] {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
 }
+
+/* 키보드가 올라온 만큼 화면을 밀어 올린다(lib/native.ts 가 --kb 를 채운다) */
+.kb-pad {
+  padding-bottom: var(--kb, 0px);
+  transition: padding-bottom 0.25s ease-out;
+}
+
+/* 키보드가 덮은 동안에는 홈 인디케이터 여백이 필요 없다 */
+html[data-keyboard='open'] .pb-safe {
+  padding-bottom: 0.625rem;
+}
+
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 0.625rem);
+}

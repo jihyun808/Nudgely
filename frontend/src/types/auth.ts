@@ -22,6 +22,12 @@ export interface SignupInput {
   nickname: string;
   email: string;
   password: string;
+  /** 필수 동의 셋. 하나라도 빠지면 서버가 가입을 거부한다 */
+  agreedToTerms: boolean;
+  agreedToPrivacy: boolean;
+  isOver14: boolean;
+  /** 광고성 정보 수신(선택) */
+  agreedToMarketing: boolean;
 }
 
 /** 소셜 로그인 입력값. 앱에서 받은 인가 코드를 서버로 넘긴다 */

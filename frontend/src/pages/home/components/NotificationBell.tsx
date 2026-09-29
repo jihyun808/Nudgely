@@ -1,8 +1,10 @@
 // pages/home/components/NotificationBell.tsx
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { markNotificationsAsRead } from '@/api/home';
 import NotificationList from '@/pages/home/components/NotificationList';
 import { useNotificationStore } from '@/stores/notificationStore';
+import type { AppNotification } from '@/types/notification';
 
 /**
  * 헤더 오른쪽 알림 버튼.
@@ -10,6 +12,7 @@ import { useNotificationStore } from '@/stores/notificationStore';
  * 버튼을 누르면 아래에 말풍선 모양 목록이 열리고, 닫는 순간 전부 읽음 처리된다.
  */
 export default function NotificationBell() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +49,13 @@ export default function NotificationBell() {
   });
 
   // 알림은 읽고 닫는 것까지가 끝이다. 어디로 갈지는 사용자가 정한다
-  const handleSelect = () => close();
+  // 종 아이콘 목록에서는 이동한다. 눌렀는데 아무 일도 없으면 고장으로 보인다.
+  // (푸시는 별개다 — 앱이 열리는 것까지가 역할이다)
+  const handleSelect = (notification: AppNotification) => {
+    close();
+    if (notification.goalId) navigate(`/chat/${notification.goalId}`);
+    else navigate('/record');
+  };
 
   return (
     <div ref={containerRef} className="relative">
