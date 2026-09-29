@@ -16,13 +16,14 @@ from app.ai.tools import dispatch_tool_call
 from app.models.goal import Goal
 from app.models.planner import PlannerBlock
 from app.models.todo import Todo
+from tests.helpers import CONSENTS
 
 
 async def _goal(client: AsyncClient, session_factory: async_sessionmaker) -> Goal:
     token = (
         await client.post(
             "/api/auth/signup",
-            json={"nickname": "지수", "email": "t@b.com", "password": "password123"},
+            json={"nickname": "지수", "email": "t@b.com", "password": "password123", **CONSENTS},
         )
     ).json()["accessToken"]
     goal_id = (

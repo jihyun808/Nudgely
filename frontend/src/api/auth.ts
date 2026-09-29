@@ -24,6 +24,10 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
     nickname: input.nickname.trim(),
     email: input.email.trim(),
     password: input.password,
+    agreedToTerms: input.agreedToTerms,
+    agreedToPrivacy: input.agreedToPrivacy,
+    isOver14: input.isOver14,
+    agreedToMarketing: input.agreedToMarketing,
   });
   return data;
 }

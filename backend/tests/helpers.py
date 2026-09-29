@@ -9,12 +9,20 @@
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+#: 가입에 반드시 보내야 하는 동의 셋. 없으면 422 다
+CONSENTS = {"agreedToTerms": True, "agreedToPrivacy": True, "isOver14": True}
+
 
 async def token_for(client: AsyncClient, email: str = "a@b.com") -> str:
     """가입하고 액세스 토큰을 받는다."""
     res = await client.post(
         "/api/auth/signup",
-        json={"nickname": "지수", "email": email, "password": "password123"},
+        json={
+            "nickname": "지수",
+            "email": email,
+            "password": "password123",
+            **CONSENTS,
+        },
     )
     return res.json()["accessToken"]
 

@@ -3,9 +3,9 @@
 import pytest
 from httpx import AsyncClient
 
-from tests.helpers import auth, token_for
+from tests.helpers import CONSENTS, auth, token_for
 
-SIGNUP = {"nickname": "지수", "email": "a@b.com", "password": "password123"}
+SIGNUP = {"nickname": "지수", "email": "a@b.com", "password": "password123", **CONSENTS}
 
 
 async def _signup(client: AsyncClient, **overrides) -> dict:
@@ -215,7 +215,7 @@ async def test_email_is_free_again_after_withdrawal(client: AsyncClient):
 
     res = await client.post(
         "/api/auth/signup",
-        json={"nickname": "지수", "email": "again@b.com", "password": "password123"},
+        json={"nickname": "지수", "email": "again@b.com", "password": "password123", **CONSENTS},
     )
 
     assert res.status_code == 201
@@ -232,6 +232,6 @@ async def test_withdrawal_does_not_free_other_emails(client: AsyncClient):
     assert (await client.get("/api/me", headers=auth(other))).status_code == 200
     res = await client.post(
         "/api/auth/signup",
-        json={"nickname": "지수", "email": "other@b.com", "password": "password123"},
+        json={"nickname": "지수", "email": "other@b.com", "password": "password123", **CONSENTS},
     )
     assert res.status_code == 409

@@ -14,8 +14,9 @@ export type NotificationType =
 /**
  * 알림 한 건.
  *
- * 이동 대상을 싣지 않는다 — 알림은 '무슨 일이 있었는지' 만 알리고,
- * 눌러도(앱에서는 푸시로 앱이 열리는 것까지가) 화면을 옮기지 않는다.
+ * 경로 문자열은 서버가 만들지 않는다. 대신 goalId 를 받아 화면이 경로를
+ * 만든다 — 라우팅이 바뀌어도 지난 알림이 깨지지 않는다.
+ * 푸시는 여전히 이동하지 않는다(앱이 열리는 것까지가 역할이다).
  */
 export interface AppNotification {
   id: string;
@@ -27,6 +28,8 @@ export interface AppNotification {
   /** 발생 시각 (ISO 8601 문자열) */
   createdAt: string;
   isRead: boolean;
+  /** 어느 목표에서 난 일인지. 목록에서 누르면 그 방으로 간다 */
+  goalId?: string;
 }
 
 /** 목록에 유지하는 최대 알림 개수. 넘치면 오래된 것부터 사라진다 */

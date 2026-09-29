@@ -1,11 +1,7 @@
 """회원가입 동의 기록 (이용약관 §4).
 
-가입 화면에 동의 UI 가 아직 없어서 동의 항목은 **선택**이다.
-- 보내면 시각을 기록하고
-- 명시적으로 거부(False)하면 가입을 막고
-- 생략하면 그냥 통과시킨다(전환기)
-
-프론트가 보내기 시작하면 SignupIn 의 필드를 필수로 바꾸고 마지막 관용을 없앤다.
+필수 셋(약관·개인정보·만 14세)은 반드시 받아야 가입된다.
+"동의를 받았다" 를 입증하려면 시각이 남아야 해서 불리언이 아니라 시각을 저장한다.
 """
 
 from httpx import AsyncClient
@@ -89,16 +85,8 @@ async def test_refused_signup_creates_no_account(
         assert (await s.execute(select(User))).scalars().all() == []
 
 
-async def test_omitting_consents_still_works_for_now(
-    client: AsyncClient, session_factory: async_sessionmaker
-):
-    """프론트에 동의 UI 가 붙기 전까지는 생략해도 가입된다.
-
-    이 테스트가 깨지면 필수로 전환된 것이다 — 프론트 배포와 맞물렸는지 확인할 것.
-    """
+async def test_omitting_consents_is_rejected(client: AsyncClient):
+    """빠뜨리고 보내면 가입되지 않는다. 동의 없이 계정이 생기면 되돌릴 수 없다."""
     res = await _signup(client)
-    assert res.status_code == 201
 
-    user = await _user(session_factory)
-    assert user.terms_agreed_at is None
-    assert user.terms_version is None
+    assert res.status_code == 422
