@@ -9,7 +9,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.nudgely.app</string>
+	<string>com.nudgely.nudgely</string>
 	<key>PROJECT_ID</key>
 	<string>nudgely-efc39</string>
 	<key>STORAGE_BUCKET</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:27868476402:ios:30a22e80ba8f4bb7f0b16b</string>
+	<string>1:27868476402:ios:9b601c0c88820e28f0b16b</string>
 </dict>
 </plist>
