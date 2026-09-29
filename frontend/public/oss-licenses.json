@@ -1,5 +1,4 @@
 {
-  "generatedAt": "2026-09-28T13:06:48.087Z",
   "packages": [
     {
       "name": "@capacitor-firebase/messaging",
@@ -1272,7 +1271,7 @@
     },
     {
       "name": "nanoid",
-      "version": "3.3.15",
+      "version": "3.3.19",
       "license": "MIT",
       "author": "Andrey Sitnik <andrey@sitnik.ru>",
       "homepage": null,
@@ -1299,7 +1298,7 @@
     },
     {
       "name": "postcss",
-      "version": "8.5.16",
+      "version": "8.5.28",
       "license": "MIT",
       "author": "Andrey Sitnik <andrey@sitnik.es>",
       "homepage": "https://postcss.org/",
@@ -1353,7 +1352,7 @@
     },
     {
       "name": "react-router",
-      "version": "7.18.1",
+      "version": "7.18.4",
       "license": "MIT",
       "author": "Remix Software <hello@remix.run>",
       "homepage": "https://github.com/remix-run/react-router",
@@ -1362,7 +1361,7 @@
     },
     {
       "name": "react-router-dom",
-      "version": "7.18.1",
+      "version": "7.18.4",
       "license": "MIT",
       "author": "Remix Software <hello@remix.run>",
       "homepage": "https://github.com/remix-run/react-router",

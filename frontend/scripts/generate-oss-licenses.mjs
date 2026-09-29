@@ -115,12 +115,13 @@ const missing = packages.filter((p) => p.textSource === 'missing');
 const unknown = packages.filter((p) => p.license === 'UNKNOWN');
 const filled = packages.filter((p) => p.textSource === 'spdx');
 
-writeFileSync(
-  OUT,
-  JSON.stringify({ generatedAt: new Date().toISOString(), packages }, null, 2) + '\n',
-);
+// 내용이 그대로면 다시 쓰지 않는다. 빌드할 때마다 도는 스크립트라,
+// 시각만 바꿔 쓰면 git 이 매번 '수정됨' 으로 잡혀 작업 트리가 더러워진다.
+const next = JSON.stringify({ packages }, null, 2) + '\n';
+const changed = !existsSync(OUT) || readFileSync(OUT, 'utf8') !== next;
+if (changed) writeFileSync(OUT, next);
 
-console.log(`오픈소스 고지 생성: ${packages.length}개 → ${OUT}`);
+console.log(`오픈소스 고지 ${packages.length}개 ${changed ? '갱신' : '그대로'} → ${OUT}`);
 if (filled.length) {
   console.log(`   전문이 없어 표준 전문으로 채운 패키지 ${filled.length}개 (정형문이라 동일)`);
 }
