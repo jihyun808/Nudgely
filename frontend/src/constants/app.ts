@@ -10,4 +10,4 @@ export const PRIVACY_URL =
   'https://determined-form-44f.notion.site/Nudgely-3ea1a4ad9d808057a7aef78fa599ddba';
 
 /** 피드백·문의를 받는 주소 */
-export const CONTACT_EMAIL = 'contact.nudgely@gmail.com';
+export const CONTACT_EMAIL = 'nudgely2026@gmail.com';
