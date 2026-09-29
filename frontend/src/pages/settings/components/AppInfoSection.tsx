@@ -1,5 +1,5 @@
 // pages/settings/components/AppInfoSection.tsx
-import { APP_VERSION, PRIVACY_URL, TERMS_URL } from '@/constants/app';
+import { APP_VERSION, CONTACT_EMAIL, PRIVACY_URL, TERMS_URL } from '@/constants/app';
 import Chevron from '@/pages/settings/components/Chevron';
 import SettingsRow from '@/pages/settings/components/SettingsRow';
 import SettingsSection from '@/pages/settings/components/SettingsSection';
@@ -9,7 +9,10 @@ const DOCUMENT_LINKS: { label: string; url?: string }[] = [
   { label: '이용약관', url: TERMS_URL },
   { label: '개인정보 처리방침', url: PRIVACY_URL },
   { label: '오픈소스 라이선스' },
-  { label: '문의하기' },
+  {
+    label: '문의하기',
+    url: `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('[Nudgely] 문의')}`,
+  },
 ];
 
 /** 앱 정보 묶음 */
