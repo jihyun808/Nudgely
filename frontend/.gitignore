@@ -22,6 +22,9 @@ node_modules/@capacitor-firebase/*
 !node_modules/@capacitor-firebase/messaging
 # Xcode 가 패키지 폴더 안에 만드는 로컬 상태
 node_modules/**/.swiftpm
+# package.json 은 빼 둔다. 있으면 npm install 이 "이미 설치됨" 으로 보고
+# 건너뛰어, JS 쪽이 비어 tsc 가 깨진다. SPM 은 Package.swift 만 있으면 된다
+node_modules/**/package.json
 dist
 dist-ssr
 *.local

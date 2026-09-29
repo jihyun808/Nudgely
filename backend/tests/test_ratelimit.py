@@ -13,6 +13,7 @@ from httpx import AsyncClient
 from app.core import ratelimit
 from app.core.config import settings
 from app.core.errors import AppError
+from tests.helpers import CONSENTS
 
 
 @pytest.fixture(autouse=True)
@@ -41,13 +42,18 @@ async def test_signup_is_capped(client: AsyncClient):
     for i in range(5):
         res = await client.post(
             "/api/auth/signup",
-            json={"nickname": "지수", "email": f"u{i}@b.com", "password": "password123"},
+            json={
+                "nickname": "지수",
+                "email": f"u{i}@b.com",
+                "password": "password123",
+                **CONSENTS,
+            },
         )
         assert res.status_code == 201
 
     blocked = await client.post(
         "/api/auth/signup",
-        json={"nickname": "지수", "email": "u9@b.com", "password": "password123"},
+        json={"nickname": "지수", "email": "u9@b.com", "password": "password123", **CONSENTS},
     )
 
     assert blocked.status_code == 429
@@ -60,7 +66,7 @@ async def test_scopes_do_not_block_each_other(client: AsyncClient):
 
     res = await client.post(
         "/api/auth/signup",
-        json={"nickname": "지수", "email": "new@b.com", "password": "password123"},
+        json={"nickname": "지수", "email": "new@b.com", "password": "password123", **CONSENTS},
     )
 
     assert res.status_code == 201

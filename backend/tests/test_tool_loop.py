@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.ai import streaming
 from app.ai.tools import dispatch_tool_call
 from app.models.goal import Goal
+from tests.helpers import CONSENTS
 
 
 class _FakeMessage:
@@ -28,7 +29,7 @@ async def _goal(client: AsyncClient, session_factory: async_sessionmaker) -> Goa
     token = (
         await client.post(
             "/api/auth/signup",
-            json={"nickname": "지수", "email": "loop@b.com", "password": "password123"},
+            json={"nickname": "지수", "email": "loop@b.com", "password": "password123", **CONSENTS},
         )
     ).json()["accessToken"]
     goal_id = (

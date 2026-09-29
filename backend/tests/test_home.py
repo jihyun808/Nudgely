@@ -9,8 +9,8 @@ from app.ai.tools import dispatch_tool_call
 from app.models.goal import Goal, Message
 from app.models.notification import Notification
 from app.models.user import UserSettings
-from app.services.notification_service import should_notify
-from tests.helpers import auth, token_for
+from app.services.notification_service import send_nudge, should_notify
+from tests.helpers import auth, create_goal, token_for
 
 
 async def _user_id(client: AsyncClient, token: str) -> str:
@@ -219,3 +219,21 @@ async def test_ai_todo_notification_suppressed_when_toggle_off(
     assert (await client.get("/api/notifications", headers=auth(token))).json() == []
     todos = await client.get("/api/todos", headers=auth(token), params={"date": "2026-08-03"})
     assert len(todos.json()) == 1
+
+
+async def test_notification_carries_the_goal_for_in_app_navigation(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """앱 안 목록에서 누르면 그 방으로 가야 한다. 푸시는 여전히 이동하지 않는다."""
+    token = await token_for(client, "notif-nav@b.com")
+    goal_id = await create_goal(client, token)
+    async with session_factory() as db:
+        goal = await db.get(Goal, goal_id)
+        await send_nudge(db, goal, "시작했어?")
+        await db.commit()
+
+    body = (await client.get("/api/notifications", headers=auth(token))).json()
+
+    assert body[0]["goalId"] == goal_id
+    # 경로 문자열은 여전히 서버가 만들지 않는다
+    assert "linkTo" not in body[0]

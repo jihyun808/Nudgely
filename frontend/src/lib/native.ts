@@ -26,6 +26,27 @@ export async function bootstrapNative(): Promise<void> {
     // iOS 전용이다
   }
 
+  // 키보드 높이를 CSS 변수로 넘긴다. willShow 는 키보드가 올라오기 **전에**
+  // 오므로, 웹뷰 리사이즈를 기다리지 않고 같이 움직인다
+  const root = document.documentElement;
+  await Keyboard.addListener('keyboardWillShow', ({ keyboardHeight }) => {
+    root.style.setProperty('--kb', `${keyboardHeight}px`);
+    root.dataset.keyboard = 'open';
+  });
+  await Keyboard.addListener('keyboardWillHide', () => {
+    root.style.setProperty('--kb', '0px');
+    delete root.dataset.keyboard;
+  });
+  // will* 은 iOS 전용이다. 안드로이드는 did* 만 온다(한 박자 늦지만 안 밀리는 것보단 낫다)
+  await Keyboard.addListener('keyboardDidShow', ({ keyboardHeight }) => {
+    root.style.setProperty('--kb', `${keyboardHeight}px`);
+    root.dataset.keyboard = 'open';
+  });
+  await Keyboard.addListener('keyboardDidHide', () => {
+    root.style.setProperty('--kb', '0px');
+    delete root.dataset.keyboard;
+  });
+
   // 토큰이 바뀌었을 수 있어 열 때마다 확인한다
   if (isAuthenticated()) await enablePush();
 }
