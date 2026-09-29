@@ -12,6 +12,7 @@ import Record from '@/pages/record/Record';
 import My from '@/pages/my/My';
 import Settings from '@/pages/settings/Settings';
 import History from '@/pages/settings/History';
+import Licenses from '@/pages/settings/Licenses';
 import Landing from '@/pages/auth/Landing';
 import Signin from '@/pages/auth/Signin';
 import Signup from '@/pages/auth/Signup';
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([
   { path: '/chat/:goalId/settings', element: <GoalSettingsPage /> },
   { path: '/settings', element: <Settings /> },
   { path: '/settings/history', element: <History /> },
+  { path: '/settings/licenses', element: <Licenses /> },
 
   // 로그인 이후 메인: 하단 탭바로 5개 화면을 오간다
   {

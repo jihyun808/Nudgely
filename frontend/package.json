@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run licenses && tsc -b && vite build",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview",
     "sync": "npm run build && cap sync",
     "ios": "npm run sync && cap open ios",
-    "android": "npm run sync && cap open android"
+    "android": "npm run sync && cap open android",
+    "licenses": "node scripts/generate-oss-licenses.mjs"
   },
   "dependencies": {
     "@capacitor-firebase/messaging": "^8.5.2",
