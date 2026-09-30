@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Nudgely — 옆에 있어 드릴게요</title>
+<meta name="description" content="AI 페르소나가 스터디 파트너가 되어 학습 루틴을 밀착 관리하는 모바일 앱. 경기대학교 학생창업팀 Nudgely, 현재 베타 테스트 진행 중." />
+<meta name="theme-color" content="#F1EDE1" />
+<meta property="og:title" content="Nudgely — 옆에 있어 드릴게요" />
+<meta property="og:description" content="AI 스터디 파트너 Nudgely. 혼자 공부해도 함께한다는 감각을 만들어드립니다." />
+<meta property="og:type" content="website" />
+
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
+
+<style>
+  /* -------- tokens -------- */
+  :root {
+    --paper: #F1EDE1;
+    --paper-warm: #EAE4D3;
+    --ink: #131316;
+    --ink-soft: #3B3B3E;
+    --ink-mute: #7A7770;
+    --sage: #2E5842;
+    --sage-hover: #23422F;
+    --amber: #D9873A;
+    --line: rgba(19, 19, 22, 0.12);
+    --line-strong: rgba(19, 19, 22, 0.28);
+
+    --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+
+    --page-gutter: clamp(24px, 5vw, 88px);
+    --max-w: 1180px;
+
+    --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-weight: 400;
+    font-feature-settings: "ss01", "ss03";
+    line-height: 1.55;
+    letter-spacing: -0.005em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; cursor: pointer; }
+  img, svg { display: block; max-width: 100%; }
+
+  ::selection { background: var(--sage); color: var(--paper); }
+
+  /* -------- layout -------- */
+  .wrap {
+    max-width: var(--max-w);
+    margin: 0 auto;
+    padding-left: var(--page-gutter);
+    padding-right: var(--page-gutter);
+  }
+
+  /* -------- top bar -------- */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 50;
+    padding: 22px 0;
+    background: linear-gradient(to bottom, var(--paper) 60%, rgba(241, 237, 225, 0));
+    transition: background 300ms var(--ease-out), padding 300ms var(--ease-out);
+  }
+  .topbar.scrolled {
+    padding: 14px 0;
+    background: rgba(241, 237, 225, 0.92);
+    backdrop-filter: saturate(140%) blur(10px);
+    -webkit-backdrop-filter: saturate(140%) blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.02em;
+  }
+  .brand__dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--sage);
+    position: relative;
+  }
+  .brand__dot::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 1.5px solid var(--sage);
+    opacity: 0;
+    animation: pulse 2.6s ease-out infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(0.7); opacity: 0.6; }
+    70% { transform: scale(1.4); opacity: 0; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+  .topbar__nav {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    font-size: 14.5px;
+    color: var(--ink-soft);
+  }
+  .topbar__nav a {
+    position: relative;
+    padding: 4px 0;
+    transition: color 200ms var(--ease-out);
+  }
+  .topbar__nav a:hover { color: var(--ink); }
+  .topbar__nav a::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -2px;
+    height: 1px;
+    background: var(--ink);
+    transform: scaleX(0);
+    transform-origin: right;
+    transition: transform 260ms var(--ease-out);
+  }
+  .topbar__nav a:hover::after {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+  .topbar__nav .mail-btn {
+    padding: 9px 16px;
+    border: 1px solid var(--ink);
+    border-radius: 999px;
+    color: var(--ink);
+    font-weight: 500;
+    transition: background 200ms var(--ease-out), color 200ms var(--ease-out);
+  }
+  .topbar__nav .mail-btn:hover { background: var(--ink); color: var(--paper); }
+  .topbar__nav .mail-btn::after { display: none; }
+
+  @media (max-width: 720px) {
+    .topbar__nav a:not(.mail-btn) { display: none; }
+  }
+
+  /* -------- hero -------- */
+  .hero {
+    min-height: 100vh;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-top: 120px;
+    padding-bottom: 80px;
+    position: relative;
+  }
+  .hero__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-bottom: 32px;
+    background: transparent;
+    width: fit-content;
+  }
+  .hero__status span.dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 0 3px rgba(217, 135, 58, 0.18);
+  }
+  .hero h1 {
+    font-size: clamp(44px, 8vw, 108px);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    font-weight: 700;
+    margin: 0 0 28px 0;
+    max-width: 14ch;
+  }
+  .hero h1 .em {
+    font-style: italic;
+    font-weight: 500;
+    color: var(--sage);
+  }
+  .hero__sub {
+    font-size: clamp(17px, 1.6vw, 20px);
+    color: var(--ink-soft);
+    max-width: 46ch;
+    margin: 0 0 44px 0;
+    line-height: 1.6;
+  }
+  .hero__meta {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 14px;
+    color: var(--ink-mute);
+  }
+  .hero__meta .divider {
+    width: 1px;
+    height: 12px;
+    background: var(--line-strong);
+  }
+
+  .hero__scroll {
+    position: absolute;
+    left: var(--page-gutter);
+    bottom: 40px;
+    font-size: 12px;
+    color: var(--ink-mute);
+    letter-spacing: 0.02em;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .hero__scroll .line {
+    width: 1px;
+    height: 40px;
+    background: var(--line-strong);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero__scroll .line::after {
+    content: "";
+    position: absolute;
+    top: -40px; left: 0;
+    width: 100%; height: 40px;
+    background: var(--ink);
+    animation: scrollLine 2.4s ease-in-out infinite;
+  }
+  @keyframes scrollLine {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(80px); }
+  }
+
+  /* -------- section base -------- */
+  section {
+    padding: 120px 0;
+  }
+  @media (max-width: 720px) {
+    section { padding: 80px 0; }
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--sage);
+    font-weight: 500;
+    margin-bottom: 20px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 24px; height: 1px;
+    background: var(--sage);
+  }
+  .section-title {
+    font-size: clamp(30px, 4.5vw, 52px);
+    line-height: 1.15;
+    letter-spacing: -0.028em;
+    font-weight: 600;
+    margin: 0 0 32px 0;
+    max-width: 20ch;
+  }
+  .section-lead {
+    font-size: clamp(16px, 1.4vw, 18px);
+    color: var(--ink-soft);
+    line-height: 1.7;
+    max-width: 52ch;
+  }
+
+  /* -------- problem section -------- */
+  .problem {
+    border-top: 1px solid var(--line);
+  }
+  .problem__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(40px, 6vw, 100px);
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .problem__grid { grid-template-columns: 1fr; gap: 48px; }
+  }
+  .problem__lines {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  .problem__line {
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+    font-size: clamp(19px, 2vw, 24px);
+    line-height: 1.4;
+    color: var(--ink);
+    letter-spacing: -0.015em;
+  }
+  .problem__line:last-child { border-bottom: none; }
+  .problem__line .mute {
+    color: var(--ink-mute);
+    font-size: 0.7em;
+    display: block;
+    margin-top: 6px;
+    letter-spacing: 0;
+  }
+
+  /* -------- feature blocks -------- */
+  .feature {
+    border-top: 1px solid var(--line);
+  }
+  .feature__head {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 40px;
+    align-items: baseline;
+    margin-bottom: 64px;
+  }
+  @media (max-width: 720px) {
+    .feature__head { grid-template-columns: 1fr; gap: 12px; margin-bottom: 40px; }
+  }
+  .feature__num {
+    font-size: 14px;
+    color: var(--ink-mute);
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .feature__body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(40px, 6vw, 100px);
+    align-items: center;
+  }
+  @media (max-width: 860px) {
+    .feature__body { grid-template-columns: 1fr; gap: 56px; }
+  }
+  .feature__copy p {
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+    margin: 0 0 24px 0;
+  }
+  .feature__list {
+    list-style: none;
+    padding: 0;
+    margin: 32px 0 0 0;
+  }
+  .feature__list li {
+    display: grid;
+    grid-template-columns: 20px 1fr;
+    gap: 14px;
+    padding: 16px 0;
+    border-top: 1px solid var(--line);
+    font-size: 15.5px;
+    line-height: 1.55;
+  }
+  .feature__list li:last-child { border-bottom: 1px solid var(--line); }
+  .feature__list li .marker {
+    color: var(--sage);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    padding-top: 2px;
+  }
+  .feature__list li strong {
+    font-weight: 600;
+    color: var(--ink);
+    display: block;
+    margin-bottom: 2px;
+  }
+  .feature__list li span.desc {
+    color: var(--ink-mute);
+    font-size: 14px;
+  }
+
+  /* -------- chat mockup (feature 1) -------- */
+  .phone {
+    width: 100%;
+    max-width: 340px;
+    margin: 0 auto;
+    background: #FAF7EE;
+    border: 1px solid var(--line-strong);
+    border-radius: 32px;
+    padding: 20px 16px 24px;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.7) inset,
+      0 30px 60px -30px rgba(19, 19, 22, 0.28),
+      0 8px 20px -8px rgba(19, 19, 22, 0.12);
+    position: relative;
+  }
+  .phone__notch {
+    width: 88px; height: 20px;
+    background: var(--ink);
+    border-radius: 999px;
+    margin: 0 auto 24px;
+    opacity: 0.9;
+  }
+  .phone__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 4px 14px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 16px;
+  }
+  .phone__avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--sage);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #F1EDE1;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .phone__who {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .phone__who .status {
+    display: block;
+    font-size: 11px;
+    color: var(--sage);
+    font-weight: 400;
+    margin-top: 1px;
+  }
+  .chat {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0 4px;
+    min-height: 280px;
+  }
+  .bubble {
+    max-width: 82%;
+    padding: 10px 14px;
+    border-radius: 18px;
+    font-size: 14px;
+    line-height: 1.45;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out);
+  }
+  .bubble.show { opacity: 1; transform: translateY(0); }
+  .bubble.ai {
+    align-self: flex-start;
+    background: #F0E8D3;
+    color: var(--ink);
+    border-bottom-left-radius: 6px;
+  }
+  .bubble.me {
+    align-self: flex-end;
+    background: var(--sage);
+    color: #F1EDE1;
+    border-bottom-right-radius: 6px;
+  }
+  .bubble.typing {
+    padding: 12px 14px;
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .bubble.typing span {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--ink-mute);
+    opacity: 0.4;
+    animation: typing 1.2s infinite ease-in-out;
+  }
+  .bubble.typing span:nth-child(2) { animation-delay: 0.15s; }
+  .bubble.typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-3px); opacity: 1; }
+  }
+  .phone__time {
+    font-size: 10px;
+    color: var(--ink-mute);
+    align-self: center;
+    padding: 4px 0 2px;
+    opacity: 0;
+    transition: opacity 400ms var(--ease-out);
+  }
+  .phone__time.show { opacity: 1; }
+
+  /* -------- focus mode mockup (feature 2) -------- */
+  .focus-card {
+    max-width: 380px;
+    margin: 0 auto;
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 24px;
+    padding: 32px 28px;
+    box-shadow:
+      0 30px 60px -30px rgba(19, 19, 22, 0.4),
+      0 8px 20px -8px rgba(19, 19, 22, 0.18);
+    position: relative;
+    overflow: hidden;
+  }
+  .focus-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(46, 88, 66, 0.22), transparent 55%),
+      radial-gradient(circle at 80% 70%, rgba(217, 135, 58, 0.12), transparent 55%);
+    pointer-events: none;
+  }
+  .focus-card__inner { position: relative; }
+  .focus-card__label {
+    font-size: 12px;
+    color: rgba(241, 237, 225, 0.6);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .focus-card__label::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--amber);
+    animation: focusPulse 2s ease-in-out infinite;
+  }
+  @keyframes focusPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .focus-card__timer {
+    font-size: 52px;
+    font-weight: 300;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 4px;
+    line-height: 1;
+  }
+  .focus-card__task {
+    font-size: 14px;
+    color: rgba(241, 237, 225, 0.7);
+    margin-bottom: 32px;
+  }
+  .focus-card__cam {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    background: rgba(241, 237, 225, 0.06);
+    border: 1px solid rgba(241, 237, 225, 0.1);
+    border-radius: 14px;
+  }
+  .focus-card__cam .frame {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: rgba(46, 88, 66, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .focus-card__cam .frame svg { width: 20px; height: 20px; }
+  .focus-card__cam .info { font-size: 13px; line-height: 1.4; }
+  .focus-card__cam .info strong {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+  .focus-card__cam .info span {
+    color: rgba(241, 237, 225, 0.55);
+    font-size: 12px;
+  }
+
+  /* -------- audience -------- */
+  .audience {
+    border-top: 1px solid var(--line);
+  }
+  .audience__list {
+    margin-top: 48px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--line);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .audience__item {
+    background: var(--paper);
+    padding: 40px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .audience__item .num {
+    font-size: 12px;
+    color: var(--ink-mute);
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .audience__item h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.015em;
+    line-height: 1.35;
+  }
+  .audience__item p {
+    font-size: 14.5px;
+    color: var(--ink-mute);
+    margin: 0;
+    line-height: 1.6;
+  }
+  @media (max-width: 820px) {
+    .audience__list { grid-template-columns: 1fr; }
+  }
+
+  /* -------- beta / contact -------- */
+  .beta {
+    border-top: 1px solid var(--line);
+    background: var(--paper-warm);
+  }
+  .beta__grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: clamp(40px, 6vw, 100px);
+    align-items: end;
+  }
+  @media (max-width: 860px) {
+    .beta__grid { grid-template-columns: 1fr; align-items: start; gap: 40px; }
+  }
+  .beta__title {
+    font-size: clamp(34px, 5.5vw, 68px);
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+    margin: 0 0 28px 0;
+    max-width: 12ch;
+  }
+  .beta__title .accent { color: var(--sage); }
+  .beta__desc {
+    font-size: 17px;
+    line-height: 1.7;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 44ch;
+  }
+  .beta__contact {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .contact-card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    padding: 32px 28px;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .contact-card__label {
+    font-size: 13px;
+    color: var(--ink-mute);
+    letter-spacing: 0.01em;
+  }
+  .contact-card__mail {
+    font-size: clamp(20px, 2.4vw, 26px);
+    font-weight: 500;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    transition: color 200ms var(--ease-out);
+    word-break: break-all;
+  }
+  .contact-card__mail:hover { color: var(--sage); }
+  .contact-card__mail .arrow {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--paper);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: transform 300ms var(--ease-out), background 200ms var(--ease-out);
+  }
+  .contact-card__mail:hover .arrow { transform: translate(3px, -3px); background: var(--sage); }
+  .contact-card__note {
+    font-size: 13.5px;
+    color: var(--ink-mute);
+    line-height: 1.6;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  /* -------- team & footer -------- */
+  .team {
+    border-top: 1px solid var(--line);
+    padding: 96px 0 40px;
+  }
+  .team__intro {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 40px;
+    align-items: baseline;
+    margin-bottom: 56px;
+  }
+  @media (max-width: 720px) {
+    .team__intro { grid-template-columns: 1fr; gap: 12px; margin-bottom: 40px; }
+  }
+  .team__label {
+    font-size: 13px;
+    color: var(--ink-mute);
+    letter-spacing: 0.02em;
+  }
+  .team__where {
+    font-size: clamp(20px, 2.2vw, 26px);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.35;
+    max-width: 32ch;
+  }
+  .team__where .highlight { color: var(--sage); }
+
+  .team__members {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  @media (max-width: 640px) {
+    .team__members { grid-template-columns: 1fr; }
+  }
+  .member {
+    background: var(--paper);
+    padding: 32px 4px 32px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .member:nth-child(2) { padding-left: 32px; }
+  @media (max-width: 640px) {
+    .member:nth-child(2) { padding-left: 0; padding-top: 32px; }
+  }
+  .member__name {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .member__role {
+    font-size: 14px;
+    color: var(--ink-mute);
+  }
+
+  footer {
+    padding: 60px 0 40px;
+    border-top: 1px solid var(--line);
+    margin-top: 60px;
+    font-size: 13px;
+    color: var(--ink-mute);
+  }
+  footer .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  footer .brand-small {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  footer .brand-small .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--sage);
+  }
+
+  /* -------- reveal animation -------- */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 900ms var(--ease-out), transform 900ms var(--ease-out);
+    will-change: opacity, transform;
+  }
+  .reveal.in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Hero on-load stagger */
+  .hero > .wrap > * {
+    opacity: 0;
+    transform: translateY(14px);
+    animation: heroIn 900ms var(--ease-out) forwards;
+  }
+  .hero > .wrap > *:nth-child(1) { animation-delay: 120ms; }
+  .hero > .wrap > *:nth-child(2) { animation-delay: 260ms; }
+  .hero > .wrap > *:nth-child(3) { animation-delay: 400ms; }
+  .hero > .wrap > *:nth-child(4) { animation-delay: 540ms; }
+  @keyframes heroIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; animation-delay: 0ms !important; transition-duration: 100ms !important; }
+    .brand__dot::after,
+    .hero__scroll .line::after,
+    .focus-card__label::before,
+    .bubble.typing span { animation: none !important; }
+    .reveal { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar" id="topbar">
+  <div class="wrap topbar__inner">
+    <a href="#top" class="brand" aria-label="Nudgely 홈">
+      <span class="brand__dot" aria-hidden="true"></span>
+      Nudgely
+    </a>
+    <nav class="topbar__nav" aria-label="주요 메뉴">
+      <a href="#buddy">Buddy</a>
+      <a href="#focus">Focus Mode</a>
+      <a href="#team">팀</a>
+      <a href="mailto:nudgely2026@gmail.com" class="mail-btn">문의</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero__status">
+        <span class="dot" aria-hidden="true"></span>
+        <span>2026년 하반기 베타 테스트 진행 중</span>
+      </div>
+      <h1>혼자여도<br />옆에 있는 <span class="em">스터디 파트너</span>.</h1>
+      <p class="hero__sub">
+        Nudgely는 AI 페르소나가 먼저 말을 걸어와 학습 루틴을 함께 챙기는 앱입니다.
+        스터디 그룹을 새로 꾸리지 않아도, 오늘부터 시작할 수 있어요.
+      </p>
+      <div class="hero__meta">
+        <span>경기대학교 학생창업팀</span>
+        <span class="divider" aria-hidden="true"></span>
+        <span>AI 스터디 파트너</span>
+        <span class="divider" aria-hidden="true"></span>
+        <span>모바일 · 개발 중</span>
+      </div>
+    </div>
+    <div class="hero__scroll" aria-hidden="true">
+      <span>Scroll</span>
+      <span class="line"></span>
+    </div>
+  </section>
+
+  <!-- PROBLEM -->
+  <section class="problem">
+    <div class="wrap">
+      <div class="problem__grid">
+        <div class="reveal">
+          <span class="eyebrow">우리가 관찰한 것</span>
+          <h2 class="section-title">계획은 쉽고,<br />지키는 건 어렵습니다.</h2>
+          <p class="section-lead">
+            혼자 공부하면 의지가 흔들리고, 그룹을 만들려면 사람부터 모아야 합니다.
+            먼저 말을 걸어주고, 실제 집중 여부까지 지켜봐 줄 누군가가 필요하다고 생각했습니다.
+          </p>
+        </div>
+        <div class="problem__lines reveal">
+          <div class="problem__line">
+            혼자서 공부하면 흐지부지되고,
+            <span class="mute">의지에만 기대는 데는 한계가 있습니다.</span>
+          </div>
+          <div class="problem__line">
+            그룹 스터디는 멤버부터 구해야 하고,
+            <span class="mute">모으는 순간부터 이미 지칩니다.</span>
+          </div>
+          <div class="problem__line">
+            기존 앱은 기록만 도와줄 뿐,
+            <span class="mute">먼저 말을 걸어오지는 않습니다.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURE 1 — BUDDY -->
+  <section class="feature" id="buddy">
+    <div class="wrap">
+      <div class="feature__head reveal">
+        <span class="feature__num">기능 하나</span>
+        <div>
+          <span class="eyebrow">Buddy</span>
+          <h2 class="section-title">대화만으로 오늘 할 일이<br />정리되고, 먼저 알림이 옵니다.</h2>
+        </div>
+      </div>
+
+      <div class="feature__body">
+        <div class="feature__copy reveal">
+          <p>
+            "이번 주 안에 알고리즘 강의 끝낼 거야" 하고 채팅으로 말하면,
+            Nudgely가 일정을 나눠 캘린더에 넣어둡니다.
+          </p>
+          <p>
+            시간이 되면 먼저 톡을 보내고, 학습 후에는 인증한 결과물을 확인해
+            간단한 퀴즈로 이해도를 짚어줍니다.
+          </p>
+          <ul class="feature__list">
+            <li>
+              <span class="marker">01</span>
+              <span>
+                <strong>대화형 일정 생성</strong>
+                <span class="desc">자연어 목표를 구조화된 일정으로 자동 변환</span>
+              </span>
+            </li>
+            <li>
+              <span class="marker">02</span>
+              <span>
+                <strong>선톡형 리마인드</strong>
+                <span class="desc">앱을 열지 않아도 상황에 맞는 메시지가 먼저 도착</span>
+              </span>
+            </li>
+            <li>
+              <span class="marker">03</span>
+              <span>
+                <strong>결과물 인증 & 복습 퀴즈</strong>
+                <span class="desc">학습 후 진도에 맞는 퀴즈로 실질적 학습 효과 확인</span>
+              </span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="reveal">
+          <div class="phone" id="chatPhone" aria-hidden="true">
+            <div class="phone__notch"></div>
+            <div class="phone__head">
+              <div class="phone__avatar">N</div>
+              <div class="phone__who">
+                Nudgely
+                <span class="status">지금 옆에 있어요</span>
+              </div>
+            </div>
+            <div class="chat" id="chatStream">
+              <div class="phone__time" data-t="900">오후 2:55</div>
+              <div class="bubble ai" data-t="1200">오늘 3시부터 한 시간, 알고리즘 강의 예약해뒀어요.</div>
+              <div class="bubble ai" data-t="2000">준비되면 알려주세요.</div>
+              <div class="bubble me" data-t="3200">지금 시작할게</div>
+              <div class="bubble typing" data-t="4000"><span></span><span></span><span></span></div>
+              <div class="bubble ai" data-t="5200">좋아요. 4시에 얼마나 진행했는지 다시 여쭤볼게요.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURE 2 — FOCUS MODE -->
+  <section class="feature" id="focus">
+    <div class="wrap">
+      <div class="feature__head reveal">
+        <span class="feature__num">기능 둘</span>
+        <div>
+          <span class="eyebrow">Focus Mode</span>
+          <h2 class="section-title">집중이 흐트러지는 순간을<br />조용히, 그러나 확실하게.</h2>
+        </div>
+      </div>
+
+      <div class="feature__body">
+        <div class="reveal" style="order: 2;">
+          <div class="focus-card" aria-hidden="true">
+            <div class="focus-card__inner">
+              <div class="focus-card__label">FOCUS SESSION</div>
+              <div class="focus-card__timer" id="focusTimer">42:18</div>
+              <div class="focus-card__task">알고리즘 강의 · 3장 자료구조</div>
+              <div class="focus-card__cam">
+                <div class="frame">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#F1EDE1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 7l-7 5 7 5V7z"/>
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                  </svg>
+                </div>
+                <div class="info">
+                  <strong>착석 감지 중</strong>
+                  <span>영상은 기기 안에서만 처리됩니다</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="feature__copy reveal">
+          <p>
+            카메라가 화면 앞의 착석 상태를 감지합니다. 집중 세션이 시작되면
+            다른 앱은 열 수 없고, 자리를 비우면 Nudgely가 다시 자리로 부릅니다.
+          </p>
+          <p>
+            영상은 서버로 보내지 않습니다. 기기 안에서 얼굴 랜드마크로 상태만
+            판정하고, 이미지는 저장하지 않습니다.
+          </p>
+          <ul class="feature__list">
+            <li>
+              <span class="marker">01</span>
+              <span>
+                <strong>온디바이스 처리</strong>
+                <span class="desc">MediaPipe 기반, 영상 미저장 · 상태값만 사용</span>
+              </span>
+            </li>
+            <li>
+              <span class="marker">02</span>
+              <span>
+                <strong>물리적 딴짓 차단</strong>
+                <span class="desc">세션 중에는 다른 앱 실행 불가</span>
+              </span>
+            </li>
+            <li>
+              <span class="marker">03</span>
+              <span>
+                <strong>집중 시간 대시보드</strong>
+                <span class="desc">누적 집중 시간과 연속 달성일을 한눈에</span>
+              </span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AUDIENCE -->
+  <section class="audience">
+    <div class="wrap">
+      <div class="reveal">
+        <span class="eyebrow">이런 분들에게</span>
+        <h2 class="section-title">혼자 시작하지만,<br />꾸준히 이어가고 싶은 분들.</h2>
+      </div>
+      <div class="audience__list reveal">
+        <div class="audience__item">
+          <span class="num">01</span>
+          <h3>자기주도 학습이<br />어려운 대학생</h3>
+          <p>수업, 과제, 시험 사이에서 개인 학습 루틴을 놓치기 쉬운 분들.</p>
+        </div>
+        <div class="audience__item">
+          <span class="num">02</span>
+          <h3>자격증 · 공시<br />준비생</h3>
+          <p>장기 레이스에서 매일의 실행률이 결과를 만든다고 믿는 분들.</p>
+        </div>
+        <div class="audience__item">
+          <span class="num">03</span>
+          <h3>스터디 그룹 없이도<br />시작하고 싶은 분들</h3>
+          <p>사람 모을 시간에 바로 공부부터 시작하고 싶은 분들.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BETA -->
+  <section class="beta" id="contact">
+    <div class="wrap">
+      <div class="beta__grid">
+        <div class="reveal">
+          <span class="eyebrow">지금 함께해요</span>
+          <h2 class="beta__title">
+            <span class="accent">베타 테스터</span>를 찾고 있습니다.
+          </h2>
+          <p class="beta__desc">
+            학생 10~20명 규모의 베타 테스트를 준비 중입니다.
+            먼저 써보고 싶으신 분, 사용해 보고 솔직한 피드백을 주실 수 있는 분,
+            혹은 제품과 팀에 대해 궁금한 점이 있는 분 모두 편하게 연락 주세요.
+          </p>
+        </div>
+        <div class="beta__contact reveal">
+          <div class="contact-card">
+            <div>
+              <div class="contact-card__label">이메일로 연락하기</div>
+              <a class="contact-card__mail" href="mailto:nudgely2026@gmail.com?subject=Nudgely%20베타%20테스트%20문의">
+                nudgely2026@gmail.com
+                <span class="arrow" aria-hidden="true">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M3 9L9 3M9 3H4M9 3V8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+              </a>
+            </div>
+            <div class="contact-card__note">
+              베타 참여, 협업 제안, 언론 문의 모두 위 메일로 받고 있어요.
+              보통 2~3일 안에 답장 드립니다.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TEAM -->
+  <section class="team" id="team">
+    <div class="wrap">
+      <div class="team__intro reveal">
+        <div class="team__label">Team</div>
+        <div class="team__where">
+          <span class="highlight">경기대학교 창업지원단</span>의
+          학생창업팀에서 만들고 있습니다.
+        </div>
+      </div>
+      <div class="team__members reveal">
+        <div class="member">
+          <div class="member__name">이지현</div>
+          <div class="member__role">기획 · PM · 프론트엔드</div>
+        </div>
+        <div class="member">
+          <div class="member__name">강태윤</div>
+          <div class="member__role">AI 모델링 · 백엔드</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap row">
+      <span class="brand-small">
+        <span class="dot" aria-hidden="true"></span>
+        Nudgely
+      </span>
+      <span>© 2026 Nudgely · 경기대학교 학생창업팀</span>
+    </div>
+  </footer>
+
+</main>
+
+<script>
+  // topbar scrolled state
+  const topbar = document.getElementById('topbar');
+  const onScroll = () => {
+    if (window.scrollY > 24) topbar.classList.add('scrolled');
+    else topbar.classList.remove('scrolled');
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  // reveal on view
+  const revealEls = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('in');
+        io.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+  revealEls.forEach((el) => io.observe(el));
+
+  // chat mockup sequential reveal
+  const phone = document.getElementById('chatPhone');
+  if (phone) {
+    const items = phone.querySelectorAll('[data-t]');
+    let started = false;
+    const startChat = () => {
+      if (started) return;
+      started = true;
+      items.forEach((el) => {
+        const t = parseInt(el.dataset.t, 10);
+        setTimeout(() => {
+          el.classList.add('show');
+          // remove typing bubble once next msg appears
+          if (el.classList.contains('typing')) {
+            setTimeout(() => {
+              el.style.transition = 'opacity 300ms ease, height 300ms ease, margin 300ms ease, padding 300ms ease';
+              el.style.opacity = '0';
+              setTimeout(() => { el.style.display = 'none'; }, 320);
+            }, 1000);
+          }
+        }, t);
+      });
+    };
+    const chatObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          startChat();
+          chatObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.35 });
+    chatObserver.observe(phone);
+  }
+
+  // focus timer subtle countdown (visual only)
+  const timerEl = document.getElementById('focusTimer');
+  if (timerEl) {
+    let mins = 42, secs = 18;
+    const tick = () => {
+      if (secs === 0) { mins--; secs = 59; } else { secs--; }
+      if (mins < 0) { mins = 42; secs = 18; }
+      timerEl.textContent =
+        String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+    };
+    const timerObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          if (!timerEl._interval) timerEl._interval = setInterval(tick, 1000);
+        } else {
+          if (timerEl._interval) { clearInterval(timerEl._interval); timerEl._interval = null; }
+        }
+      });
+    }, { threshold: 0.4 });
+    timerObserver.observe(timerEl);
+  }
+</script>
+
+</body>
+</html>
