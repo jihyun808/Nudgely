@@ -53,7 +53,10 @@ export default function NotificationBell() {
   // (푸시는 별개다 — 앱이 열리는 것까지가 역할이다)
   const handleSelect = (notification: AppNotification) => {
     close();
-    if (notification.goalId) navigate(`/chat/${notification.goalId}`);
+    // 투두가 바뀐 알림은 기록 탭으로. 대화방에 가 봐야 바뀐 할 일이 안 보인다.
+    // 선톡은 AI 가 말을 건 것이라 그 방으로 간다
+    const isTodo = notification.type === 'todoAdded' || notification.type === 'todoDone';
+    if (!isTodo && notification.goalId) navigate(`/chat/${notification.goalId}`);
     else navigate('/record');
   };
 
