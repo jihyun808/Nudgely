@@ -72,8 +72,9 @@ class Settings(BaseSettings):
     nightly_hour: int = 23
     # 반복 계획으로 오늘 투두를 만들어 두는 시각(사용자 로컬 기준)
     routine_hour: int = 6
-    # 비어 있는 목표에 AI 가 먼저 묻는 시각. routine_hour 보다 늦어야 한다
-    morning_hour: int = 8
+    # 비어 있는 목표에 AI 가 먼저 묻는 시각들(쉼표로 구분, 사용자 로컬 기준).
+    # 첫 시각은 routine_hour 보다 늦어야 한다 — 곧 채워질 목표에 묻지 않도록.
+    empty_goal_hours: str = "8,12,17"
 
     # ── 푸시(FCM HTTP v1) ──
     # 앱이 꺼져 있을 때 알릴 유일한 수단이다. 자격 증명이 없으면 조용히 건너뛴다
@@ -172,6 +173,16 @@ class Settings(BaseSettings):
             if part and part.split("=")[0] not in _LIBPQ_ONLY_PARAMS
         ]
         return f"{base}?{'&'.join(kept)}" if kept else base
+
+    @property
+    def empty_goal_hour_list(self) -> list[int]:
+        """비어 있는 목표를 확인할 시각들. 읽을 수 없는 값은 버린다."""
+        hours = []
+        for part in self.empty_goal_hours.split(","):
+            part = part.strip()
+            if part.isdigit() and 0 <= int(part) <= 23:
+                hours.append(int(part))
+        return hours
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -17,7 +17,7 @@
 """
 
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
@@ -44,9 +44,11 @@ END_DELAY_MINUTES = 30
 #: 스케줄러가 깨어나는 간격(분). 이 폭 안에 들어오는 시각을 '지금' 으로 본다.
 TICK_MINUTES = 10
 
-#: 목표 하나에 하루 몇 번까지 선톡할지. 계획이 세 개면 시작·종료로 여섯 번이
-#: 되는데, 하루에 일곱 번 오면 앱을 끈다.
-MAX_NUDGES_PER_GOAL_PER_DAY = 2
+#: 목표 하나에 하루 몇 번까지 선톡할지.
+#: 계획마다 시작·종료 두 번이 붙고 비어 있는지 확인도 세 번 돌아서, 낮으면
+#: 정작 필요한 선톡이 막힌다. 폭주만 막는 선으로 둔다.
+#: (대화 답변 푸시는 알림 행을 만들지 않으므로 여기 세어지지 않는다)
+MAX_NUDGES_PER_GOAL_PER_DAY = 10
 
 
 @dataclass
@@ -176,18 +178,19 @@ async def _has_plan(db: AsyncSession, goal_id: str, user_id: str, on: date) -> b
     return row.first() is not None
 
 
-async def run_morning_nudges(
+async def run_empty_goal_nudges(
     db: AsyncSession,
     now_utc: datetime | None = None,
-    target_hour: int = 8,
+    target_hours: Sequence[int] = (8,),
     writer: NudgeWriter = default_writer,
 ) -> int:
-    """하루가 시작됐는데 비어 있는 목표에 AI 가 먼저 묻는다. 보낸 수를 반환.
+    """비어 있는 목표에 AI 가 먼저 묻는다. 보낸 수를 반환.
 
     반복 계획이 있으면 아침에 투두가 자동으로 생기지만(routine_service), 그게
-    없는 목표는 사용자가 앱을 열어야만 아무 일이 시작된다. 먼저 물어 채운다.
+    없는 목표는 사용자가 앱을 열어야만 아무 일도 시작되지 않는다. 먼저 물어 채운다.
 
-    routine_service 보다 늦은 시각에 돌아야 한다. 안 그러면 곧 채워질 목표에도 묻는다.
+    하루에 여러 번 확인한다(기본 8·12·17시). 아침에 흘려보냈어도 점심·저녁에
+    다시 한 번 기회가 생긴다. 첫 시각은 routine_service 보다 늦어야 한다.
     """
     now_utc = now_utc or datetime.now(UTC)
     users = (await db.execute(select(User).where(User.deleted_at.is_(None)))).scalars().all()
@@ -197,7 +200,7 @@ async def run_morning_nudges(
         settings = await db.get(UserSettings, user.id)
         zone = zone_of(settings.timezone if settings else None)
         local = local_now(zone, now_utc)
-        if local.hour != target_hour:
+        if local.hour not in target_hours:
             continue
         on = local.date()
 
@@ -225,7 +228,8 @@ async def run_morning_nudges(
             else:
                 continue
 
-            ref = f"{kind}:{goal.id}:{on.isoformat()}"
+            # 시각까지 넣는다. 안 넣으면 8시에 한 번 보내고 그날은 끝이다
+            ref = f"{kind}:{goal.id}:{on.isoformat()}:{local.hour}"
             if await _already_nudged(db, ref):
                 continue
             if await _nudges_today(db, goal.id, on, zone) >= MAX_NUDGES_PER_GOAL_PER_DAY:
@@ -235,7 +239,7 @@ async def run_morning_nudges(
             try:
                 content = await writer(ctx)
             except Exception:  # noqa: BLE001
-                logger.exception("아침 선톡 문구 생성 실패(goal=%s)", goal.id)
+                logger.exception("빈 목표 선톡 문구 생성 실패(goal=%s)", goal.id)
                 content = await default_writer(ctx)
 
             if await send_nudge(db, goal, content, ref=ref, now_utc=now_utc) is not None:
@@ -302,7 +306,7 @@ def next_tick_after(now: datetime) -> datetime:
 
 __all__ = [
     "MAX_NUDGES_PER_GOAL_PER_DAY",
-    "run_morning_nudges",
+    "run_empty_goal_nudges",
     "NudgeContext",
     "NudgeWriter",
     "END_DELAY_MINUTES",
