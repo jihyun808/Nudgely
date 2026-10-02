@@ -29,6 +29,17 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
   },
 
+  // SwiftPM 패키지 이름 충돌을 피한다(플러그인 README 요구사항)
+  experimental: {
+    ios: {
+      spm: {
+        packageOptions: {
+          '@capacitor-firebase/messaging': { symlink: true },
+        },
+      },
+    },
+  },
+
   plugins: {
     Keyboard: {
       // 웹뷰를 리사이즈하게 두면 키보드 애니메이션이 끝난 뒤에야 레이아웃이
