@@ -7,6 +7,8 @@ import { progressPercent } from '@/utils/progress';
 
 interface GoalCardProps {
   goal: Goal;
+  /** 누르면 그 목표의 채팅방으로 */
+  onClick: () => void;
 }
 
 /**
@@ -14,15 +16,17 @@ interface GoalCardProps {
  * 목표 이름이 가장 굵고, 기한이 있을 때만 D-day 배지를 붙인다.
  * 진도가 정해지지 않은 목표는 진행률 대신 언제부터 진행 중인지 알려준다.
  */
-export default function GoalCard({ goal }: GoalCardProps) {
+export default function GoalCard({ goal, onClick }: GoalCardProps) {
   const { name, title, startedAt, remainingDays, progress } = goal;
   // 모아보기 진도 탭과 같은 함수를 쓴다(두 화면 숫자가 갈라지지 않게)
   const percent = progressPercent(progress);
 
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
       className={cn(
-        'flex flex-col justify-center rounded-2xl border border-border bg-background px-4',
+        'flex w-full flex-col justify-center rounded-2xl border border-border bg-background px-4 text-left transition-colors active:bg-muted-foreground/5',
         GOAL_CARD_HEIGHT,
       )}
     >
@@ -65,6 +69,6 @@ export default function GoalCard({ goal }: GoalCardProps) {
           {startedAt ? `${formatDateDot(startedAt)}부터 진행 중이에요` : '이제 막 시작했어요'}
         </p>
       )}
-    </div>
+    </button>
   );
 }

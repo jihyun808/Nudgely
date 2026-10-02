@@ -160,7 +160,11 @@ export default function Home() {
 
           <section className="mt-6">
             <h2 className="mb-2.5 text-sm font-bold">진행 중인 목표</h2>
-            <GoalList goals={goals} onAddGoal={handleAddGoal} />
+            <GoalList
+              goals={goals}
+              onAddGoal={handleAddGoal}
+              onOpenGoal={(goal) => navigate(`/chat/${goal.id}`)}
+            />
           </section>
         </>
       )}
