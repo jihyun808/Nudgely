@@ -58,7 +58,7 @@ class NudgeContext:
     """
 
     goal: Goal
-    #: "plan_start" | "plan_end"
+    #: "plan_start" | "plan_end" | "no_todo" | "no_plan"
     kind: str
     #: 그 시간에 하기로 한 일(PlannerBlock.title). 계획 없는 선톡이면 None
     block_title: str | None = None
@@ -78,6 +78,11 @@ async def default_writer(ctx: NudgeContext) -> str:
         return f"'{what}' 시작할 시간이었는데, 잘 하고 있어?"
     if ctx.kind == "plan_end":
         return f"'{what}' 어떻게 됐어? 끝냈으면 알려줘."
+    if ctx.kind == "no_todo":
+        return f"'{what}' 오늘은 뭘 해볼까? 정해서 할 일에 넣어줄게."
+    if ctx.kind == "no_plan":
+        left = ", ".join(ctx.remaining[:2])
+        return f"오늘 할 일은 {left} 야. 몇 시에 할래?"
     return f"'{what}' 오늘 할 일이 아직 남아 있어. 조금만 해볼까?"
 
 
@@ -156,6 +161,90 @@ async def _plan_targets(
     return targets
 
 
+async def _has_plan(db: AsyncSession, goal_id: str, user_id: str, on: date) -> bool:
+    row = await db.execute(
+        select(PlannerBlock.id)
+        .join(Planner, PlannerBlock.planner_id == Planner.id)
+        .where(
+            Planner.user_id == user_id,
+            Planner.date == on,
+            PlannerBlock.goal_id == goal_id,
+            PlannerBlock.kind.is_(None),
+        )
+        .limit(1)
+    )
+    return row.first() is not None
+
+
+async def run_morning_nudges(
+    db: AsyncSession,
+    now_utc: datetime | None = None,
+    target_hour: int = 8,
+    writer: NudgeWriter = default_writer,
+) -> int:
+    """하루가 시작됐는데 비어 있는 목표에 AI 가 먼저 묻는다. 보낸 수를 반환.
+
+    반복 계획이 있으면 아침에 투두가 자동으로 생기지만(routine_service), 그게
+    없는 목표는 사용자가 앱을 열어야만 아무 일이 시작된다. 먼저 물어 채운다.
+
+    routine_service 보다 늦은 시각에 돌아야 한다. 안 그러면 곧 채워질 목표에도 묻는다.
+    """
+    now_utc = now_utc or datetime.now(UTC)
+    users = (await db.execute(select(User).where(User.deleted_at.is_(None)))).scalars().all()
+    sent = 0
+
+    for user in users:
+        settings = await db.get(UserSettings, user.id)
+        zone = zone_of(settings.timezone if settings else None)
+        local = local_now(zone, now_utc)
+        if local.hour != target_hour:
+            continue
+        on = local.date()
+
+        goals = (
+            (
+                await db.execute(
+                    select(Goal).where(
+                        Goal.user_id == user.id,
+                        Goal.is_hidden.is_(False),
+                        Goal.completed_at.is_(None),
+                        Goal.is_notification_muted.is_(False),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        for goal in goals:
+            remaining = await _remaining_items(db, goal.id, on)
+            if not remaining:
+                kind = "no_todo"
+            elif not await _has_plan(db, goal.id, user.id, on):
+                kind = "no_plan"
+            else:
+                continue
+
+            ref = f"{kind}:{goal.id}:{on.isoformat()}"
+            if await _already_nudged(db, ref):
+                continue
+            if await _nudges_today(db, goal.id, on, zone) >= MAX_NUDGES_PER_GOAL_PER_DAY:
+                continue
+
+            ctx = NudgeContext(goal=goal, kind=kind, remaining=remaining)
+            try:
+                content = await writer(ctx)
+            except Exception:  # noqa: BLE001
+                logger.exception("아침 선톡 문구 생성 실패(goal=%s)", goal.id)
+                content = await default_writer(ctx)
+
+            if await send_nudge(db, goal, content, ref=ref, now_utc=now_utc) is not None:
+                sent += 1
+
+    await db.flush()
+    return sent
+
+
 async def run_plan_nudges(
     db: AsyncSession,
     now_utc: datetime | None = None,
@@ -213,6 +302,7 @@ def next_tick_after(now: datetime) -> datetime:
 
 __all__ = [
     "MAX_NUDGES_PER_GOAL_PER_DAY",
+    "run_morning_nudges",
     "NudgeContext",
     "NudgeWriter",
     "END_DELAY_MINUTES",
