@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     nightly_hour: int = 23
     # 반복 계획으로 오늘 투두를 만들어 두는 시각(사용자 로컬 기준)
     routine_hour: int = 6
+    # 비어 있는 목표에 AI 가 먼저 묻는 시각. routine_hour 보다 늦어야 한다
+    morning_hour: int = 8
 
     # ── 푸시(FCM HTTP v1) ──
     # 앱이 꺼져 있을 때 알릴 유일한 수단이다. 자격 증명이 없으면 조용히 건너뛴다
