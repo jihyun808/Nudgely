@@ -133,13 +133,16 @@ async def test_same_block_is_nudged_once(client: AsyncClient, session_factory: a
 
 
 async def test_daily_cap_per_goal(client: AsyncClient, session_factory: async_sessionmaker):
-    """계획이 여러 개여도 목표당 하루 상한을 넘기지 않는다."""
+    """계획을 아무리 많이 잡아도 하루 상한에서 멈춘다.
+
+    상한은 폭주를 막는 선이다. 평범하게 쓰는 사람은 여기 닿지 않는다.
+    """
     token = await token_for(client, "n6@b.com")
     goal_id = await create_goal(client, token, name="선대냥이")
+    hours = range(8, 8 + MAX_NUDGES_PER_GOAL_PER_DAY + 2)
     async with session_factory() as db:
         goal = await db.get(Goal, goal_id)
-        # 09:00·11:00·13:00 세 개
-        for hour in (9, 11, 13):
+        for hour in hours:
             await add_block(
                 db,
                 goal.user_id,
@@ -152,7 +155,7 @@ async def test_daily_cap_per_goal(client: AsyncClient, session_factory: async_se
         await create_daily_todo(db, goal, ON, [{"content": "1강 듣기"}])
         await db.commit()
 
-    for hour in (9, 11, 13):
+    for hour in hours:
         await _run(session_factory, _kst(hour, START_DELAY_MINUTES))
 
     assert len(await _messages(session_factory)) == MAX_NUDGES_PER_GOAL_PER_DAY

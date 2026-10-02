@@ -32,7 +32,11 @@ async def _tick() -> None:
     from app.ai.nudge_writer import generate_nudge
     from app.core.db import async_session
     from app.services.notification_service import run_nightly_check
-    from app.services.nudge_service import default_writer, run_morning_nudges, run_plan_nudges
+    from app.services.nudge_service import (
+        default_writer,
+        run_empty_goal_nudges,
+        run_plan_nudges,
+    )
     from app.services.routine_service import run_routine_todos
 
     now = datetime.now(UTC)
@@ -56,7 +60,9 @@ async def _tick() -> None:
             # (생성이 실패해도 nudge_service 가 템플릿으로 떨어뜨린다)
             writer = generate_nudge if settings.openai_api_key else default_writer
             await run_plan_nudges(db, now, writer=writer)
-            await run_morning_nudges(db, now, target_hour=settings.morning_hour, writer=writer)
+            await run_empty_goal_nudges(
+                db, now, target_hours=settings.empty_goal_hour_list, writer=writer
+            )
             await db.commit()
         except Exception:  # noqa: BLE001
             await db.rollback()
