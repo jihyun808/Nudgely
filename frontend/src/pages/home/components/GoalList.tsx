@@ -13,6 +13,8 @@ type GoalSlot = { type: 'goal'; goal: Goal } | { type: 'add' };
 interface GoalListProps {
   goals: Goal[];
   onAddGoal: () => void;
+  /** 카드를 누르면 그 목표의 채팅방으로 */
+  onOpenGoal: (goal: Goal) => void;
 }
 
 /**
@@ -21,7 +23,7 @@ interface GoalListProps {
  * '목표 추가하기' 카드는 맨 끝에 하나 붙으며, 자리가 모자라면 다음 페이지로 넘어간다.
  * 페이지가 여러 장일 때만 아래에 'n / m' 숫자를 표시한다.
  */
-export default function GoalList({ goals, onAddGoal }: GoalListProps) {
+export default function GoalList({ goals, onAddGoal, onOpenGoal }: GoalListProps) {
   const [pageIndex, setPageIndex] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -42,7 +44,7 @@ export default function GoalList({ goals, onAddGoal }: GoalListProps) {
 
   const renderSlot = (slot: GoalSlot) =>
     slot.type === 'goal' ? (
-      <GoalCard key={slot.goal.id} goal={slot.goal} />
+      <GoalCard key={slot.goal.id} goal={slot.goal} onClick={() => onOpenGoal(slot.goal)} />
     ) : (
       <AddGoalCard key="add" onClick={onAddGoal} />
     );

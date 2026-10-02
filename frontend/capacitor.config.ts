@@ -41,6 +41,11 @@ const config: CapacitorConfig = {
   },
 
   plugins: {
+    FirebaseMessaging: {
+      // 앱이 켜져 있을 때도 배너를 띄운다(기본값이지만 적어 둔다).
+      // 끄려면 빈 배열
+      presentationOptions: ['alert', 'badge', 'sound'],
+    },
     Keyboard: {
       // 웹뷰를 리사이즈하게 두면 키보드 애니메이션이 끝난 뒤에야 레이아웃이
       // 다시 그려져 입력창이 한 박자 늦게 올라온다. 직접 올린다(lib/native.ts)
