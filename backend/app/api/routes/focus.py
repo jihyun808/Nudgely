@@ -16,8 +16,17 @@ from app.core.db import get_db
 from app.core.errors import AppError
 from app.models.focus import FOCUS_MODES
 from app.models.user import User
-from app.schemas.focus import DailyFocusOut, FocusSessionIn, FocusSummaryOut, WeeklyFocusOut
-from app.services import focus_service
+from app.schemas.focus import (
+    CameraSessionOut,
+    DailyFocusOut,
+    FinishCameraSessionIn,
+    FocusSessionIn,
+    FocusSummaryOut,
+    StartCameraSessionIn,
+    SubmitChecksIn,
+    WeeklyFocusOut,
+)
+from app.services import focus_camera_service, focus_service
 
 router = APIRouter(prefix="/focus")
 
@@ -69,3 +78,46 @@ async def get_daily(
     if frm > to:
         raise AppError("INVALID_RANGE", "from 이 to 보다 늦습니다.", status_code=422)
     return await focus_service.daily(db, user.id, frm, to)
+
+
+# ── 카메라 집중 인증 ──
+
+
+@router.post(
+    "/sessions/camera", response_model=CameraSessionOut, status_code=status.HTTP_201_CREATED
+)
+async def start_camera_session(
+    body: StartCameraSessionIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CameraSessionOut:
+    session = await focus_camera_service.start_camera_session(
+        db,
+        user.id,
+        started_at=body.started_at,
+        goal_id=body.goal_id,
+        consented=body.consented,
+    )
+    return CameraSessionOut(id=session.id, focus_score=0, verified=False, away_count=0)
+
+
+@router.post("/sessions/{session_id}/checks", response_model=CameraSessionOut)
+async def submit_camera_checks(
+    session_id: str,
+    body: SubmitChecksIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CameraSessionOut:
+    return await focus_camera_service.add_camera_checks(db, user.id, session_id, body.samples)
+
+
+@router.post("/sessions/{session_id}/finish", response_model=CameraSessionOut)
+async def finish_camera_session(
+    session_id: str,
+    body: FinishCameraSessionIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CameraSessionOut:
+    return await focus_camera_service.finish_camera_session(
+        db, user.id, session_id, seconds=body.seconds
+    )

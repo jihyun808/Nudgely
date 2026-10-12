@@ -39,3 +39,41 @@ class DailyFocusItem(CamelModel):
 
 class DailyFocusOut(CamelModel):
     days: list[DailyFocusItem]
+
+
+# ── 카메라 집중 인증 ──
+
+
+class StartCameraSessionIn(CamelModel):
+    """카메라 인증 세션 시작.
+
+    consented: 세션별 명시적 동의(카메라 사용에 동의했는가). False 면 거부.
+    영상은 서버로 오지 않으며 기기에서만 분석됨(프라이버시).
+    """
+
+    started_at: datetime
+    goal_id: str | None = None
+    consented: bool = False
+
+
+class FocusCheckIn(CamelModel):
+    status: str  # focus | absent
+    at: datetime
+    confidence: float | None = None
+
+
+class SubmitChecksIn(CamelModel):
+    samples: list[FocusCheckIn] = Field(min_length=1)
+
+
+class FinishCameraSessionIn(CamelModel):
+    seconds: int = Field(ge=0)
+
+
+class CameraSessionOut(CamelModel):
+    """카메라 세션 현재 상태."""
+
+    id: str
+    focus_score: int
+    verified: bool
+    away_count: int  # 5분 이상 자리 비움 횟수
