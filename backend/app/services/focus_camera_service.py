@@ -86,6 +86,9 @@ async def start_camera_session(
 ) -> FocusSession:
     if not consented:
         raise AppError("CAMERA_NOT_CONSENTED", "카메라 사용 동의가 필요합니다.", status_code=403)
+    settings = await db.get(UserSettings, user_id)
+    if settings is not None and not settings.camera_verify_enabled:
+        raise AppError("CAMERA_DISABLED", "설정에서 카메라 집중 인증을 켜주세요.", status_code=403)
     if goal_id is not None:
         goal = await db.get(Goal, goal_id)
         if goal is None or goal.user_id != user_id:

@@ -237,3 +237,22 @@ async def test_verified_count_aggregate(client):
     res = await client.get("/api/focus/verified", headers=auth(token))
     assert res.status_code == 200
     assert res.json() == {"count": 1, "totalSeconds": 1500}
+
+
+async def test_settings_exposes_camera_toggle(client):
+    token = await token_for(client)
+    res = await client.get("/api/settings", headers=auth(token))
+    assert res.json()["cameraVerifyEnabled"] is True
+
+
+async def test_camera_disabled_blocks_start(client):
+    token = await token_for(client)
+    # 설정에서 카메라 인증 끄기
+    patched = await client.patch(
+        "/api/settings", headers=auth(token), json={"cameraVerifyEnabled": False}
+    )
+    assert patched.json()["cameraVerifyEnabled"] is False
+
+    res = await _start(client, token)  # 동의는 했어도 설정이 꺼져 있으면 막힌다
+    assert res.status_code == 403
+    assert res.json()["code"] == "CAMERA_DISABLED"

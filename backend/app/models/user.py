@@ -95,6 +95,10 @@ class UserSettings(Base):
     # api.md 에는 없는 필드 — 프론트가 안 보내면 기본값을 쓴다.
     timezone: Mapped[str] = mapped_column(String, default=DEFAULT_TIMEZONE)
 
+    # 카메라 집중 인증 사용 여부(설정 토글). 꺼져 있으면 서버가 세션 시작을 막는다.
+    # (세션 시작 때마다의 명시적 동의와 별개인 '기능 on/off')
+    camera_verify_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
     user: Mapped["User"] = relationship(back_populates="settings")
 
     @classmethod
@@ -116,4 +120,5 @@ class UserSettings(Base):
             planner_start_hour=6,
             planner_end_hour=24,
             timezone=DEFAULT_TIMEZONE,
+            camera_verify_enabled=True,
         )
