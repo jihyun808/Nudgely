@@ -77,3 +77,10 @@ class CameraSessionOut(CamelModel):
     focus_score: int
     verified: bool
     away_count: int  # 5분 이상 자리 비움 횟수
+
+
+class VerifiedFocusOut(CamelModel):
+    """마이페이지 '인증 완료' 집계 — 카메라로 인증된 집중 세션."""
+
+    count: int
+    total_seconds: int
