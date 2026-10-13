@@ -24,6 +24,7 @@ from app.schemas.focus import (
     FocusSummaryOut,
     StartCameraSessionIn,
     SubmitChecksIn,
+    VerifiedFocusOut,
     WeeklyFocusOut,
 )
 from app.services import focus_camera_service, focus_service
@@ -121,3 +122,12 @@ async def finish_camera_session(
     return await focus_camera_service.finish_camera_session(
         db, user.id, session_id, seconds=body.seconds
     )
+
+
+@router.get("/verified", response_model=VerifiedFocusOut)
+async def get_verified(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> VerifiedFocusOut:
+    count, total_seconds = await focus_camera_service.verified_summary(db, user.id)
+    return VerifiedFocusOut(count=count, total_seconds=total_seconds)

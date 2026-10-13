@@ -14,7 +14,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
@@ -86,6 +86,9 @@ async def start_camera_session(
 ) -> FocusSession:
     if not consented:
         raise AppError("CAMERA_NOT_CONSENTED", "카메라 사용 동의가 필요합니다.", status_code=403)
+    settings = await db.get(UserSettings, user_id)
+    if settings is not None and not settings.camera_verify_enabled:
+        raise AppError("CAMERA_DISABLED", "설정에서 카메라 집중 인증을 켜주세요.", status_code=403)
     if goal_id is not None:
         goal = await db.get(Goal, goal_id)
         if goal is None or goal.user_id != user_id:
@@ -211,3 +214,20 @@ async def finish_camera_session(
     return CameraSessionOut(
         id=session.id, focus_score=score, verified=session.verified, away_count=away_count
     )
+
+
+async def verified_summary(db: AsyncSession, user_id: str) -> tuple[int, int]:
+    """카메라로 인증된 집중 세션의 (횟수, 총 집중 초). 마이페이지 '인증 완료'."""
+    row = (
+        await db.execute(
+            select(
+                func.count(),
+                func.coalesce(func.sum(FocusSession.seconds), 0),
+            ).where(
+                FocusSession.user_id == user_id,
+                FocusSession.source == "camera",
+                FocusSession.verified.is_(True),
+            )
+        )
+    ).one()
+    return int(row[0]), int(row[1])

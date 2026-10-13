@@ -17,11 +17,13 @@ def _samples(items: list[tuple[str, str]]) -> dict:
     return {"samples": [{"status": st, "at": at} for st, at in items]}
 
 
-async def _start(client, token, *, goal_id=None, consented=True) -> dict:
+async def _start(
+    client, token, *, goal_id=None, consented=True, started_at="2026-10-12T10:00:00Z"
+) -> dict:
     res = await client.post(
         "/api/focus/sessions/camera",
         headers=auth(token),
-        json={"startedAt": "2026-10-12T10:00:00Z", "goalId": goal_id, "consented": consented},
+        json={"startedAt": started_at, "goalId": goal_id, "consented": consented},
     )
     return res
 
@@ -204,3 +206,53 @@ async def test_session_isolated_by_user(client):
     )
     assert res.status_code == 404
     assert res.json()["code"] == "FOCUS_SESSION_NOT_FOUND"
+
+
+async def test_verified_count_aggregate(client):
+    """마이페이지 '인증 완료': 인증된 카메라 세션만 센다."""
+    token = await token_for(client)
+
+    # 인증 성립 세션(점수 100, 1500초)
+    sid = (await _start(client, token)).json()["id"]
+    await client.post(
+        f"/api/focus/sessions/{sid}/checks",
+        headers=auth(token),
+        json=_samples([("focus", "2026-10-12T10:00:00Z"), ("focus", "2026-10-12T10:00:30Z")]),
+    )
+    await client.post(
+        f"/api/focus/sessions/{sid}/finish", headers=auth(token), json={"seconds": 1500}
+    )
+
+    # 미인증 세션(점수 0) — 집계에서 빠져야 함
+    sid2 = (await _start(client, token, started_at="2026-10-12T11:00:00Z")).json()["id"]
+    await client.post(
+        f"/api/focus/sessions/{sid2}/checks",
+        headers=auth(token),
+        json=_samples([("absent", "2026-10-12T11:00:00Z")]),
+    )
+    await client.post(
+        f"/api/focus/sessions/{sid2}/finish", headers=auth(token), json={"seconds": 600}
+    )
+
+    res = await client.get("/api/focus/verified", headers=auth(token))
+    assert res.status_code == 200
+    assert res.json() == {"count": 1, "totalSeconds": 1500}
+
+
+async def test_settings_exposes_camera_toggle(client):
+    token = await token_for(client)
+    res = await client.get("/api/settings", headers=auth(token))
+    assert res.json()["cameraVerifyEnabled"] is True
+
+
+async def test_camera_disabled_blocks_start(client):
+    token = await token_for(client)
+    # 설정에서 카메라 인증 끄기
+    patched = await client.patch(
+        "/api/settings", headers=auth(token), json={"cameraVerifyEnabled": False}
+    )
+    assert patched.json()["cameraVerifyEnabled"] is False
+
+    res = await _start(client, token)  # 동의는 했어도 설정이 꺼져 있으면 막힌다
+    assert res.status_code == 403
+    assert res.json()["code"] == "CAMERA_DISABLED"

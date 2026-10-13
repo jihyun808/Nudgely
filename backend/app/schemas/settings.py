@@ -35,6 +35,8 @@ class AppSettings(CamelModel):
     # api.md 에 없는 추가 필드. 방해금지·밤 11시 점검·"오늘 집중 시간" 을
     # 그 사람 시각으로 판단하려면 필요하다. 프론트가 무시해도 동작한다.
     timezone: str = DEFAULT_TIMEZONE
+    # 카메라 집중 인증 사용 여부(설정 토글)
+    camera_verify_enabled: bool = True
 
     @classmethod
     def from_orm_settings(
@@ -55,6 +57,7 @@ class AppSettings(CamelModel):
             planner=PlannerSettings(start_hour=s.planner_start_hour, end_hour=s.planner_end_hour),
             linked_providers=linked_providers or [],
             timezone=s.timezone or DEFAULT_TIMEZONE,
+            camera_verify_enabled=s.camera_verify_enabled,
         )
 
 
@@ -83,6 +86,7 @@ class UpdateSettingsIn(CamelModel):
     do_not_disturb: UpdateDoNotDisturbSettings | None = None
     planner: UpdatePlannerSettings | None = None
     timezone: str | None = None
+    camera_verify_enabled: bool | None = None
 
     def apply_to(self, s: UserSettings) -> None:
         """보내진 값만 ORM 객체에 반영한다."""
@@ -113,3 +117,5 @@ class UpdateSettingsIn(CamelModel):
         if self.timezone is not None:
             # 모르는 타임존 하나 때문에 설정 저장 전체를 막지는 않는다
             s.timezone = self.timezone if is_valid_zone(self.timezone) else DEFAULT_TIMEZONE
+        if self.camera_verify_enabled is not None:
+            s.camera_verify_enabled = self.camera_verify_enabled
