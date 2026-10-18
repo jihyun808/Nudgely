@@ -124,6 +124,19 @@ async def finish_camera_session(
     )
 
 
+@router.post("/sessions/{session_id}/interrupt", response_model=CameraSessionOut)
+async def interrupt_camera_session(
+    session_id: str,
+    body: FinishCameraSessionIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CameraSessionOut:
+    """앱이 백그라운드로 내려가 판정이 끊겼을 때. 거기까지로 끝내고 알린다."""
+    return await focus_camera_service.interrupt_camera_session(
+        db, user.id, session_id, seconds=body.seconds
+    )
+
+
 @router.get("/verified", response_model=VerifiedFocusOut)
 async def get_verified(
     user: User = Depends(get_current_user),

@@ -216,6 +216,37 @@ async def finish_camera_session(
     )
 
 
+async def interrupt_camera_session(
+    db: AsyncSession,
+    user_id: str,
+    session_id: str,
+    *,
+    seconds: int,
+    now_utc: datetime | None = None,
+) -> CameraSessionOut:
+    """앱이 백그라운드로 가서 판정이 끊겼다. 거기까지로 끝내고 알린다.
+
+    화면이 내려가면 카메라도 추론도 멈춘다. 그대로 두면 사용자는 계속 인증되는
+    줄 알고 공부하다가, 돌아와서 점수가 안 오른 걸 보게 된다. 그 자리에서 알린다.
+    """
+    now_utc = now_utc or datetime.now(UTC)
+    session = await _owned_camera_session(db, user_id, session_id)
+    result = await finish_camera_session(db, user_id, session_id, seconds=seconds)
+
+    if session.goal_id is not None:
+        goal = await db.get(Goal, session.goal_id)
+        if goal is not None:
+            await send_nudge(
+                db,
+                goal,
+                "앱이 내려가서 집중 인증이 멈췄어. 돌아와서 다시 시작할까?",
+                ref=f"focus_interrupt:{session.id}",
+                now_utc=now_utc,
+            )
+            await db.commit()
+    return result
+
+
 async def verified_summary(db: AsyncSession, user_id: str) -> tuple[int, int]:
     """카메라로 인증된 집중 세션의 (횟수, 총 집중 초). 마이페이지 '인증 완료'."""
     row = (
