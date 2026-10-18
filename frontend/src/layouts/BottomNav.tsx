@@ -85,10 +85,26 @@ const UserIcon = (props: IconProps) => (
   </svg>
 );
 
+const CameraIcon = (props: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={2}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2L8 5h8l1.5 2h2A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5Z" />
+    <circle cx="12" cy="13" r="3.5" />
+  </svg>
+);
+
 const TABS: { to: string; label: string; Icon: ComponentType<IconProps> }[] = [
   { to: '/home', label: '홈', Icon: HomeIcon },
   { to: '/chat', label: '채팅', Icon: ChatIcon },
   { to: '/focus', label: '집중', Icon: FocusIcon },
+  { to: '/verify', label: '카메라', Icon: CameraIcon },
   { to: '/record', label: '기록', Icon: RecordIcon },
   { to: '/my', label: '마이', Icon: UserIcon },
 ];

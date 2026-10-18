@@ -3,6 +3,7 @@
 영상은 서버로 오지 않는다 — 상태 샘플(focus/absent)만 검증한다.
 """
 
+from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -256,3 +257,46 @@ async def test_camera_disabled_blocks_start(client):
     res = await _start(client, token)  # 동의는 했어도 설정이 꺼져 있으면 막힌다
     assert res.status_code == 403
     assert res.json()["code"] == "CAMERA_DISABLED"
+
+
+# ── 백그라운드 중단 ──
+
+
+async def test_interrupt_finishes_and_tells_the_user(
+    client: AsyncClient, session_factory: async_sessionmaker
+):
+    """화면이 내려가면 판정도 멈춘다. 모르고 계속 공부하면 점수가 안 오른다."""
+    token = await token_for(client, "intr@b.com")
+    goal_id = await create_goal(client, token)
+    session_id = (await _start(client, token, goal_id=goal_id)).json()["id"]
+    await client.post(
+        f"/api/focus/sessions/{session_id}/checks",
+        headers=auth(token),
+        json=_samples([("focus", "2026-10-12T10:00:10Z"), ("focus", "2026-10-12T10:00:20Z")]),
+    )
+
+    res = await client.post(
+        f"/api/focus/sessions/{session_id}/interrupt",
+        headers=auth(token),
+        json={"seconds": 600},
+    )
+
+    assert res.status_code == 200
+    async with session_factory() as db:
+        rows = await db.execute(select(Message).where(Message.role == "assistant"))
+        said = [m.content for m in rows.scalars().all()]
+    assert any("멈췄어" in m for m in said)
+
+
+async def test_interrupt_without_goal_is_silent(client: AsyncClient):
+    """목표를 안 고른 세션은 보낼 방이 없다. 조용히 끝낸다."""
+    token = await token_for(client, "intr2@b.com")
+    session_id = (await _start(client, token)).json()["id"]
+
+    res = await client.post(
+        f"/api/focus/sessions/{session_id}/interrupt",
+        headers=auth(token),
+        json={"seconds": 60},
+    )
+
+    assert res.status_code == 200
