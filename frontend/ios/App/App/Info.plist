@@ -47,6 +47,8 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>집중 인증에 씁니다. 자리에 있는지만 기기에서 확인하고, 영상은 저장되거나 전송되지 않습니다.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
