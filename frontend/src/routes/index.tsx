@@ -11,6 +11,7 @@ import GoalSettingsPage from '@/pages/goalSettings/GoalSettingsPage';
 import Record from '@/pages/record/Record';
 import My from '@/pages/my/My';
 import Settings from '@/pages/settings/Settings';
+import Verify from '@/pages/verify/Verify';
 import History from '@/pages/settings/History';
 import Licenses from '@/pages/settings/Licenses';
 import Landing from '@/pages/auth/Landing';
@@ -52,6 +53,7 @@ export const router = createBrowserRouter([
       { path: '/home', element: <Home /> },
       { path: '/chat', element: <Chat /> },
       { path: '/focus', element: <Focus /> },
+      { path: '/verify', element: <Verify /> },
       { path: '/record', element: <Record /> },
       { path: '/my', element: <My /> },
     ],

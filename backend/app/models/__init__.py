@@ -7,7 +7,7 @@
 
 from app.models.attachment import Attachment
 from app.models.device import DeviceToken
-from app.models.focus import FocusSession
+from app.models.focus import FocusCheckSample, FocusSession
 from app.models.goal import Goal, Message, ReadState
 from app.models.milestone import Milestone
 from app.models.notification import Notification
@@ -19,6 +19,7 @@ from app.models.user import User, UserSettings
 __all__ = [
     "Attachment",
     "DeviceToken",
+    "FocusCheckSample",
     "FocusSession",
     "Goal",
     "Message",

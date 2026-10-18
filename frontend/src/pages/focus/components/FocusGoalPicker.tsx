@@ -1,7 +1,8 @@
 // pages/focus/components/FocusGoalPicker.tsx
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { fetchGoals } from '@/api/goal';
 import { Select } from '@/components/ui/select';
+import { useCachedQuery } from '@/lib/useCachedQuery';
 import type { Goal } from '@/types/goal';
 
 interface FocusGoalPickerProps {
@@ -12,6 +13,8 @@ interface FocusGoalPickerProps {
   disabled?: boolean;
 }
 
+const EMPTY: Goal[] = [];
+
 /**
  * "무엇에 집중하나요?" — 집중 세션에 붙일 목표를 고른다.
  *
@@ -20,26 +23,14 @@ interface FocusGoalPickerProps {
  * 진행 중인 목표가 하나도 없으면 고를 게 없으니 아예 그리지 않는다.
  */
 export default function FocusGoalPicker({ value, onChange, disabled }: FocusGoalPickerProps) {
-  const [goals, setGoals] = useState<Goal[]>([]);
+  const load = useCallback(() => fetchGoals(), []);
+  // 탭에 들어올 때마다 새로 받으면 토글이 한 박자 늦게 나타난다
+  const { data: goals } = useCachedQuery<Goal[]>('focus:goals', load, EMPTY);
 
+  // 고를 수 없게 된 목표(삭제·완주)가 남아 있으면 선택을 비운다
   useEffect(() => {
-    let isStale = false;
-    fetchGoals()
-      .then((data) => {
-        if (isStale) return;
-        setGoals(data);
-        // 고를 수 없게 된 목표(삭제·완주)가 남아 있으면 선택을 비운다
-        if (value && !data.some(({ id }) => id === value)) onChange(undefined);
-      })
-      .catch(() => {
-        // 목록을 못 받아도 타이머는 그대로 쓸 수 있어야 한다
-      });
-    return () => {
-      isStale = true;
-    };
-    // 목록은 화면에 들어올 때 한 번만 받는다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (value && goals.length > 0 && !goals.some(({ id }) => id === value)) onChange(undefined);
+  }, [goals, value, onChange]);
 
   if (goals.length === 0) return null;
 
