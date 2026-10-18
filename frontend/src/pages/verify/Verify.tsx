@@ -22,10 +22,7 @@ export default function Verify() {
       <FocusGoalPicker value={goalId} onChange={setGoalId} disabled={isLive} />
 
       {error && (
-        <p
-          role="alert"
-          className="mt-3 rounded-xl bg-destructive/10 px-3 py-2 text-center text-xs text-destructive"
-        >
+        <p role="alert" className="mt-3 text-center text-xs text-destructive">
           {error}
         </p>
       )}
