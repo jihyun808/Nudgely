@@ -15,8 +15,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tool_schemas import TOOL_SCHEMAS
+from app.core.timezones import day_bounds, local_now, zone_of
 from app.models.goal import Goal
 from app.models.todo import Todo, TodoItem
+from app.models.user import UserSettings
 from app.services.goal_service import set_progress, set_routine
 from app.services.notification_service import create_notification
 from app.services.planner_service import add_block
@@ -295,6 +297,18 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
         goal.completed_at = datetime.now(UTC)
         await db.commit()
         return "목표를 완주로 기록했다. 사용자에게 축하를 전해라."
+
+    if name == "snooze_nudges":
+        if arguments.get("resume"):
+            goal.nudge_snoozed_until = None
+            await db.commit()
+            return "오늘 선톡을 다시 켰다."
+        settings = await db.get(UserSettings, goal.user_id)
+        zone = zone_of(settings.timezone if settings else None)
+        today = local_now(zone).date()
+        goal.nudge_snoozed_until = day_bounds(today, zone)[1]  # 사용자 자정(UTC)
+        await db.commit()
+        return "오늘 남은 시간 동안 이 목표의 선톡을 멈춘다. 내일 다시 켜진다."
 
     return f"알 수 없는 도구: {name}"
 
