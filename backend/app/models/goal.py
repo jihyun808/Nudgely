@@ -41,6 +41,10 @@ class Goal(Base):
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False)
     is_notification_muted: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # "오늘은 그만 보내" 임시 스누즈. 이 시각(UTC) 전까지 선톡(nudge)을 멈춘다.
+    # is_notification_muted(영구 끔)와 달리 하루가 지나면 자동으로 풀린다.
+    nudge_snoozed_until: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
     # 진도. 스키마 미확정이라 유연하게 JSON 으로 둔다: {current, total, unit}
     # (api.md §3.1 — AI 가 받을 정보와 함께 확정 예정)
     progress: Mapped[dict | None] = mapped_column(JSON, nullable=True)

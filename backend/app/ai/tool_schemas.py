@@ -226,4 +226,26 @@ TOOL_SCHEMAS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "snooze_nudges",
+            "description": (
+                "사용자가 '오늘은 그만 보내', '알림 그만', '다 했으니 안 보내도 돼' 처럼 "
+                "오늘 선톡·독촉을 멈춰달라고 하면 호출한다. 오늘 하루(사용자 자정까지) "
+                "이 목표의 선톡을 멈춘다. 다음 날 자동으로 다시 켜진다. "
+                "반대로 '다시 보내줘', '알림 켜줘' 라고 하면 resume=true 로 호출한다. "
+                "영구히 끄는 게 아니다 — 영구 끔은 설정에서 한다."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "resume": {
+                        "type": "boolean",
+                        "description": "true 면 오늘 스누즈를 해제하고 선톡을 다시 켠다.",
+                    }
+                },
+            },
+        },
+    },
 ]

@@ -156,6 +156,10 @@ async def send_nudge(
     """
     if goal.is_notification_muted or goal.completed_at is not None:
         return None
+    # "오늘은 그만" 스누즈 중이면 선톡을 멈춘다(하루가 지나면 자동 해제).
+    now = now_utc or datetime.now(UTC)
+    if goal.nudge_snoozed_until is not None and now < goal.nudge_snoozed_until:
+        return None
     settings = await db.get(UserSettings, goal.user_id)
     # now_utc 를 함께 넘겨 방해 금지까지 여기서 본다. 이걸 빠뜨리면 메시지는
     # 만들어지고 알림만 막혀서, 중복 방지 표식(ref)이 알림에 붙는 탓에
