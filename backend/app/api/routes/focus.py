@@ -9,10 +9,10 @@ GET  /api/focus/daily?from=&to=              기간별 집중(히트맵)
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Response, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.deps import get_current_user
-from app.core.db import get_db
+from app.core.db import get_db, get_session_factory
 from app.core.errors import AppError
 from app.models.focus import FOCUS_MODES
 from app.models.user import User
@@ -22,6 +22,7 @@ from app.schemas.focus import (
     FinishCameraSessionIn,
     FocusSessionIn,
     FocusSummaryOut,
+    ResumeCameraSessionOut,
     StartCameraSessionIn,
     SubmitChecksIn,
     VerifiedFocusOut,
@@ -124,17 +125,29 @@ async def finish_camera_session(
     )
 
 
-@router.post("/sessions/{session_id}/interrupt", response_model=CameraSessionOut)
-async def interrupt_camera_session(
+@router.post("/sessions/{session_id}/pause", status_code=status.HTTP_204_NO_CONTENT)
+async def pause_camera_session(
     session_id: str,
     body: FinishCameraSessionIn,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> CameraSessionOut:
-    """앱이 백그라운드로 내려가 판정이 끊겼을 때. 거기까지로 끝내고 알린다."""
-    return await focus_camera_service.interrupt_camera_session(
-        db, user.id, session_id, seconds=body.seconds
+    session_factory: async_sessionmaker[AsyncSession] = Depends(get_session_factory),
+) -> Response:
+    """앱이 백그라운드로 갔다. 유예 안에 안 돌아오면 서버가 끊고 푸시한다."""
+    await focus_camera_service.pause_camera_session(
+        db, user.id, session_id, seconds=body.seconds, session_factory=session_factory
     )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/sessions/{session_id}/resume", response_model=ResumeCameraSessionOut)
+async def resume_camera_session(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ResumeCameraSessionOut:
+    alive = await focus_camera_service.resume_camera_session(db, user.id, session_id)
+    return ResumeCameraSessionOut(alive=alive)
 
 
 @router.get("/verified", response_model=VerifiedFocusOut)

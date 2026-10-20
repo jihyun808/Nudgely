@@ -3,13 +3,16 @@
 영상은 서버로 오지 않는다 — 상태 샘플(focus/absent)만 검증한다.
 """
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.models.focus import FocusSession
 from app.models.goal import Message
 from app.models.notification import Notification
 from app.models.planner import PlannerBlock
+from app.services import focus_camera_service
 from tests.helpers import auth, create_goal, token_for
 
 
@@ -288,41 +291,60 @@ async def test_camera_disabled_blocks_start(client):
 # ── 백그라운드 중단 ──
 
 
-async def test_interrupt_finishes_and_tells_the_user(
-    client: AsyncClient, session_factory: async_sessionmaker
+@pytest.fixture
+def pushes(monkeypatch) -> list[dict]:
+    sent: list[dict] = []
+    monkeypatch.setattr(
+        focus_camera_service,
+        "push_in_background",
+        lambda user_id, **kwargs: sent.append({"user_id": user_id, **kwargs}),
+    )
+    return sent
+
+
+async def _pause(client, token, session_id, seconds=600):
+    return await client.post(
+        f"/api/focus/sessions/{session_id}/pause", headers=auth(token), json={"seconds": seconds}
+    )
+
+
+async def _resume(client, token, session_id):
+    return await client.post(f"/api/focus/sessions/{session_id}/resume", headers=auth(token))
+
+
+async def test_not_back_in_grace_finishes_and_pushes(
+    client: AsyncClient, monkeypatch, pushes, session_factory: async_sessionmaker
 ):
-    """화면이 내려가면 판정도 멈춘다. 모르고 계속 공부하면 점수가 안 오른다."""
+    """목표를 안 골랐어도 앱 푸시로 알린다. 대화방으로 보내면 갈 곳이 없다."""
+    monkeypatch.setattr(focus_camera_service, "BACKGROUND_GRACE_SECONDS", 0)
     token = await token_for(client, "intr@b.com")
-    goal_id = await create_goal(client, token)
-    session_id = (await _start(client, token, goal_id=goal_id)).json()["id"]
-    await client.post(
-        f"/api/focus/sessions/{session_id}/checks",
-        headers=auth(token),
-        json=_samples([("focus", "2026-10-12T10:00:10Z"), ("focus", "2026-10-12T10:00:20Z")]),
-    )
-
-    res = await client.post(
-        f"/api/focus/sessions/{session_id}/interrupt",
-        headers=auth(token),
-        json={"seconds": 600},
-    )
-
-    assert res.status_code == 200
-    async with session_factory() as db:
-        rows = await db.execute(select(Message).where(Message.role == "assistant"))
-        said = [m.content for m in rows.scalars().all()]
-    assert any("멈췄어" in m for m in said)
-
-
-async def test_interrupt_without_goal_is_silent(client: AsyncClient):
-    """목표를 안 고른 세션은 보낼 방이 없다. 조용히 끝낸다."""
-    token = await token_for(client, "intr2@b.com")
     session_id = (await _start(client, token)).json()["id"]
 
-    res = await client.post(
-        f"/api/focus/sessions/{session_id}/interrupt",
-        headers=auth(token),
-        json={"seconds": 60},
-    )
+    assert (await _pause(client, token, session_id)).status_code == 204
+    await focus_camera_service._grace_timers[session_id]
 
-    assert res.status_code == 200
+    assert [p["body"] for p in pushes] == ["앱을 나가서 카메라 기록이 중단됐어요!"]
+    async with session_factory() as db:
+        assert (await db.get(FocusSession, session_id)).seconds == 600
+        said = await db.execute(select(Message).where(Message.role == "assistant"))
+        assert said.scalars().all() == []
+    assert (await _resume(client, token, session_id)).json() == {"alive": False}
+
+
+async def test_back_in_grace_keeps_going(client: AsyncClient, pushes):
+    token = await token_for(client, "intr2@b.com")
+    session_id = (await _start(client, token)).json()["id"]
+    await _pause(client, token, session_id)
+
+    res = await _resume(client, token, session_id)
+
+    assert res.json() == {"alive": True}
+    assert session_id not in focus_camera_service._grace_timers
+    assert pushes == []
+
+
+async def test_resume_without_pause_is_alive(client: AsyncClient):
+    token = await token_for(client, "intr3@b.com")
+    session_id = (await _start(client, token)).json()["id"]
+
+    assert (await _resume(client, token, session_id)).json() == {"alive": True}

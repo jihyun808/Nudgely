@@ -6,7 +6,8 @@ import { isAxiosError } from 'axios';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   finishCameraSession,
-  interruptCameraSession,
+  pauseCameraSession,
+  resumeCameraSession,
   sendFocusChecks,
   startCameraSession,
   type CameraSession,
@@ -33,9 +34,6 @@ const MIN_CALIBRATION_SAMPLES = 5;
 /** 기준 자세보다 이만큼(도) 더 숙이면 딴 데 보는 것으로 본다 */
 const PITCH_DROP = 30;
 const DROWSY_SECONDS = 10;
-/** 앱을 나갔다가 이 안에 돌아오면 그대로 이어 간다 */
-const BACKGROUND_GRACE_SECONDS = 10;
-
 type Phase = 'idle' | 'preparing' | 'running';
 
 /** 실패한 단계를 그대로 보여준다. 한 문구로 덮으면 원인을 못 찾는다 */
@@ -54,6 +52,10 @@ function describeStartError(err: unknown): string {
   }
   if (err instanceof Error) return `인식 준비에 실패했어요: ${err.message}`;
   return '카메라를 열지 못했어요.';
+}
+
+function openCamera(): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
 }
 
 /** 가운데 값. 잠깐 흔들린 자세에 기준이 끌려가지 않는다 */
@@ -85,6 +87,8 @@ export function useCameraVerify(goalId: string | undefined) {
   const baselineRef = useRef<number | null>(null);
   /** 이번 샘플 구간에서 한 번이라도 흐트러졌는지 */
   const sawTroubleRef = useRef(false);
+  /** 백그라운드에 있는 동안은 시간도 판정도 멈춘다 */
+  const isAwayRef = useRef(false);
 
   const stopCamera = useCallback(() => {
     closeBeep();
@@ -186,10 +190,7 @@ export function useCameraVerify(goalId: string | undefined) {
     // 버튼을 누른 이 순간에 열어야 iOS 가 소리를 허용한다
     unlockBeep();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' },
-        audio: false,
-      });
+      const stream = await openCamera();
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -214,6 +215,7 @@ export function useCameraVerify(goalId: string | undefined) {
       calibrationRef.current = [];
       baselineRef.current = null;
       sawTroubleRef.current = false;
+      isAwayRef.current = false;
 
       resetView();
       setSession(started);
@@ -241,6 +243,7 @@ export function useCameraVerify(goalId: string | undefined) {
   useEffect(() => {
     if (phase !== 'running') return;
     const tick = setInterval(async () => {
+      if (isAwayRef.current) return;
       secondsRef.current += 1;
       setSeconds(secondsRef.current);
       if (secondsRef.current % CHECK_SECONDS !== 0) return;
@@ -256,28 +259,56 @@ export function useCameraVerify(goalId: string | undefined) {
     return () => clearInterval(tick);
   }, [phase, judge]);
 
-  // 백그라운드에선 판정이 멈춘다. 잠깐 나갔다 오는 건 흔해서 유예를 둔다
+  /** 백그라운드에 다녀오면 OS 가 카메라를 끊어 둔다. 살아 있으면 재생만 다시 한다 */
+  const reviveCamera = useCallback(async () => {
+    const isLive = streamRef.current
+      ?.getVideoTracks()
+      .some((track) => track.readyState === 'live' && !track.muted);
+    if (!isLive) {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = await openCamera();
+      if (videoRef.current) videoRef.current.srcObject = streamRef.current;
+    }
+    await videoRef.current?.play();
+  }, []);
+
+  // 끊는 건 서버가 센다. iOS 는 백그라운드에서 JS 타이머를 멈춰서 폰이 세면 못 끊는다
   useEffect(() => {
     if (phase !== 'running') return;
-    let graceTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const handle = App.addListener('appStateChange', ({ isActive }) => {
-      clearTimeout(graceTimer);
-      if (isActive) return;
-      graceTimer = setTimeout(async () => {
-        const { id, until } = endSession();
-        setWasInterrupted(true);
-        if (!id) return;
+    const handle = App.addListener('appStateChange', async ({ isActive }) => {
+      const id = sessionIdRef.current;
+      if (!id) return;
+
+      if (!isActive) {
+        isAwayRef.current = true;
         await flush(id, true);
-        await interruptCameraSession(id, until).catch(() => {});
-      }, BACKGROUND_GRACE_SECONDS * 1000);
+        await pauseCameraSession(id, secondsRef.current).catch(() => {});
+        return;
+      }
+
+      // 서버에 못 닿으면 일단 이어 간다. 기록을 버리는 쪽보다 낫다
+      const isAlive = await resumeCameraSession(id).catch(() => true);
+      if (!isAlive) {
+        endSession();
+        setWasInterrupted(true);
+        return;
+      }
+      try {
+        await reviveCamera();
+      } catch {
+        endSession();
+        setError('카메라를 다시 켜지 못했어요. 다시 시작해주세요.');
+        return;
+      }
+      missRef.current = 0;
+      isAwayRef.current = false;
     });
 
     return () => {
-      clearTimeout(graceTimer);
       void handle.then((h) => h.remove());
     };
-  }, [phase, endSession, flush]);
+  }, [phase, endSession, flush, reviveCamera]);
 
   useEffect(() => stopCamera, [stopCamera]);
 
