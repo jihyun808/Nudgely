@@ -17,9 +17,13 @@ node_modules/@capacitor/*
 !node_modules/@capacitor/app
 !node_modules/@capacitor/keyboard
 !node_modules/@capacitor/status-bar
+!node_modules/@capacitor/haptics
 !node_modules/@capacitor-firebase
 node_modules/@capacitor-firebase/*
 !node_modules/@capacitor-firebase/messaging
+!node_modules/@capacitor-community
+node_modules/@capacitor-community/*
+!node_modules/@capacitor-community/keep-awake
 # Xcode·Android Studio 가 패키지 폴더 안에 만드는 로컬 상태
 node_modules/**/.swiftpm
 node_modules/**/.classpath
