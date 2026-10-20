@@ -8,6 +8,26 @@ import ConsentModal from '@/pages/verify/components/ConsentModal';
 import { useCameraVerify } from '@/pages/verify/useCameraVerify';
 import { formatClock } from '@/utils/time';
 
+/** 동의 창에서 '다시 보지 않기' 를 골랐는지 */
+const SKIP_CONSENT_KEY = 'nudgely.verify.skipConsent';
+
+function readSkipConsent(): boolean {
+  try {
+    return localStorage.getItem(SKIP_CONSENT_KEY) === '1';
+  } catch {
+    // 사파리 비공개 모드 등 저장소를 막아둔 환경
+    return false;
+  }
+}
+
+function storeSkipConsent(): void {
+  try {
+    localStorage.setItem(SKIP_CONSENT_KEY, '1');
+  } catch {
+    // 못 적으면 다음에 한 번 더 물어볼 뿐이다
+  }
+}
+
 export default function Verify() {
   const [goalId, setGoalId] = useState<string>();
   const [isConsentOpen, setIsConsentOpen] = useState(false);
@@ -94,7 +114,7 @@ export default function Verify() {
             size="lg"
             className="w-full"
             disabled={phase === 'preparing'}
-            onClick={() => setIsConsentOpen(true)}
+            onClick={() => (readSkipConsent() ? void start() : setIsConsentOpen(true))}
           >
             {phase === 'preparing' ? '카메라 켜는 중...' : '집중 시작'}
           </Button>
@@ -104,8 +124,7 @@ export default function Verify() {
       {wasInterrupted && (
         <Modal title="기록이 멈췄어요" onClose={dismissInterrupted}>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            앱을 나가 있는 동안 카메라가 꺼져서 거기까지만 기록했어요. 이어서 하려면 다시
-            시작해주세요.
+            기록 중 10초 이상 앱을 종료해서 기록이 중단됐어요.
           </p>
           <Button className="mt-5 w-full" onClick={dismissInterrupted}>
             알겠어요
@@ -116,7 +135,8 @@ export default function Verify() {
       {isConsentOpen && (
         <ConsentModal
           onClose={() => setIsConsentOpen(false)}
-          onAgree={() => {
+          onAgree={(skipNext) => {
+            if (skipNext) storeSkipConsent();
             setIsConsentOpen(false);
             void start();
           }}
