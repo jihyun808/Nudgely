@@ -9,10 +9,11 @@
   POST /focus/sessions/{id}/finish   종료 → 집중 점수·인증 확정 + 플래너 '인증' 기록
 
 이탈(자리 비움) 5분 이상 지속되면 그 채팅방으로 선톡("자리 비웠네?") 한 번.
-집중 점수 = focus 샘플 비율(%). 기준 이상이면 verified=True.
+집중 점수 = 자리 비움(연속 absent)을 뺀 샘플 비율(%). 기준 이상이면 verified=True.
 """
 
 from datetime import UTC, datetime
+from itertools import groupby
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +36,8 @@ from app.services.planner_service import add_block
 CAMERA_AWAY_SECONDS = 300
 #: 집중 점수가 이 이상이면 인증 성립.
 VERIFY_MIN_SCORE = 70
+#: 이만큼 연속으로 안 보여야 자리를 비운 것으로 본다.
+MIN_ABSENT_RUN = 3
 
 
 async def _owned_camera_session(db: AsyncSession, user_id: str, session_id: str) -> FocusSession:
@@ -44,35 +47,39 @@ async def _owned_camera_session(db: AsyncSession, user_id: str, session_id: str)
     return session
 
 
+def _away_runs(ordered: list[FocusCheckSample]) -> list[list[FocusCheckSample]]:
+    """연속 MIN_ABSENT_RUN 개 이상 absent 인 구간들."""
+    runs = []
+    for status, group in groupby(ordered, key=lambda s: s.status):
+        run = list(group)
+        if status == "absent" and len(run) >= MIN_ABSENT_RUN:
+            runs.append(run)
+    return runs
+
+
 def _score_and_away(samples: list[FocusCheckSample]) -> tuple[int, int, datetime | None]:
     """집중 점수(%), 이탈(5분+ 자리비움) 횟수, 진행 중 이탈의 시작 시각.
 
-    진행 중 이탈 시작 = 마지막 샘플이 absent 이고 그 연속 구간이 5분 이상이면 그 시작.
+    고개를 숙이거나 물을 마셔도 absent 가 찍힌다. 그걸 그대로 깎으면 성실히 앉아
+    있어도 점수가 안 나오므로, 연속 MIN_ABSENT_RUN 개부터 자리 비움으로 센다.
     """
     if not samples:
         return 0, 0, None
     ordered = sorted(samples, key=lambda s: s.at)
-    total = len(ordered)
-    focus = sum(1 for s in ordered if s.status == "focus")
-    score = round(focus / total * 100)
+    runs = _away_runs(ordered)
+
+    away_samples = sum(len(run) for run in runs)
+    score = round((len(ordered) - away_samples) / len(ordered) * 100)
 
     away_count = 0
     ongoing_start: datetime | None = None
-    run_start: datetime | None = None
-    for i, s in enumerate(ordered):
-        if s.status == "absent":
-            if run_start is None:
-                run_start = as_utc(s.at)
-            # 구간이 끝나는 지점(다음이 focus 이거나 마지막)에서 길이를 잰다
-            is_last = i == total - 1
-            next_focus = not is_last and ordered[i + 1].status == "focus"
-            if is_last or next_focus:
-                duration = (as_utc(s.at) - run_start).total_seconds()
-                if duration >= CAMERA_AWAY_SECONDS:
-                    away_count += 1
-                    if is_last:
-                        ongoing_start = run_start
-                run_start = None
+    for run in runs:
+        run_start = as_utc(run[0].at)
+        if (as_utc(run[-1].at) - run_start).total_seconds() < CAMERA_AWAY_SECONDS:
+            continue
+        away_count += 1
+        if run[-1] is ordered[-1]:
+            ongoing_start = run_start
     return score, away_count, ongoing_start
 
 

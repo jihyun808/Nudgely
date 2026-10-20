@@ -46,7 +46,7 @@ async def test_start_returns_session(client):
     assert body["verified"] is False
 
 
-async def test_checks_compute_focus_score(client):
+async def test_one_missed_frame_is_not_counted(client):
     token = await token_for(client)
     sid = (await _start(client, token)).json()["id"]
 
@@ -62,10 +62,30 @@ async def test_checks_compute_focus_score(client):
             ]
         ),
     )
+
     assert res.status_code == 200
-    body = res.json()
-    assert body["focusScore"] == 75  # 3/4
-    assert body["awayCount"] == 0
+    assert res.json()["focusScore"] == 100
+
+
+async def test_three_in_a_row_counts_as_away(client):
+    token = await token_for(client)
+    sid = (await _start(client, token)).json()["id"]
+
+    res = await client.post(
+        f"/api/focus/sessions/{sid}/checks",
+        headers=auth(token),
+        json=_samples(
+            [
+                ("focus", "2026-10-12T10:00:00Z"),
+                ("absent", "2026-10-12T10:00:10Z"),
+                ("absent", "2026-10-12T10:00:20Z"),
+                ("absent", "2026-10-12T10:00:30Z"),
+            ]
+        ),
+    )
+
+    assert res.status_code == 200
+    assert res.json()["focusScore"] == 25  # 1/4
 
 
 async def test_invalid_check_status(client):
@@ -229,7 +249,13 @@ async def test_verified_count_aggregate(client):
     await client.post(
         f"/api/focus/sessions/{sid2}/checks",
         headers=auth(token),
-        json=_samples([("absent", "2026-10-12T11:00:00Z")]),
+        json=_samples(
+            [
+                ("absent", "2026-10-12T11:00:00Z"),
+                ("absent", "2026-10-12T11:00:10Z"),
+                ("absent", "2026-10-12T11:00:20Z"),
+            ]
+        ),
     )
     await client.post(
         f"/api/focus/sessions/{sid2}/finish", headers=auth(token), json={"seconds": 600}
