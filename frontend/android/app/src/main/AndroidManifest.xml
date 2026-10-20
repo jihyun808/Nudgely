@@ -38,4 +38,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 카메라 집중 인증. 웹뷰의 getUserMedia 도 앱이 이 권한을 가져야 열린다 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 카메라 없는 기기도 설치는 되게 한다 -->
+    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
 </manifest>
