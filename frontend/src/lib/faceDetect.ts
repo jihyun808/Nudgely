@@ -1,55 +1,67 @@
 // lib/faceDetect.ts
-import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
+import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 
-/**
- * 기기에서만 도는 얼굴 감지. 집중 인증이 "자리에 있나" 를 판정하는 근거다.
- *
- * 프레임은 어디로도 나가지 않는다. 여기서 보고 버린다.
- *
- * wasm·모델은 CDN 에서 받는다. 앱에 넣으면 13MB 가 붙는데, 이 앱은 AI 대화부터
- * 네트워크가 있어야 돌아가므로 번들을 키울 이유가 없다. 받아온 뒤로는 캐시된다.
- */
+/** 기기에서만 도는 얼굴 판정. 프레임은 여기서 보고 버린다 */
 const WASM_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.1.1/wasm';
-/** 230KB 라 앱에 넣는다. 네트워크 변수를 하나 줄인다 */
-const MODEL_URL = '/models/blaze_face_short_range.tflite';
+const MODEL_URL = '/models/face_landmarker.task';
 
-let detector: FaceDetector | undefined;
-let loading: Promise<FaceDetector> | undefined;
+/** blendshape 점수가 이 값을 넘으면 눈을 감은 것으로 본다 */
+const EYE_CLOSED = 0.5;
 
-/** 한 번만 받아 재사용한다. 세션마다 다시 받으면 매번 몇 초씩 기다린다 */
-export function loadFaceDetector(): Promise<FaceDetector> {
-  if (detector) return Promise.resolve(detector);
+let landmarker: FaceLandmarker | undefined;
+let loading: Promise<FaceLandmarker> | undefined;
+
+export function loadFaceDetector(): Promise<FaceLandmarker> {
+  if (landmarker) return Promise.resolve(landmarker);
   loading ??= (async () => {
     const vision = await FilesetResolver.forVisionTasks(WASM_BASE);
     const create = (delegate: 'GPU' | 'CPU') =>
-      FaceDetector.createFromOptions(vision, {
+      FaceLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: MODEL_URL, delegate },
         runningMode: 'IMAGE',
-        minDetectionConfidence: 0.5,
+        numFaces: 1,
+        outputFaceBlendshapes: true,
+        outputFacialTransformationMatrixes: true,
       });
-    // 웹뷰에서 GPU 가 안 잡히는 기기가 있다. 느려도 도는 쪽으로 떨어진다
-    detector = await create('GPU').catch(() => create('CPU'));
-    return detector;
+    // 웹뷰에서 GPU 가 안 잡히는 기기가 있다
+    landmarker = await create('GPU').catch(() => create('CPU'));
+    return landmarker;
   })();
   return loading;
 }
 
 export interface FaceResult {
   hasFace: boolean;
-  /** 가장 또렷하게 잡힌 얼굴의 점수(0~1). 없으면 0 */
-  confidence: number;
+  eyesClosed: boolean;
+  /** 고개 각도(도). 위를 보면 +, 숙이면 − */
+  pitch: number;
 }
 
-/** 지금 화면에 사람이 있는지. 실패하면 '없음' 이 아니라 던진다 — 호출부가 판단한다 */
-export function detectFace(detector: FaceDetector, video: HTMLVideoElement): FaceResult {
-  const { detections } = detector.detect(video);
-  const best = detections.reduce((max, d) => Math.max(max, d.categories[0]?.score ?? 0), 0);
-  return { hasFace: detections.length > 0, confidence: best };
+const ABSENT: FaceResult = { hasFace: false, eyesClosed: false, pitch: 0 };
+
+/** 4x4 변환 행렬(열 우선)의 [2][1] 성분이 x축 회전을 담는다 */
+function pitchOf(matrix: number[]): number {
+  return (Math.asin(-Math.max(-1, Math.min(1, matrix[9]))) * 180) / Math.PI;
 }
 
-/** 세션이 끝나면 놓아준다. GPU 자원을 쥐고 있다 */
+export function detectFace(detector: FaceLandmarker, video: HTMLVideoElement): FaceResult {
+  const result = detector.detect(video);
+  const shapes = result.faceBlendshapes?.[0]?.categories;
+  const matrix = result.facialTransformationMatrixes?.[0]?.data;
+  if (!shapes || !matrix) return ABSENT;
+
+  const isClosed = (name: string) =>
+    (shapes.find((category) => category.categoryName === name)?.score ?? 0) > EYE_CLOSED;
+
+  return {
+    hasFace: true,
+    eyesClosed: isClosed('eyeBlinkLeft') && isClosed('eyeBlinkRight'),
+    pitch: pitchOf(matrix),
+  };
+}
+
 export function releaseFaceDetector(): void {
-  detector?.close();
-  detector = undefined;
+  landmarker?.close();
+  landmarker = undefined;
   loading = undefined;
 }

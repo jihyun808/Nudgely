@@ -1,5 +1,6 @@
 // pages/verify/Verify.tsx
 import { useState } from 'react';
+import Modal from '@/components/Modal';
 import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import FocusGoalPicker from '@/pages/focus/components/FocusGoalPicker';
@@ -7,11 +8,43 @@ import ConsentModal from '@/pages/verify/components/ConsentModal';
 import { useCameraVerify } from '@/pages/verify/useCameraVerify';
 import { formatClock } from '@/utils/time';
 
+/** 동의 창에서 '다시 보지 않기' 를 골랐는지 */
+const SKIP_CONSENT_KEY = 'nudgely.verify.skipConsent';
+
+function readSkipConsent(): boolean {
+  try {
+    return localStorage.getItem(SKIP_CONSENT_KEY) === '1';
+  } catch {
+    // 사파리 비공개 모드 등 저장소를 막아둔 환경
+    return false;
+  }
+}
+
+function storeSkipConsent(): void {
+  try {
+    localStorage.setItem(SKIP_CONSENT_KEY, '1');
+  } catch {
+    // 못 적으면 다음에 한 번 더 물어볼 뿐이다
+  }
+}
+
 export default function Verify() {
   const [goalId, setGoalId] = useState<string>();
   const [isConsentOpen, setIsConsentOpen] = useState(false);
-  const { videoRef, phase, seconds, isPresent, session, error, start, stop } =
-    useCameraVerify(goalId);
+  const {
+    videoRef,
+    phase,
+    seconds,
+    isScored,
+    isCalibrating,
+    notice,
+    wasInterrupted,
+    dismissInterrupted,
+    session,
+    error,
+    start,
+    stop,
+  } = useCameraVerify(goalId);
 
   const isLive = phase === 'running' || phase === 'preparing';
 
@@ -43,13 +76,13 @@ export default function Verify() {
           </div>
         )}
 
-        {phase === 'running' && !isPresent && (
+        {phase === 'running' && (isCalibrating || notice) && (
           <div className="absolute top-3 right-3 rounded-full bg-foreground/55 px-2.5 py-1 text-xs text-background backdrop-blur-sm">
-            자리에 안 보여요
+            {isCalibrating ? '자세를 익히는 중' : notice}
           </div>
         )}
 
-        {!isLive && phase !== 'done' && (
+        {!isLive && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-background/70">
             시작하면 카메라가 켜져요
           </div>
@@ -60,15 +93,12 @@ export default function Verify() {
             {formatClock(seconds)}
           </p>
 
-          {session && phase !== 'idle' && (
+          {session && isScored && (
             <div className="mt-1.5 flex justify-center gap-4 text-xs text-background/80">
               <span>
                 집중 <span className="font-bold text-background">{session.focusScore}%</span>
               </span>
               {session.awayCount > 0 && <span>자리 비움 {session.awayCount}회</span>}
-              {phase === 'done' && session.verified && (
-                <span className="font-bold text-background">인증 완료</span>
-              )}
             </div>
           )}
         </div>
@@ -84,17 +114,29 @@ export default function Verify() {
             size="lg"
             className="w-full"
             disabled={phase === 'preparing'}
-            onClick={() => setIsConsentOpen(true)}
+            onClick={() => (readSkipConsent() ? void start() : setIsConsentOpen(true))}
           >
             {phase === 'preparing' ? '카메라 켜는 중...' : '집중 시작'}
           </Button>
         )}
       </div>
 
+      {wasInterrupted && (
+        <Modal title="기록이 멈췄어요" onClose={dismissInterrupted}>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            기록 중 10초 이상 앱을 종료해서 기록이 중단됐어요.
+          </p>
+          <Button className="mt-5 w-full" onClick={dismissInterrupted}>
+            알겠어요
+          </Button>
+        </Modal>
+      )}
+
       {isConsentOpen && (
         <ConsentModal
           onClose={() => setIsConsentOpen(false)}
-          onAgree={() => {
+          onAgree={(skipNext) => {
+            if (skipNext) storeSkipConsent();
             setIsConsentOpen(false);
             void start();
           }}
