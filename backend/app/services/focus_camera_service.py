@@ -7,15 +7,20 @@
   POST /focus/sessions/camera        세션 시작(세션별 동의 필요) → id
   POST /focus/sessions/{id}/checks   상태 샘플 배치 업로드 → 점수·이탈 갱신
   POST /focus/sessions/{id}/finish   종료 → 집중 점수·인증 확정 + 플래너 '인증' 기록
+  POST /focus/sessions/{id}/pause    앱이 백그라운드로 감 → 10초 안에 안 돌아오면 끊고 푸시
+  POST /focus/sessions/{id}/resume   돌아옴 → 이어 가도 되는지
 
 이탈(자리 비움) 5분 이상 지속되면 그 채팅방으로 선톡("자리 비웠네?") 한 번.
-집중 점수 = focus 샘플 비율(%). 기준 이상이면 verified=True.
+집중 점수 = 자리 비움(연속 absent)을 뺀 샘플 비율(%). 기준 이상이면 verified=True.
 """
 
+import asyncio
+import logging
 from datetime import UTC, datetime
+from itertools import groupby
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.errors import AppError
 from app.core.timezones import as_utc, zone_of
@@ -28,13 +33,25 @@ from app.models.goal import Goal
 from app.models.notification import Notification
 from app.models.user import UserSettings
 from app.schemas.focus import CameraSessionOut, FocusCheckIn
-from app.services.notification_service import send_nudge
+from app.services.notification_service import send_nudge, should_notify
 from app.services.planner_service import add_block
+from app.services.push_service import push_in_background
+
+logger = logging.getLogger(__name__)
 
 #: 자리 비움이 이만큼 이어지면 '이탈' 로 본다(결정: 5분).
 CAMERA_AWAY_SECONDS = 300
 #: 집중 점수가 이 이상이면 인증 성립.
 VERIFY_MIN_SCORE = 70
+#: 이만큼 연속으로 안 보여야 자리를 비운 것으로 본다.
+MIN_ABSENT_RUN = 3
+#: 앱을 나간 뒤 이만큼 안 돌아오면 기록을 끊는다.
+BACKGROUND_GRACE_SECONDS = 10
+INTERRUPT_PUSH_TITLE = "카메라 집중 인증"
+INTERRUPT_PUSH_BODY = "앱을 나가서 카메라 기록이 중단됐어요!"
+
+#: 세션 id → 끊기를 기다리는 타이머. 프로세스 메모리에만 있다(워커 1개).
+_grace_timers: dict[str, asyncio.Task] = {}
 
 
 async def _owned_camera_session(db: AsyncSession, user_id: str, session_id: str) -> FocusSession:
@@ -44,35 +61,39 @@ async def _owned_camera_session(db: AsyncSession, user_id: str, session_id: str)
     return session
 
 
+def _away_runs(ordered: list[FocusCheckSample]) -> list[list[FocusCheckSample]]:
+    """연속 MIN_ABSENT_RUN 개 이상 absent 인 구간들."""
+    runs = []
+    for status, group in groupby(ordered, key=lambda s: s.status):
+        run = list(group)
+        if status == "absent" and len(run) >= MIN_ABSENT_RUN:
+            runs.append(run)
+    return runs
+
+
 def _score_and_away(samples: list[FocusCheckSample]) -> tuple[int, int, datetime | None]:
     """집중 점수(%), 이탈(5분+ 자리비움) 횟수, 진행 중 이탈의 시작 시각.
 
-    진행 중 이탈 시작 = 마지막 샘플이 absent 이고 그 연속 구간이 5분 이상이면 그 시작.
+    고개를 숙이거나 물을 마셔도 absent 가 찍힌다. 그걸 그대로 깎으면 성실히 앉아
+    있어도 점수가 안 나오므로, 연속 MIN_ABSENT_RUN 개부터 자리 비움으로 센다.
     """
     if not samples:
         return 0, 0, None
     ordered = sorted(samples, key=lambda s: s.at)
-    total = len(ordered)
-    focus = sum(1 for s in ordered if s.status == "focus")
-    score = round(focus / total * 100)
+    runs = _away_runs(ordered)
+
+    away_samples = sum(len(run) for run in runs)
+    score = round((len(ordered) - away_samples) / len(ordered) * 100)
 
     away_count = 0
     ongoing_start: datetime | None = None
-    run_start: datetime | None = None
-    for i, s in enumerate(ordered):
-        if s.status == "absent":
-            if run_start is None:
-                run_start = as_utc(s.at)
-            # 구간이 끝나는 지점(다음이 focus 이거나 마지막)에서 길이를 잰다
-            is_last = i == total - 1
-            next_focus = not is_last and ordered[i + 1].status == "focus"
-            if is_last or next_focus:
-                duration = (as_utc(s.at) - run_start).total_seconds()
-                if duration >= CAMERA_AWAY_SECONDS:
-                    away_count += 1
-                    if is_last:
-                        ongoing_start = run_start
-                run_start = None
+    for run in runs:
+        run_start = as_utc(run[0].at)
+        if (as_utc(run[-1].at) - run_start).total_seconds() < CAMERA_AWAY_SECONDS:
+            continue
+        away_count += 1
+        if run[-1] is ordered[-1]:
+            ongoing_start = run_start
     return score, away_count, ongoing_start
 
 
@@ -173,6 +194,14 @@ async def add_camera_checks(
 async def finish_camera_session(
     db: AsyncSession, user_id: str, session_id: str, *, seconds: int
 ) -> CameraSessionOut:
+    # 직접 끝냈으면 걸려 있던 중단 타이머는 필요 없다
+    _cancel_grace(session_id)
+    return await _finish(db, user_id, session_id, seconds=seconds)
+
+
+async def _finish(
+    db: AsyncSession, user_id: str, session_id: str, *, seconds: int
+) -> CameraSessionOut:
     session = await _owned_camera_session(db, user_id, session_id)
     session.seconds = seconds
 
@@ -216,35 +245,64 @@ async def finish_camera_session(
     )
 
 
-async def interrupt_camera_session(
+async def _interrupt_camera_session(
+    db: AsyncSession, user_id: str, session_id: str, *, seconds: int
+) -> None:
+    """유예 안에 안 돌아왔다. 거기까지로 끝내고 푸시로 알린다.
+
+    화면이 내려가면 카메라도 추론도 멈춘다. 그대로 두면 사용자는 계속 인증되는
+    줄 알고 공부하다가, 돌아와서 점수가 안 오른 걸 보게 된다.
+    대화방이 아니라 앱 푸시로 보낸다 — 목표를 안 고른 세션에도 알려야 한다.
+    """
+    await _finish(db, user_id, session_id, seconds=seconds)
+    settings = await db.get(UserSettings, user_id)
+    if should_notify(settings, "cameraInterrupt"):
+        push_in_background(user_id, title=INTERRUPT_PUSH_TITLE, body=INTERRUPT_PUSH_BODY)
+
+
+def _cancel_grace(session_id: str) -> None:
+    task = _grace_timers.pop(session_id, None)
+    if task is not None:
+        task.cancel()
+
+
+async def pause_camera_session(
     db: AsyncSession,
     user_id: str,
     session_id: str,
     *,
     seconds: int,
-    now_utc: datetime | None = None,
-) -> CameraSessionOut:
-    """앱이 백그라운드로 가서 판정이 끊겼다. 거기까지로 끝내고 알린다.
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """앱이 백그라운드로 갔다. 유예가 지나도록 안 돌아오면 서버가 끊는다.
 
-    화면이 내려가면 카메라도 추론도 멈춘다. 그대로 두면 사용자는 계속 인증되는
-    줄 알고 공부하다가, 돌아와서 점수가 안 오른 걸 보게 된다. 그 자리에서 알린다.
+    폰이 세면 안 된다. iOS 는 백그라운드에서 JS 타이머를 멈춰서 끊는 요청이
+    나가지 못한다. 나가는 순간 한 번만 알리고 나머지는 서버가 본다.
     """
-    now_utc = now_utc or datetime.now(UTC)
-    session = await _owned_camera_session(db, user_id, session_id)
-    result = await finish_camera_session(db, user_id, session_id, seconds=seconds)
+    await _owned_camera_session(db, user_id, session_id)
+    _cancel_grace(session_id)
 
-    if session.goal_id is not None:
-        goal = await db.get(Goal, session.goal_id)
-        if goal is not None:
-            await send_nudge(
-                db,
-                goal,
-                "앱이 내려가서 집중 인증이 멈췄어. 돌아와서 다시 시작할까?",
-                ref=f"focus_interrupt:{session.id}",
-                now_utc=now_utc,
-            )
-            await db.commit()
-    return result
+    async def interrupt_later() -> None:
+        await asyncio.sleep(BACKGROUND_GRACE_SECONDS)
+        try:
+            async with session_factory() as later_db:
+                await _interrupt_camera_session(later_db, user_id, session_id, seconds=seconds)
+        except Exception:  # noqa: BLE001 - 백그라운드 작업이라 여기서 끝낸다
+            logger.exception("카메라 세션 중단 실패(session=%s)", session_id)
+
+    _grace_timers[session_id] = asyncio.create_task(interrupt_later())
+
+
+async def resume_camera_session(db: AsyncSession, user_id: str, session_id: str) -> bool:
+    """돌아왔다. 유예 안이면 True(이어 간다), 이미 끊겼으면 False."""
+    await _owned_camera_session(db, user_id, session_id)
+    task = _grace_timers.pop(session_id, None)
+    if task is None:
+        return True
+    if task.done():
+        return False
+    task.cancel()
+    return True
 
 
 async def verified_summary(db: AsyncSession, user_id: str) -> tuple[int, int]:

@@ -79,6 +79,12 @@ class CameraSessionOut(CamelModel):
     away_count: int  # 5분 이상 자리 비움 횟수
 
 
+class ResumeCameraSessionOut(CamelModel):
+    """백그라운드에서 돌아왔을 때. False 면 유예가 지나 이미 끊겼다."""
+
+    alive: bool
+
+
 class VerifiedFocusOut(CamelModel):
     """마이페이지 '인증 완료' 집계 — 카메라로 인증된 집중 세션."""
 

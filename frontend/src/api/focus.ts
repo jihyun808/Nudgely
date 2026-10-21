@@ -120,16 +120,13 @@ export async function finishCameraSession(
   return data;
 }
 
-/**
- * 앱이 백그라운드로 내려가 판정이 끊겼을 때.
- * 거기까지로 끝내고, 서버가 "기록이 멈췄다" 고 알린다.
- */
-export async function interruptCameraSession(
-  sessionId: string,
-  seconds: number,
-): Promise<CameraSession> {
-  const { data } = await api.post<CameraSession>(`/focus/sessions/${sessionId}/interrupt`, {
-    seconds,
-  });
-  return data;
+/** 앱이 백그라운드로 갔다. 유예 안에 안 돌아오면 서버가 끊고 푸시한다 */
+export async function pauseCameraSession(sessionId: string, seconds: number): Promise<void> {
+  await api.post(`/focus/sessions/${sessionId}/pause`, { seconds });
+}
+
+/** 돌아왔다. alive 가 false 면 유예가 지나 이미 끊겼다 */
+export async function resumeCameraSession(sessionId: string): Promise<boolean> {
+  const { data } = await api.post<{ alive: boolean }>(`/focus/sessions/${sessionId}/resume`);
+  return data.alive;
 }
