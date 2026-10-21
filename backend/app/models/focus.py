@@ -3,8 +3,9 @@
 스톱워치는 종료 시 한 건, 뽀모도로는 집중 25분마다 한 건 저장한다(휴식 제외).
 중복 저장 방지: (user_id, started_at) 유니크 — 같은 시작 시각의 재전송은 무시.
 
-goal_id: 목표별 집중 시간 집계용(api.md §8-7). 현재 집중 화면에 목표 선택 UI가
-없어 대부분 NULL 이지만, 붙는 즉시 목표 진도의 focusedSeconds 가 채워진다.
+집중 '시간' 집계는 이 표가 아니라 플래너 실제 기록에서 한다(planner_service).
+세션은 저장과 동시에 플래너 블록을 남기고, 사용자는 그 블록을 고친다.
+이 표는 중복 저장 방지와 카메라 판정 샘플을 위해 남겨 둔다.
 
 카메라 집중 인증(source="camera"): 세션 중 기기가 "자리에 있나/없나"를 판정해
 상태 샘플(FocusCheckSample)만 보낸다. **영상·프레임은 서버로 오지 않는다.**
@@ -47,7 +48,7 @@ class FocusSession(Base):
 
     # ── 카메라 집중 인증 ──
     source: Mapped[str] = mapped_column(String, nullable=False, default="timer")
-    # 집중한 샘플 비율(%). 카메라 세션에서만 채워진다.
+    # 집중 점수(%): 자리 비움(연속 absent)을 뺀 샘플 비율. 카메라 세션에서만 채워진다.
     focus_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 인증 성립 여부(focus_score 가 기준 이상 + 종료됨).
     verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

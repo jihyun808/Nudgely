@@ -1,18 +1,27 @@
 """텐미닛 플래너 조회·쓰기 로직.
 
 - 읽기: 하루치 플래너를 planned/actual 로 나눠 조립.
-- 쓰기: AI 계획 생성 / 실제 기록 추가 (HTTP 노출은 이후 슬라이스).
+- 쓰기: AI 계획 생성 / 실제 기록 추가·수정.
+- 집계: '집중한 시간' 은 전부 실제 기록에서 센다.
+
+실제 기록(kind 있음)이 집중 시간의 유일한 출처다. 마이페이지·주간 그래프·
+오늘 요약·목표별 집중 시간이 모두 여기서 읽는다. 예전에는 집중 세션 표에서
+따로 셌는데, 그러면 사용자가 플래너에서 기록을 고쳐도 다른 화면이 안 바뀐다.
 """
 
-from datetime import date
+from datetime import date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
+from app.core.timezones import as_utc, zone_of
 from app.models.goal import Goal
 from app.models.planner import Planner, PlannerBlock
+from app.models.user import UserSettings
 from app.schemas.planner import DailyPlannerOut, PlannerBlockOut
+
+DAY_MINUTES = 24 * 60
 
 
 def _block_out(b: PlannerBlock, goal_names: dict[str, str]) -> PlannerBlockOut:
@@ -93,11 +102,102 @@ async def add_block(
     return block
 
 
+async def record_session(
+    db: AsyncSession,
+    user_id: str,
+    *,
+    started_at: datetime,
+    seconds: int,
+    kind: str,
+    goal_id: str | None,
+) -> None:
+    """집중 타이머·카메라 인증이 끝난 세션을 실제 기록으로 남긴다.
+
+    분 단위로 끊는다. 10분이 한 칸이라 초는 화면에서 의미가 없고, 1분이 안 되는
+    집중은 칸을 못 채우므로 남기지 않는다. 날짜는 사용자 로컬 기준이고,
+    자정을 넘긴 세션은 다음 날로 나눠 담는다(하루 표 밖으로 삐져나가지 않게).
+    """
+    minutes = seconds // 60
+    if minutes <= 0:
+        return
+
+    settings = await db.get(UserSettings, user_id)
+    local = as_utc(started_at).astimezone(zone_of(settings.timezone if settings else None))
+    title = "집중 인증" if kind == "verify" else "집중"
+    if goal_id:
+        goal = await db.get(Goal, goal_id)
+        if goal is not None:
+            title = goal.title or goal.name
+
+    day, start = local.date(), local.hour * 60 + local.minute
+    while minutes > 0:
+        chunk = min(minutes, DAY_MINUTES - start)
+        await add_block(
+            db,
+            user_id,
+            day,
+            title=title,
+            start_minutes=start,
+            duration_minutes=chunk,
+            kind=kind,
+            goal_id=goal_id,
+        )
+        minutes -= chunk
+        day, start = day + timedelta(days=1), 0
+
+
+# ── 집계: 집중 시간은 실제 기록에서 ──────────────────────────
+
+
+def _actual_blocks():
+    return (
+        select()
+        .select_from(PlannerBlock)
+        .join(Planner, PlannerBlock.planner_id == Planner.id)
+        .where(PlannerBlock.kind.is_not(None))
+    )
+
+
+async def actual_minutes_by_date(
+    db: AsyncSession, user_id: str, frm: date, to: date
+) -> dict[date, int]:
+    """기간 안에서 실제 기록이 있는 날의 기록 시간 합(분)."""
+    rows = await db.execute(
+        _actual_blocks()
+        .add_columns(Planner.date, func.sum(PlannerBlock.duration_minutes))
+        .where(Planner.user_id == user_id, Planner.date >= frm, Planner.date <= to)
+        .group_by(Planner.date)
+    )
+    return {day: int(minutes) for day, minutes in rows.all()}
+
+
+async def goal_actual_minutes(db: AsyncSession, goal_id: str) -> int:
+    """이 목표에 붙은 실제 기록 시간 합(분)."""
+    stmt = (
+        _actual_blocks()
+        .add_columns(func.coalesce(func.sum(PlannerBlock.duration_minutes), 0))
+        .where(PlannerBlock.goal_id == goal_id)
+    )
+    return int((await db.execute(stmt)).scalar_one())
+
+
+async def verified_minutes(db: AsyncSession, user_id: str) -> tuple[int, int]:
+    """카메라로 인증된 기록의 (개수, 시간 합(분)). 마이페이지 '인증 완료'."""
+    stmt = (
+        _actual_blocks()
+        .add_columns(func.count(), func.coalesce(func.sum(PlannerBlock.duration_minutes), 0))
+        .where(Planner.user_id == user_id, PlannerBlock.kind == "verify")
+    )
+    count, minutes = (await db.execute(stmt)).one()
+    return int(count), int(minutes)
+
+
 # ── 사용자가 직접 고치는 실제 기록 (api.md §4) ──────────────
 #
 # 자동 기록(집중 타이머, kind="focus")도 고칠 수 있게 둔다. 타이머를 켜 두고
 # 딴짓한 날을 바로잡을 길이 있어야 한다. 대신 계획(kind=None)은 AI 가 세우므로
-# 이 경로로 건드리지 않는다.
+# 이 경로로 건드리지 않는다. 카메라 인증(kind="verify")은 시간을 못 바꾼다 —
+# 늘릴 수 있으면 인증이 아니다. 제목 수정과 삭제는 된다.
 
 
 async def _reject_overlap(
@@ -155,7 +255,7 @@ async def add_actual(
     duration_minutes: int,
 ) -> PlannerBlock:
     """사용자가 손으로 넣은 실제 기록(kind="manual")."""
-    if start_minutes + duration_minutes > 24 * 60:
+    if start_minutes + duration_minutes > DAY_MINUTES:
         raise AppError("BLOCK_PAST_MIDNIGHT", "자정을 넘길 수 없습니다.", status_code=422)
     await _reject_overlap(
         db, user_id, on, start_minutes=start_minutes, duration_minutes=duration_minutes
@@ -181,9 +281,15 @@ async def update_actual(
     start_minutes: int,
     duration_minutes: int,
 ) -> PlannerBlock:
-    if start_minutes + duration_minutes > 24 * 60:
+    if start_minutes + duration_minutes > DAY_MINUTES:
         raise AppError("BLOCK_PAST_MIDNIGHT", "자정을 넘길 수 없습니다.", status_code=422)
     block = await _owned_block(db, user_id, on, block_id)
+    if block.kind == "verify" and (
+        start_minutes != block.start_minutes or duration_minutes != block.duration_minutes
+    ):
+        raise AppError(
+            "VERIFY_TIME_LOCKED", "카메라로 인증한 기록은 시간을 바꿀 수 없습니다.", status_code=400
+        )
     await _reject_overlap(
         db,
         user_id,

@@ -3,8 +3,7 @@
 - build_goal_progress: 마일스톤 + 집계를 모아 GoalProgressOut 로.
 - set_milestones: AI가 마일스톤을 통째로 교체(쓰기 경로).
 
-focusedSeconds 는 집중 세션에 goal_id 가 붙어야 채워진다.
-집중 화면에 목표 선택 UI 가 없어서(api.md §8-7 미정) 지금은 대부분 None 이다.
+focusedSeconds 는 그 목표가 붙은 플래너 실제 기록에서 센다(마이페이지와 같은 출처).
 """
 
 from collections import defaultdict
@@ -12,11 +11,11 @@ from collections import defaultdict
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.focus import FocusSession
 from app.models.goal import Goal
 from app.models.milestone import Milestone
 from app.models.todo import Todo, TodoItem
 from app.schemas.archive import GoalProgressOut, ProgressMilestoneOut
+from app.services.planner_service import goal_actual_minutes
 
 
 def _title_of(goal: Goal) -> str:
@@ -33,19 +32,9 @@ async def _completed_todo_count(db: AsyncSession, goal_id: str) -> int:
     return int((await db.execute(stmt)).scalar_one())
 
 
-async def _focused_seconds(db: AsyncSession, goal_id: str) -> int:
-    """이 목표에 붙은 집중 세션 시간 합(초). goal_id 가 붙은 세션만."""
-    stmt = select(func.coalesce(func.sum(FocusSession.seconds), 0)).where(
-        FocusSession.goal_id == goal_id
-    )
-    return int((await db.execute(stmt)).scalar_one())
-
-
 async def _best_month(db: AsyncSession, goal_id: str) -> str | None:
     """완료한 할 일이 가장 많았던 달 ('YYYY-MM'). 완료가 없으면 None.
 
-    기준을 '집중 시간' 이 아니라 '완료한 할 일' 로 잡았다.
-    집중 세션에는 목표 id 가 붙지 않아(api.md §8-7 미정) 항상 비어 있기 때문이다.
     날짜는 Todo.date(그 할 일이 속한 날) — 이미 사용자 기준 날짜라 타임존 변환이 필요 없다.
 
     월 단위 묶기는 SQL 이 아니라 파이썬에서 한다. strftime 은 SQLite 전용이라
@@ -83,7 +72,7 @@ async def build_goal_progress(db: AsyncSession, goal: Goal) -> GoalProgressOut:
     )
 
     completed = await _completed_todo_count(db, goal.id)
-    focused = await _focused_seconds(db, goal.id)
+    focused = await goal_actual_minutes(db, goal.id) * 60
     best_month = await _best_month(db, goal.id)
 
     return GoalProgressOut(

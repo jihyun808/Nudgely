@@ -291,7 +291,7 @@ GET /goals/{goalId}/progress
   진도가 아직 없으면(total 미설정) AI 가 준 status 를 그대로 둔다.
 - 집계 3종은 **없으면 해당 칸을 그리지 않는다.** 연동 초기엔 빼도 된다.
 - `completedAt`이 있으면 완료 화면(축하 연출 + 회고 지표)이 된다.
-- 집중 세션의 목표 id 는 집중 탭에서 고른다(선택). 안 고르면 `focusedSeconds` 가 비어 있다.
+- `focusedSeconds` 는 그 목표가 붙은 플래너 실제 기록의 합이다. 집중 탭에서 목표를 안 고르면 비어 있다.
 
 ---
 
@@ -486,8 +486,10 @@ POST /notifications/read   → 204   # 전체 읽음
 
 ```
 GET  /focus/summary?date=2026-08-03
-POST /focus/sessions   { mode, seconds, startedAt }  → 204
+POST /focus/sessions   { mode, seconds, startedAt, goalId? }  → 204
 GET  /focus/weekly?weekStart=2026-08-03
+GET  /focus/daily?from=2026-08-01&to=2026-08-31
+GET  /focus/verified
 ```
 
 ```json
@@ -497,11 +499,14 @@ GET  /focus/weekly?weekStart=2026-08-03
 { "hours": [1, 2, 1.5, 3, 2.2, 0, 0], "diffFromLastWeek": 1.2 }
 ```
 
-- `targetMinutes`는 **오늘 플래너의 계획 시간 합계**(현재는 프론트가 플래너로 계산).
+- **집중 시간은 전부 플래너 실제 기록(kind 있음)에서 센다.** summary·weekly·daily·목표 진도의 `focusedSeconds`가 같은 출처라, 사용자가 플래너에서 기록을 고치면 모두 같이 바뀐다. 세션 저장(타이머·카메라)은 플래너에 실제 기록을 남기는 것으로 반영된다(분 단위, 1분 미만은 버림, 자정을 넘기면 다음 날로 나눔).
+- 손으로 넣은 기록(`manual`)도 집중 시간에 들어간다. 카메라 인증 기록(`verify`)은 시간을 못 바꾼다(`VERIFY_TIME_LOCKED`).
+- `verified`: `{ count, totalSeconds }` — 플래너의 `verify` 기록 수와 합(마이페이지 '인증 완료').
+- `targetMinutes`는 **오늘 플래너의 계획 시간 합계**(서버 계산).
 - `streakDays`는 **투두가 체크된 날**의 연속 일수. **연속·최고 기록은 서버가 계산해야 한다**(과거 전체 이력 필요).
 - 세션 저장: 스톱워치는 종료 시 한 건, 뽀모도로는 집중 25분마다 한 건(휴식 제외). 중복 저장 방지 수단 필요.
 - `weekly.hours`는 **월~일 7개**(시간 단위), `weekStart`는 그 주의 월요일.
-- 마이페이지 히트맵용 기간별 집중(`GET /focus/daily?from=&to=`)이 필요하다. 현재 하드코딩.
+- `daily`: 기록이 있는 날만 `{ days: [{ date, seconds }] }` (마이페이지 히트맵).
 
 ---
 

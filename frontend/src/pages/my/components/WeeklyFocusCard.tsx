@@ -4,21 +4,9 @@ import { fetchWeeklyFocus } from '@/api/focus';
 import { cn } from '@/lib/utils';
 import StepperButton from '@/components/StepperButton';
 import WeeklyFocusChart from '@/pages/my/components/WeeklyFocusChart';
+import { getWeekdayIndex, getWeekStart } from '@/utils/date';
 
 const WEEKDAYS = ['월', '화', '수', '목', '금', '토', '일'] as const;
-const DAY = 24 * 60 * 60 * 1000;
-
-/** 월요일을 0으로 두는 오늘의 요일 인덱스 */
-const getTodayIndex = (now = new Date()) => (now.getDay() + 6) % 7;
-
-/** weekOffset 주의 월요일 날짜 */
-function getWeekStart(weekOffset: number) {
-  const today = new Date();
-  const monday = new Date(today.getTime() - getTodayIndex(today) * DAY);
-  monday.setHours(0, 0, 0, 0);
-  return new Date(monday.getTime() + weekOffset * 7 * DAY);
-}
-
 /** 'M월 N주차' (1일이 속한 주를 1주차로 센다) */
 function getWeekLabel(weekStart: Date) {
   const firstDay = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1);
@@ -97,7 +85,7 @@ export default function WeeklyFocusCard() {
           {/* 강조는 이번 주에만, 오늘 요일에 준다 */}
           <WeeklyFocusChart
             hours={hours}
-            highlightIndex={isThisWeek ? getTodayIndex() : undefined}
+            highlightIndex={isThisWeek ? getWeekdayIndex() : undefined}
           />
         </div>
 

@@ -47,7 +47,7 @@ export interface GoalProgress {
   progress?: GoalProgressCount;
   milestones: ProgressMilestone[];
 
-  /** 이 목표에 쓴 집중 시간(초). 집중 세션에 목표 id가 붙어야 계산할 수 있다 */
+  /** 이 목표에 쓴 집중 시간(초). 목표가 붙은 플래너 실제 기록의 합이다 */
   focusedSeconds?: number;
   /** 이 목표에서 완료한 투두 개수 */
   completedTodoCount?: number;

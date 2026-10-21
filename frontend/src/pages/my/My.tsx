@@ -1,7 +1,7 @@
 // pages/my/My.tsx
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchDailyFocus, fetchFocusSummary } from '@/api/focus';
+import { fetchDailyFocus, fetchFocusSummary, fetchVerifiedFocus } from '@/api/focus';
 import { fetchCompletedGoals } from '@/api/goal';
 import { fetchMyProfile, updateMyProfile } from '@/api/user';
 import Skeleton from '@/components/Skeleton';
@@ -29,10 +29,12 @@ interface FocusRecord {
   secondsByDate: Record<string, number>;
   /** 연속 달성일 (서버 계산) */
   streakDays: number;
+  /** 카메라로 인증된 집중 횟수 */
+  verifiedCount: number;
 }
 
 /** 아직 못 받았을 때. 잔디는 빈 칸으로, 연속일은 0으로 그린다 */
-const EMPTY_FOCUS: FocusRecord = { secondsByDate: {}, streakDays: 0 };
+const EMPTY_FOCUS: FocusRecord = { secondsByDate: {}, streakDays: 0, verifiedCount: 0 };
 
 export default function My() {
   const navigate = useNavigate();
@@ -56,14 +58,15 @@ export default function My() {
   const loadFocus = useCallback(async (): Promise<FocusRecord> => {
     // 가입일을 모르면 범위를 못 잡는다. 프로필이 도착하면 key 가 바뀌어 다시 받는다
     if (!joinedAt) return EMPTY_FOCUS;
-    const [secondsByDate, summary] = await Promise.all([
+    const [secondsByDate, summary, verified] = await Promise.all([
       fetchDailyFocus(formatDateKey(new Date(joinedAt)), formatDateKey(new Date())),
       fetchFocusSummary(),
+      fetchVerifiedFocus(),
     ]);
-    return { secondsByDate, streakDays: summary.streakDays };
+    return { secondsByDate, streakDays: summary.streakDays, verifiedCount: verified.count };
   }, [joinedAt]);
   const {
-    data: { secondsByDate, streakDays },
+    data: { secondsByDate, streakDays, verifiedCount },
   } = useCachedQuery(`my:focus:${joinedAt ?? ''}`, loadFocus, EMPTY_FOCUS);
 
   useEffect(() => {
@@ -155,7 +158,7 @@ export default function My() {
             <StatCards
               streakDays={streakDays}
               totalFocusedSeconds={Object.values(secondsByDate).reduce((a, b) => a + b, 0)}
-              completedGoalCount={completedGoals.length}
+              verifiedCount={verifiedCount}
             />
           </div>
 
