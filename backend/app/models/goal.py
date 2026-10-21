@@ -71,6 +71,9 @@ class Message(Base):
     role: Mapped[str] = mapped_column(String, nullable=False)  # user | assistant
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     client_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # 이 답을 만들며 실제로 실행한 도구와 결과(assistant 첫 말풍선에만). 화면에는 안 보이고
+    # 다음 턴 AI 에게만 넘긴다. 없으면 AI 는 자기가 한 '말' 만 보고 저장됐다고 믿는다.
+    tool_log: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_now, index=True)
 
     goal: Mapped["Goal"] = relationship(back_populates="messages")

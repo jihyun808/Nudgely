@@ -9,7 +9,7 @@
 """
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
@@ -19,6 +19,11 @@ if TYPE_CHECKING:
     from app.ai.attachments import AttachmentContent
 
 _WEEKDAYS_KO = ("월", "화", "수", "목", "금", "토", "일")
+
+
+def day_label(d: date) -> str:
+    """'2026-10-16(금)'."""
+    return f"{d.isoformat()}({_WEEKDAYS_KO[d.weekday()]})"
 
 
 def today_for(timezone: str | None) -> date:
@@ -47,6 +52,8 @@ _TOOL_POLICY = """\
   "투두에 넣었어", "기한 잡았어" 처럼 말하지 마라. 사용자는 그 말을 믿고
   기록 탭을 여는데 아무것도 없다. 넣어야 하면 지금 도구를 불러라.
 - 도구가 실패했으면 성공한 척하지 않는다. 안 됐다고 말하고 사유를 전한다.
+- 왜 안 됐는지 물으면 대화 기록의 [도구 결과]에 적힌 사유만 전한다. 거기 없으면
+  모른다고 한다. 내부 사정이나 입력 규칙을 지어내 설명하지 않는다.
 
 할 일을 끝냈다고 할 때:
 - 무엇을 끝냈는지 분명하면(예: "1강 완료", "오답노트 했어") 되묻지 말고 바로 반영한다.
@@ -191,6 +198,11 @@ class GoalState:
     todos_need_confirm: bool = False
     has_plan_today: bool = False
     is_overdue: bool = False
+    #: 오늘 투두 (내용, 완료 여부). 매 턴 '지금 기록 상태' 로 보여준다
+    todo_items: list[tuple[str, bool]] = field(default_factory=list)
+    #: 오늘 이 목표의 계획 ('HH:MM~HH:MM 제목')
+    plan_lines: list[str] = field(default_factory=list)
+    is_snoozed: bool = False
 
 
 def _stage_line(state: GoalState | None) -> str | None:
@@ -248,6 +260,34 @@ def _stage_line(state: GoalState | None) -> str | None:
         )
 
     return None
+
+
+def _hhmm(minutes: int) -> str:
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def plan_line(start_minutes: int, duration_minutes: int, title: str) -> str:
+    return f"{_hhmm(start_minutes)}~{_hhmm(start_minutes + duration_minutes)} {title}"
+
+
+def _snapshot(today: date, state: GoalState | None) -> str:
+    """지금 기록 상태. 서버가 DB 에서 읽은 사실이라 대화 기억보다 앞선다.
+
+    히스토리 뒤(이번 사용자 말 바로 다음)에 붙인다. 앞쪽에 두면 긴 대화에 묻혀
+    모델이 지난 말("오늘 1강 체크했어", 사실은 어제 한 말)을 더 믿는다.
+    """
+    lines = [f"[지금 기록 상태 — 서버 기준] 오늘은 {day_label(today)}이다."]
+    if state is not None:
+        todos = ", ".join(f"{c}({'완료' if done else '안 함'})" for c, done in state.todo_items)
+        lines.append(f"오늘 투두: {todos or '없음'}")
+        lines.append(f"오늘 이 목표 계획: {', '.join(state.plan_lines) or '없음'}")
+        if state.is_snoozed:
+            lines.append("오늘 선톡: 사용자가 멈춰 달라고 해서 멈춘 상태다.")
+    lines.append(
+        "기록은 이 상태가 진실이다. 지난 대화와 다르면 이 상태를 따른다. "
+        "지난 대화 속 '오늘' 은 그 말을 한 날(날짜 구분선) 기준이다."
+    )
+    return "\n".join(lines)
 
 
 def _deadline_line(due_date: date | None, today: date) -> str | None:
@@ -320,9 +360,10 @@ def build_chat_messages(
       3) 목표 컨텍스트 (제목 · 진도 · 기한)
       4) 사용자 커스텀 프롬프트 — 신뢰도 낮은 참고 자료로 격리 (주입 방어)
       5) 페르소나 예시 대화 (few-shot, 비어 있으면 생략)
-      6) 대화 히스토리 (오래된 → 최신)
+      6) 대화 히스토리 (오래된 → 최신). 날짜 구분선·도구 결과는 system 으로 섞여 온다
+      7) 지금 기록 상태 (오늘 날짜 · 투두 · 계획) — 대화 기억보다 앞서는 사실
 
-    history: (role, content) 튜플의 순회 가능 객체. role 은 'user' | 'assistant'.
+    history: (role, content) 튜플의 순회 가능 객체. role 은 'user' | 'assistant' | 'system'.
     today:   기준 날짜. 생략하면 기본 타임존의 오늘(테스트에서 고정용으로 주입).
     goal_progress: Goal.progress ({current, total, unit}). 없으면 진도 문장을 뺀다.
     due_date:      Goal.due_date. 없으면 기한 문장을 뺀다.
@@ -388,6 +429,8 @@ def build_chat_messages(
 
     for role, content in history:
         messages.append({"role": role, "content": content})
+
+    messages.append({"role": "system", "content": _snapshot(on, state)})
 
     if attachment is not None:
         messages.append(build_attachment_message(attachment))
