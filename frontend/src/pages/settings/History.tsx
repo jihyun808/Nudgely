@@ -52,7 +52,7 @@ export default function History() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-md bg-background px-6 pt-safe pb-10">
-      <DetailHeader title="히스토리" subtitle="숨긴 채팅방을 모아뒀어요" className="-mx-6 px-6" />
+      <DetailHeader title="히스토리" className="-mx-6 px-6" />
 
       {isLoading ? (
         <div className="mt-6 space-y-3">
