@@ -366,3 +366,34 @@ async def test_unverified_session_still_records_focus_time(client: AsyncClient):
 
     planner = await client.get("/api/planners", headers=auth(token), params={"date": "2026-10-12"})
     assert [(b["kind"], b["durationMinutes"]) for b in planner.json()["actual"]] == [("focus", 10)]
+
+
+async def test_second_finish_does_not_record_twice(client: AsyncClient):
+    """서버가 끊은 뒤 앱이 또 끝내기를 보내도 플래너 기록은 한 번이다."""
+    token = await token_for(client, "twice@b.com")
+    sid = (await _start(client, token)).json()["id"]
+    for _ in range(2):
+        await client.post(
+            f"/api/focus/sessions/{sid}/finish", headers=auth(token), json={"seconds": 600}
+        )
+
+    planner = await client.get("/api/planners", headers=auth(token), params={"date": "2026-10-12"})
+    assert len(planner.json()["actual"]) == 1
+
+
+async def test_verified_count_is_per_session_across_midnight(client: AsyncClient):
+    """자정을 넘긴 인증은 플래너에 두 칸이지만 인증은 한 번이다."""
+    token = await token_for(client, "midnight@b.com")
+    # 한국 시각 23:30 시작, 1시간
+    sid = (await _start(client, token, started_at="2026-10-12T14:30:00Z")).json()["id"]
+    await client.post(
+        f"/api/focus/sessions/{sid}/checks",
+        headers=auth(token),
+        json=_samples([("focus", "2026-10-12T14:30:10Z")]),
+    )
+    await client.post(
+        f"/api/focus/sessions/{sid}/finish", headers=auth(token), json={"seconds": 3600}
+    )
+
+    res = await client.get("/api/focus/verified", headers=auth(token))
+    assert res.json() == {"count": 1, "totalSeconds": 3600}

@@ -235,7 +235,10 @@ async def _generate(
                     # 같은 순간에 만들면 (created_at, id) 정렬에서 순서가 섞인다.
                     # 1ms 씩 띄워 보낸 순서를 보존한다.
                     created_at=now + timedelta(milliseconds=index),
-                    tool_log="\n".join(tool_log) if index == 0 and tool_log else None,
+                    # 마지막 말풍선에 붙인다. 다음 턴에 "위 답에서 실행된 것" 으로 답 전체 뒤에 온다
+                    tool_log="\n".join(tool_log)
+                    if index == len(bubbles) - 1 and tool_log
+                    else None,
                 )
             )
         db.add_all(saved)

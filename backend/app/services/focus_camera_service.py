@@ -19,7 +19,7 @@ import logging
 from datetime import UTC, datetime
 from itertools import groupby
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.errors import AppError
@@ -203,7 +203,12 @@ async def _finish(
     db: AsyncSession, user_id: str, session_id: str, *, seconds: int
 ) -> CameraSessionOut:
     session = await _owned_camera_session(db, user_id, session_id)
-    session.seconds = seconds
+    # 이미 끝난 세션이면 플래너에 다시 남기지 않는다. 서버가 10초 유예로 끊은 뒤
+    # 앱이 그걸 모르고(resume 이 네트워크로 실패) 끝내기를 또 보내면 기록이 두 번 쌓인다.
+    # 시작할 때 seconds=0 이고 끝낼 때 채우므로 이걸로 끝났는지 안다
+    already_finished = session.seconds > 0
+    if not already_finished:
+        session.seconds = seconds
 
     rows = (
         (
@@ -219,14 +224,15 @@ async def _finish(
     session.verified = score >= VERIFY_MIN_SCORE
 
     # 플래너 실제 기록이 집중 시간의 출처다. 인증 못 받은 세션도 집중한 시간은 남긴다
-    await record_session(
-        db,
-        user_id,
-        started_at=session.started_at,
-        seconds=seconds,
-        kind="verify" if session.verified else "focus",
-        goal_id=session.goal_id,
-    )
+    if not already_finished:
+        await record_session(
+            db,
+            user_id,
+            started_at=session.started_at,
+            seconds=seconds,
+            kind="verify" if session.verified else "focus",
+            goal_id=session.goal_id,
+        )
 
     await db.commit()
     return CameraSessionOut(
@@ -295,6 +301,19 @@ async def resume_camera_session(db: AsyncSession, user_id: str, session_id: str)
 
 
 async def verified_summary(db: AsyncSession, user_id: str) -> tuple[int, int]:
-    """카메라로 인증된 기록의 (횟수, 총 초). 마이페이지 '인증 완료'."""
-    count, minutes = await verified_minutes(db, user_id)
-    return count, minutes * 60
+    """카메라 인증 (횟수, 총 초). 마이페이지 '인증 완료'.
+
+    횟수는 인증받은 세션 수다. 플래너 칸으로 세면 자정을 넘긴 세션이 두 칸으로
+    나뉘어 두 번으로 세어진다. 시간은 다른 집중 시간처럼 플래너 기록에서 센다.
+    """
+    count = (
+        await db.execute(
+            select(func.count()).where(
+                FocusSession.user_id == user_id,
+                FocusSession.source == "camera",
+                FocusSession.verified.is_(True),
+            )
+        )
+    ).scalar_one()
+    _, minutes = await verified_minutes(db, user_id)
+    return int(count), minutes * 60
