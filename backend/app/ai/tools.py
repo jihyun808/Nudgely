@@ -319,22 +319,22 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
         memory = "\n".join([*lines, note]).strip()
         if len(memory) > MEMORY_MAX:
             return (
-                f"기억 노트가 가득 찼다({MEMORY_MAX}자). 남기지 못했다. "
-                "사용자에게 채팅방 설정에서 오래된 내용을 정리해 달라고 해라."
+                f"장기 노트가 가득 찼다({MEMORY_MAX}자). 남기지 못했다. "
+                "사용자에게 채팅방 설정의 장기 노트에서 오래된 내용을 정리해 달라고 해라."
             )
         goal.memory = memory
         await db.commit()
-        return f"기억 노트에 남겼다: {note}"
+        return f"장기 노트에 남겼다: {note}"
 
     if name == "forget":
         text = _req_text(arguments.get("text"), "text", max_len=100)
         lines = (goal.memory or "").splitlines()
         kept = [line for line in lines if text not in line]
         if len(kept) == len(lines):
-            return "기억 노트에 그런 내용이 없다."
+            return "장기 노트에 그런 내용이 없다."
         goal.memory = "\n".join(kept).strip() or None
         await db.commit()
-        return f"기억 노트에서 {len(lines) - len(kept)}줄을 지웠다."
+        return f"장기 노트에서 {len(lines) - len(kept)}줄을 지웠다."
 
     return f"알 수 없는 도구: {name}"
 

@@ -32,8 +32,8 @@ class Goal(Base):
 
     # 사용자 커스텀 프롬프트(주입 방어 위해 시스템 프롬프트와 분리해 사용)
     prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # 이 방에서 AI 가 기억할 것(줄글). 사용자는 설정에서, AI 는 remember/forget 도구로 고친다.
-    # prompt(말투·역할 지시)와 따로 둔다 — 기억은 지시가 아니라 사실이다.
+    # 장기 노트: 이 목표에서 지킬 규칙·약속(줄글). 사용자는 설정에서, AI 는 remember/forget
+    # 도구로 고친다. prompt(말투·역할 지시)와 따로 둔다 — 노트는 지시가 아니라 정해 둔 사실이다.
     memory: Mapped[str | None] = mapped_column(Text, nullable=True)
     persona: Mapped[str | None] = mapped_column(String, nullable=True)  # teacher|instructor|friend
 

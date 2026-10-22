@@ -12,7 +12,7 @@ from app.schemas.common import CamelModel, UtcDatetime
 NAME_MAX = 10
 TITLE_MAX = 50
 PROMPT_MAX = 500
-#: AI 가 기억할 것. 매 턴 실리므로 프롬프트와 같은 선에서 막는다
+#: 장기 노트. 매 턴 실리므로 프롬프트와 같은 선에서 막는다
 MEMORY_MAX = 500
 PERSONAS = ("teacher", "instructor", "friend")
 
