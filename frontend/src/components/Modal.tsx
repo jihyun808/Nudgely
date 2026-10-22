@@ -1,5 +1,6 @@
 // components/Modal.tsx
 import { useEffect, useId, type ReactNode } from 'react';
+import { useCloseOnBack } from '@/lib/closeOnBack';
 
 interface ModalProps {
   title: string;
@@ -21,6 +22,7 @@ interface ModalProps {
  */
 export default function Modal({ title, onClose, children }: ModalProps) {
   const titleId = useId();
+  useCloseOnBack(onClose);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

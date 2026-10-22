@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "27868476402",
+    "project_id": "nudgely-efc39",
+    "storage_bucket": "nudgely-efc39.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:27868476402:android:e97810c712169120f0b16b",
+        "android_client_info": {
+          "package_name": "com.nudgely.nudgely"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSp-294Lesq8cr8Q_f6_4Yof2J2dKDXg8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

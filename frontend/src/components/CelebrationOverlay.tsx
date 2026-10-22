@@ -1,6 +1,7 @@
 // components/CelebrationOverlay.tsx
 import ConfettiBurst from '@/components/ConfettiBurst';
 import { Button } from '@/components/ui/button';
+import { useCloseOnBack } from '@/lib/closeOnBack';
 
 interface CelebrationOverlayProps {
   onClose: () => void;
@@ -33,6 +34,7 @@ export default function CelebrationOverlay({
   ariaLabel,
   isLooping = true,
 }: CelebrationOverlayProps) {
+  useCloseOnBack(onClose);
   return (
     <div
       role="dialog"
