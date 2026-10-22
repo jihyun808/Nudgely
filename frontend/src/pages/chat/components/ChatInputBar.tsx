@@ -46,8 +46,13 @@ interface ChatInputBarProps {
  * 채팅방 하단 입력 바.
  * 파일 첨부 버튼 → 메시지 입력 → 보내기 버튼 순서로 배치한다.
  * 첨부는 JPG·PNG·PDF·TXT만 받는다.
- * Enter로 전송하고 Shift+Enter로 줄바꿈한다.
+ * 컴퓨터에서는 Enter로 전송하고 Shift+Enter로 줄바꿈한다.
+ * 폰에서는 Enter가 줄바꿈이고 전송은 보내기 버튼으로만 한다. 폰 키보드에는
+ * Shift+Enter 가 없어서, Enter 로 보내면 줄을 바꿀 방법이 없다.
  */
+/** 손가락으로 쓰는 기기(폰·태블릿). 키보드가 화면 키보드다 */
+const isTouchDevice = () => window.matchMedia('(pointer: coarse)').matches;
+
 export default function ChatInputBar({ goalId, onSend, onAttach, disabled }: ChatInputBarProps) {
   const [content, setContent] = useState(() => readDraft(goalId));
   const [fileError, setFileError] = useState<string>();
@@ -85,6 +90,7 @@ export default function ChatInputBar({ goalId, onSend, onAttach, disabled }: Cha
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // 한글 입력 조합 중 Enter는 전송하지 않는다
     if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+    if (isTouchDevice()) return; // 폰에서는 줄바꿈
     e.preventDefault();
     handleSend();
   };
@@ -144,6 +150,8 @@ export default function ChatInputBar({ goalId, onSend, onAttach, disabled }: Cha
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           maxLength={MESSAGE_MAX_LENGTH}
+          // 폰 키보드의 Enter 자리에 '보내기' 대신 줄바꿈 키가 보이게 한다
+          enterKeyHint="enter"
           placeholder="메시지 입력..."
           aria-label="메시지 입력"
           className="max-h-30 min-h-10 flex-1 resize-none rounded-2xl bg-muted-foreground/8 px-4 py-2.5 text-sm leading-snug placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"

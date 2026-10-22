@@ -40,6 +40,7 @@ export default function TodoItemDialog({
       <p className="mt-1 mb-4 truncate text-xs text-muted-foreground">{goalTitle}</p>
 
       <InputField
+        className="gap-2"
         label="할 일"
         value={content}
         onChange={setContent}
@@ -49,6 +50,7 @@ export default function TodoItemDialog({
       />
 
       <InputField
+        className="mt-5 gap-2"
         label="태그 (선택)"
         value={tag}
         onChange={setTag}

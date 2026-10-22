@@ -94,6 +94,7 @@ export default function PlannerBlockDialog({
     >
       <div className="mt-4">
         <InputField
+          className="gap-2"
           label="무엇을 했나요"
           value={title}
           onChange={setTitle}
@@ -103,8 +104,8 @@ export default function PlannerBlockDialog({
         />
       </div>
 
-      <div className="flex items-end gap-2">
-        <div className="flex flex-1 flex-col gap-1.5">
+      <div className="mt-5 flex items-end gap-2">
+        <div className="flex flex-1 flex-col gap-2">
           <Label htmlFor="planner-start">시작</Label>
           <Select
             id="planner-start"
@@ -122,7 +123,7 @@ export default function PlannerBlockDialog({
 
         <span className="pb-2.5 text-sm text-muted-foreground">~</span>
 
-        <div className="flex flex-1 flex-col gap-1.5">
+        <div className="flex flex-1 flex-col gap-2">
           <Label htmlFor="planner-end">종료</Label>
           <Select
             id="planner-end"
@@ -139,7 +140,7 @@ export default function PlannerBlockDialog({
         </div>
       </div>
 
-      <p className="mt-2 text-xs text-muted-foreground">
+      <p className="mt-3 text-xs text-muted-foreground">
         {isTimeLocked
           ? '카메라로 인증한 기록은 시간을 바꿀 수 없어요.'
           : `${endMinutes - startMinutes}분 (${Math.floor((endMinutes - startMinutes) / PLANNER_BLOCK_MINUTES)}블록)`}
