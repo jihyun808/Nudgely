@@ -30,6 +30,8 @@ node_modules/**/.classpath
 node_modules/**/.project
 node_modules/**/.settings
 node_modules/**/.gradle
+# 플러그인 폴더 안에 Gradle 이 만드는 빌드 결과물. 빌드할 때마다 바뀐다
+node_modules/**/android/build
 # package.json 은 빼 둔다. 있으면 npm install 이 "이미 설치됨" 으로 보고
 # 건너뛰어, JS 쪽이 비어 tsc 가 깨진다. SPM 은 Package.swift 만 있으면 된다
 node_modules/**/package.json

@@ -60,7 +60,7 @@ export interface Goal {
 export interface GoalDetail extends Goal {
   /** AI의 역할·말투를 정하는 시스템 프롬프트 */
   prompt?: string;
-  /** AI가 이 방에서 기억할 것. 사용자가 고치고, AI도 대화 중에 덧붙인다 */
+  /** 장기 노트: 이 목표에서 지킬 규칙·약속. 사용자가 고치고, AI도 대화 중에 덧붙인다 */
   memory?: string;
   /** 고른 페르소나. 고르지 않았으면 없다 */
   persona?: GoalPersona;

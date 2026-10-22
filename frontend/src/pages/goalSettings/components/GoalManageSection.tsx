@@ -21,23 +21,9 @@ export default function GoalManageSection({
 }: GoalManageSectionProps) {
   return (
     <SettingsSection title="목표 관리">
-      {!isCompleted && (
-        <SettingsRow
-          label="목표 완료 처리"
-          description="진도를 100%로 바꾸고 완주로 기록해요"
-          onClick={onComplete}
-        />
-      )}
-      <SettingsRow
-        label="채팅방 숨기기"
-        description="숨긴 채팅방은 설정 > 히스토리에서 다시 확인할 수 있어요"
-        onClick={onHide}
-      />
-      <SettingsRow
-        label="대화 내용 삭제"
-        description="목표는 그대로 두고 주고받은 메시지만 지워요"
-        onClick={onClearMessages}
-      />
+      {!isCompleted && <SettingsRow label="목표 완료 처리" onClick={onComplete} />}
+      <SettingsRow label="채팅방 숨기기" onClick={onHide} />
+      <SettingsRow label="대화 내용 삭제" onClick={onClearMessages} />
       <SettingsRow label="목표 삭제" isDestructive onClick={onDelete} />
     </SettingsSection>
   );

@@ -28,7 +28,6 @@ export default function NotificationSection({
     <SettingsSection title="알림">
       <SettingsRow
         label="전체 알림"
-        description="끄면 아래 알림을 모두 받지 않아요"
         control={
           <Switch
             checked={notifications.enabled}
@@ -38,7 +37,7 @@ export default function NotificationSection({
         }
       />
       <SettingsRow
-        label="AI 선톡·독촉"
+        label="AI 선톡"
         isNested
         disabled={isOff}
         control={
@@ -51,21 +50,7 @@ export default function NotificationSection({
         }
       />
       <SettingsRow
-        label="투두 추가·완료"
-        isNested
-        disabled={isOff}
-        control={
-          <Switch
-            checked={notifications.todo}
-            disabled={isOff}
-            onChange={(todo) => onChangeNotifications({ ...notifications, todo })}
-            aria-label="투두 알림"
-          />
-        }
-      />
-      <SettingsRow
         label="마감 리마인더"
-        description="밤 11시에 남은 투두와 플래너를 알려줘요"
         isNested
         disabled={isOff}
         control={
@@ -80,7 +65,6 @@ export default function NotificationSection({
 
       <SettingsRow
         label="방해 금지 시간"
-        description="이 시간에는 알림이 오지 않아요"
         control={
           <Switch
             checked={doNotDisturb.enabled}

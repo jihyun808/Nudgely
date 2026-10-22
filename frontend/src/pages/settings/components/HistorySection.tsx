@@ -11,8 +11,7 @@ export default function HistorySection() {
   return (
     <SettingsSection title="보관함">
       <SettingsRow
-        label="히스토리"
-        description="숨긴 채팅방을 모아볼 수 있어요"
+        label="대화 히스토리"
         onClick={() => navigate('/settings/history')}
         control={<Chevron />}
       />
