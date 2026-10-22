@@ -243,3 +243,20 @@ async def test_nightly_uses_the_users_local_date(
     assert _types((await client.get("/api/notifications", headers=auth(token))).json()) == {
         "plannerIncomplete"
     }
+
+
+async def test_nightly_skips_snoozed_goal(client: AsyncClient, session_factory: async_sessionmaker):
+    """'오늘은 그만' 한 방의 투두로 밤 11시 알림을 보내지 않는다."""
+    token = await token_for(client)
+    goal_id = await create_goal(client, token)
+    async with session_factory() as s:
+        goal = await s.get(Goal, goal_id)
+        await create_daily_todo(s, goal, ON, [{"content": "미완료"}])
+        goal.nudge_snoozed_until = datetime(2026, 8, 3, 15, tzinfo=UTC)  # KST 자정
+        await s.commit()
+
+    async with session_factory() as s:
+        created = await run_nightly_check(s, KST_11PM)
+        await s.commit()
+
+    assert created == 0

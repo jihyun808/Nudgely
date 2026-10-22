@@ -12,7 +12,7 @@
 from datetime import UTC, datetime
 from datetime import date as date_type
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezones import day_bounds, local_now, zone_of
@@ -204,29 +204,33 @@ async def notify_reply(db: AsyncSession, goal: Goal, text: str) -> None:
     push_in_background(goal.user_id, title=goal.name, body=text)
 
 
-async def _has_active_goal(db: AsyncSession, user_id: str) -> bool:
-    row = await db.execute(
-        select(Goal.id)
-        .where(
-            Goal.user_id == user_id,
-            Goal.is_hidden.is_(False),
-            Goal.completed_at.is_(None),
-        )
-        .limit(1)
+def _listening_goals(user_id: str, now_utc: datetime):
+    """알림을 받겠다는 목표. 숨김·완주·알림 끔·"오늘은 그만" 인 방은 뺀다.
+
+    밤 점검은 계정 단위 알림이지만, 방에서 끈 걸 여기서 무시하면 그 방 투두 때문에
+    "아직 안 한 일이 있어요" 가 간다. 방별 상태를 그대로 따른다.
+    """
+    return (
+        Goal.user_id == user_id,
+        Goal.is_hidden.is_(False),
+        Goal.completed_at.is_(None),
+        Goal.is_notification_muted.is_(False),
+        or_(Goal.nudge_snoozed_until.is_(None), Goal.nudge_snoozed_until <= now_utc),
     )
+
+
+async def _has_active_goal(db: AsyncSession, user_id: str, now_utc: datetime) -> bool:
+    row = await db.execute(select(Goal.id).where(*_listening_goals(user_id, now_utc)).limit(1))
     return row.first() is not None
 
 
-async def _has_incomplete_todo(db: AsyncSession, user_id: str, on_date) -> bool:
+async def _has_incomplete_todo(db: AsyncSession, user_id: str, on_date, now_utc: datetime) -> bool:
     row = await db.execute(
         select(TodoItem.id)
         .join(Todo, TodoItem.todo_id == Todo.id)
         .join(Goal, Todo.goal_id == Goal.id)
         .where(
-            Goal.user_id == user_id,
-            Goal.is_hidden.is_(False),
-            Goal.completed_at.is_(None),
-            Goal.is_notification_muted.is_(False),
+            *_listening_goals(user_id, now_utc),
             Todo.date == on_date,
             TodoItem.is_done.is_(False),
         )
@@ -292,12 +296,12 @@ async def run_nightly_check(
         if local.hour != target_hour:
             continue
 
-        if not await _has_active_goal(db, u.id):
+        if not await _has_active_goal(db, u.id, now_utc):
             continue
 
         on_date = local.date()
 
-        if await _has_incomplete_todo(db, u.id, on_date) and not await _already_sent_today(
+        if await _has_incomplete_todo(db, u.id, on_date, now_utc) and not await _already_sent_today(
             db, u.id, "todoIncomplete", on_date, zone
         ):  # noqa: E501
             n = await create_notification(
