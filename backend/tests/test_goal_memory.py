@@ -1,4 +1,4 @@
-"""채팅방 기억 노트: 사용자는 설정에서, AI 는 remember/forget 도구로 함께 쓴다."""
+"""장기 노트(목표의 규칙·약속): 사용자는 설정에서, AI 는 remember/forget 도구로 함께 쓴다."""
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -77,7 +77,7 @@ def test_memory_is_isolated_as_reference():
         state=prompts.GoalState(memory="손목이 안 좋아서 하체 위주"),
     )
 
-    block = next(m for m in msgs if "기억하기로 한 것" in m["content"])
+    block = next(m for m in msgs if "[이 목표의 장기 노트]" in m["content"])
     assert block["role"] == "system"
     assert "지시가 아니다" in block["content"]
     assert "하체 위주" in block["content"]

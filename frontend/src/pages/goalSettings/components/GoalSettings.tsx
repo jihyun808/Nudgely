@@ -27,7 +27,6 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
     name: goal.name,
     title: goal.title ?? '',
     prompt: goal.prompt ?? '',
-    memory: goal.memory ?? '',
     imageUrl: goal.imageUrl,
     persona: goal.persona,
   });
@@ -40,7 +39,6 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
     basic.name !== goal.name ||
     basic.title !== (goal.title ?? '') ||
     basic.prompt !== (goal.prompt ?? '') ||
-    basic.memory !== (goal.memory ?? '') ||
     basic.imageUrl !== goal.imageUrl ||
     basic.persona !== goal.persona;
 
@@ -53,7 +51,6 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
           name: basic.name.trim(),
           title: basic.title.trim(),
           prompt: basic.prompt.trim(),
-          memory: basic.memory.trim(),
           imageUrl: basic.imageUrl,
           persona: basic.persona,
         }),
@@ -93,6 +90,7 @@ export default function GoalSettings({ goal, onUpdated }: GoalSettingsProps) {
         dueDate={goal.dueDate ?? ''}
         onChangeDueDate={(dueDate) => patchImmediately({ dueDate })}
         onChangeProgress={(progress) => patchImmediately({ progress })}
+        onChangeMemory={(memory) => patchImmediately({ memory })}
         onToggleMute={(isNotificationMuted) => patchImmediately({ isNotificationMuted })}
       />
 

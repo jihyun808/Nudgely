@@ -41,7 +41,10 @@ export async function refreshSession(): Promise<void> {
   const token = getToken();
   if (!token || Date.now() - issuedAt(token) * 1000 < REFRESH_AFTER_MS) return;
   try {
-    setToken(await refreshToken());
+    const next = await refreshToken();
+    // 기다리는 사이 로그아웃했거나 다른 계정으로 들어왔으면 덮어쓰지 않는다.
+    // 덮어쓰면 로그아웃한 사람이 다시 로그인된 채로 남는다
+    if (getToken() === token) setToken(next);
   } catch {
     // 네트워크가 끊긴 것일 수 있다. 다음에 열 때 다시 시도한다
   }

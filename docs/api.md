@@ -123,7 +123,7 @@ DELETE /goals/{goalId}/messages   → 204   # 대화만 삭제
 DELETE /goals/{goalId}            → 204
 ```
 
-`PATCH` 대상: `name`(1~10자) · `title`(0~50자) · `prompt`(0~500자) · `memory`(0~500자, AI가 기억할 것 — AI도 `remember`/`forget` 도구로 고친다) · `persona` · `image` · `dueDate` · `isNotificationMuted` · `isHidden`
+`PATCH` 대상: `name`(1~10자) · `title`(0~50자) · `prompt`(0~500자) · `memory`(0~500자, 장기 노트 — 이 목표의 규칙·약속. AI도 `remember`/`forget` 도구로 고친다) · `persona` · `image` · `dueDate` · `isNotificationMuted` · `isHidden`
 
 **화면 동작 ↔ 엔드포인트** — 숨기기·되돌리기는 전용 엔드포인트가 아니라 `isHidden` 토글이다. 별도 API로 착각하기 쉬워 표로 정리한다.
 
@@ -347,7 +347,8 @@ GET /planners?date=2026-08-03
 
 - `startMinutes`는 자정 기준 분(08:00 → 480).
 - `kind`(실제 기록만): `focus` / `verify` / `manual`
-- 계획은 AI가 정하며 사용자가 바꿀 수 없다. 실제 기록 수정 API는 미정.
+- 계획은 AI가 정하며 사용자가 바꿀 수 없다. 실제 기록은 `POST /planners/{date}/actual`, `PATCH`·`DELETE /planners/{date}/actual/{blockId}` 로 고친다(응답은 그날 플래너 전체). 겹치면 `BLOCK_OVERLAPS`, 자정을 넘기면 `BLOCK_PAST_MIDNIGHT`, 카메라 인증 기록의 시간을 바꾸면 `VERIFY_TIME_LOCKED`.
+- 실제 기록은 집중 시간의 유일한 출처다(§6).
 - 달성률·블록 수는 프론트가 계산한다(10분 = 1블록).
 
 ---
@@ -416,7 +417,9 @@ POST /notifications/read   → 204   # 전체 읽음
   1. 밤 11시에 오늘 미완료 투두가 있을 때
   2. 계획한 시간이 시작되고 **10분 뒤** (시작 시각에 딱 보내면 이미 하고 있는 사람에게 간다)
   3. 계획한 시간이 끝나고 **30분 뒤**, 그 목표에 아직 미완료 투두가 있을 때
-  목표 하나에 **하루 2번까지**. muted·완주 목표와 방해 금지 시간대는 제외한다.
+  4. 아침·점심·저녁(기본 8·12·17시)에 오늘 할 일이나 시간 계획이 비어 있을 때
+  목표 하나에 **하루 10번까지**(폭주 방지선). muted·완주 목표, "오늘은 그만"(스누즈), 방해 금지 시간대는 제외한다.
+  **오늘 할 일을 다 끝낸 방**과 **최근 1시간 안에 사용자가 말한 방**에도 보내지 않는다(1번 밤 점검은 계정 단위라 끈 방·스누즈한 방의 투두만 뺀다).
 - **문구는 AI가 쓴다.** 목표·계획 이름·남은 할 일을 넣고 페르소나 말투로 한 줄을 받는다
   (2·3번. 1번은 채팅이 아니라 일반 알림이라 고정 문구다). 호출은 **싼 모델**
   (`OPENAI_BATCH_MODEL`)로 한다 — 10분마다 사용자 수만큼 도는 호출이다.

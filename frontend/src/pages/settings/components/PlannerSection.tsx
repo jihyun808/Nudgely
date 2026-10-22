@@ -15,7 +15,6 @@ export default function PlannerSection({ planner, onChange }: PlannerSectionProp
     <SettingsSection title="기록">
       <SettingsRow
         label="플래너 표시 시간대"
-        description="텐미닛 플래너 표에 그릴 범위예요"
         control={
           <span className="flex items-center gap-1.5">
             <HourSelect
