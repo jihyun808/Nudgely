@@ -46,6 +46,7 @@ GET  /auth/email-available?email=   → { "isAvailable": false }
 POST /auth/password        { currentPassword, newPassword }  → 204
 POST /auth/password/reset  { email }                          → 204
 POST /auth/logout                                             → 204
+POST /auth/refresh   (살아 있는 토큰)                          → { accessToken }  // 만료를 다시 7일 뒤로
 ```
 
 - 가입하면 **곧바로 로그인 상태**가 된다.
@@ -103,7 +104,7 @@ GET /goals/{goalId}        # 단건 → GoalDetail
 
 - **숨긴 목표는 기본 목록에서 제외**한다.
 - 정렬·검색은 프론트가 처리한다.
-- `GoalDetail` = `Goal` + `prompt`, `persona`, `dueDate`, `isNotificationMuted`, `isHidden`, `completedAt`
+- `GoalDetail` = `Goal` + `prompt`, `memory`, `persona`, `dueDate`, `isNotificationMuted`, `isHidden`, `completedAt`
 - ✅ **`progress` 스키마 확정** — `{ current, total, unit }` (셋 다 필수, 없으면 `progress` 자체가 `null`).
   - `unit`: 세는 단위를 AI가 대화에서 정한다. 예: `강` / `페이지` / `회차`
   - `total`·`unit`은 **AI가 `set_progress` 툴로** 세운다 (목표를 파악한 뒤, 보통 첫 대화).
@@ -122,7 +123,7 @@ DELETE /goals/{goalId}/messages   → 204   # 대화만 삭제
 DELETE /goals/{goalId}            → 204
 ```
 
-`PATCH` 대상: `name`(1~10자) · `title`(0~50자) · `prompt`(0~500자) · `persona` · `image` · `dueDate` · `isNotificationMuted` · `isHidden`
+`PATCH` 대상: `name`(1~10자) · `title`(0~50자) · `prompt`(0~500자) · `memory`(0~500자, AI가 기억할 것 — AI도 `remember`/`forget` 도구로 고친다) · `persona` · `image` · `dueDate` · `isNotificationMuted` · `isHidden`
 
 **화면 동작 ↔ 엔드포인트** — 숨기기·되돌리기는 전용 엔드포인트가 아니라 `isHidden` 토글이다. 별도 API로 착각하기 쉬워 표로 정리한다.
 
@@ -291,7 +292,7 @@ GET /goals/{goalId}/progress
   진도가 아직 없으면(total 미설정) AI 가 준 status 를 그대로 둔다.
 - 집계 3종은 **없으면 해당 칸을 그리지 않는다.** 연동 초기엔 빼도 된다.
 - `completedAt`이 있으면 완료 화면(축하 연출 + 회고 지표)이 된다.
-- 집중 세션의 목표 id 는 집중 탭에서 고른다(선택). 안 고르면 `focusedSeconds` 가 비어 있다.
+- `focusedSeconds` 는 그 목표가 붙은 플래너 실제 기록의 합이다. 집중 탭에서 목표를 안 고르면 비어 있다.
 
 ---
 
@@ -486,8 +487,10 @@ POST /notifications/read   → 204   # 전체 읽음
 
 ```
 GET  /focus/summary?date=2026-08-03
-POST /focus/sessions   { mode, seconds, startedAt }  → 204
+POST /focus/sessions   { mode, seconds, startedAt, goalId? }  → 204
 GET  /focus/weekly?weekStart=2026-08-03
+GET  /focus/daily?from=2026-08-01&to=2026-08-31
+GET  /focus/verified
 ```
 
 ```json
@@ -497,11 +500,14 @@ GET  /focus/weekly?weekStart=2026-08-03
 { "hours": [1, 2, 1.5, 3, 2.2, 0, 0], "diffFromLastWeek": 1.2 }
 ```
 
-- `targetMinutes`는 **오늘 플래너의 계획 시간 합계**(현재는 프론트가 플래너로 계산).
+- **집중 시간은 전부 플래너 실제 기록(kind 있음)에서 센다.** summary·weekly·daily·목표 진도의 `focusedSeconds`가 같은 출처라, 사용자가 플래너에서 기록을 고치면 모두 같이 바뀐다. 세션 저장(타이머·카메라)은 플래너에 실제 기록을 남기는 것으로 반영된다(분 단위, 1분 미만은 버림, 자정을 넘기면 다음 날로 나눔).
+- 손으로 넣은 기록(`manual`)도 집중 시간에 들어간다. 카메라 인증 기록(`verify`)은 시간을 못 바꾼다(`VERIFY_TIME_LOCKED`).
+- `verified`: `{ count, totalSeconds }` — 플래너의 `verify` 기록 수와 합(마이페이지 '인증 완료').
+- `targetMinutes`는 **오늘 플래너의 계획 시간 합계**(서버 계산).
 - `streakDays`는 **투두가 체크된 날**의 연속 일수. **연속·최고 기록은 서버가 계산해야 한다**(과거 전체 이력 필요).
 - 세션 저장: 스톱워치는 종료 시 한 건, 뽀모도로는 집중 25분마다 한 건(휴식 제외). 중복 저장 방지 수단 필요.
 - `weekly.hours`는 **월~일 7개**(시간 단위), `weekStart`는 그 주의 월요일.
-- 마이페이지 히트맵용 기간별 집중(`GET /focus/daily?from=&to=`)이 필요하다. 현재 하드코딩.
+- `daily`: 기록이 있는 날만 `{ days: [{ date, seconds }] }` (마이페이지 히트맵).
 
 ---
 
@@ -538,7 +544,7 @@ PATCH  /settings     # 바뀐 항목만
 |     | 결정할 것                                                     | 프론트                              |
 | --- | ------------------------------------------------------------- | ----------------------------------- |
 | 1   | 에러 응답 포맷 통일 (`code` / `message`)                      | ✅                                  |
-| 2   | **액세스 토큰 만료·갱신 정책** (리프레시 토큰 여부, 만료 시간) | 🔧 지금은 401이면 재로그인. 리프레시 도입 시 인터셉터 수정 |
+| 2   | **액세스 토큰 만료·갱신 정책** (리프레시 토큰 여부, 만료 시간) | ✅ 7일 토큰 + 슬라이딩 연장: 앱을 열거나 돌아올 때 발급 12시간이 지났으면 `/auth/refresh`. 7일 넘게 안 열면 401 → 재로그인 |
 | 3   | 사진 업로드 방식: multipart 직접 vs S3 presigned URL           | 🔧 presigned면 업로드 흐름 변경     |
 | 3-1 | **첨부 다운로드 경로** — 외부 도메인 직링크면 `Content-Disposition` 필요 (3.6) | ✅ `<a download>` 연결 완료 |
 | 3-2 | 사진 **썸네일 URL 분리** 여부 (`thumbnailUrl`)                 | ✅ 필드만 늘면 바로 사용            |

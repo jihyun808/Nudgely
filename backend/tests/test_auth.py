@@ -3,6 +3,8 @@
 import pytest
 from httpx import AsyncClient
 
+from app.core.config import settings
+from app.core.security import decode_access_token
 from tests.helpers import CONSENTS, auth, token_for
 
 SIGNUP = {"nickname": "지수", "email": "a@b.com", "password": "password123", **CONSENTS}
@@ -235,3 +237,23 @@ async def test_withdrawal_does_not_free_other_emails(client: AsyncClient):
         json={"nickname": "지수", "email": "other@b.com", "password": "password123", **CONSENTS},
     )
     assert res.status_code == 409
+
+
+async def test_refresh_issues_a_later_expiry(client: AsyncClient, monkeypatch):
+    """앱을 열 때마다 연장된다. 매일 쓰는 사람이 7일째에 로그아웃되지 않게."""
+    monkeypatch.setattr(settings, "access_token_expire_minutes", 60)  # 곧 만료될 토큰
+    token = await token_for(client, "refresh@b.com")
+    monkeypatch.setattr(settings, "access_token_expire_minutes", 60 * 24 * 7)
+
+    res = await client.post("/api/auth/refresh", headers=auth(token))
+
+    assert res.status_code == 200
+    new_token = res.json()["accessToken"]
+    assert decode_access_token(new_token)["exp"] > decode_access_token(token)["exp"]
+    assert (await client.get("/api/me", headers=auth(new_token))).status_code == 200
+
+
+async def test_refresh_needs_a_live_token(client: AsyncClient):
+    res = await client.post("/api/auth/refresh", headers={"Authorization": "Bearer nope"})
+
+    assert res.status_code == 401

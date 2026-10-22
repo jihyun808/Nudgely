@@ -42,6 +42,12 @@ export async function socialLogin(input: SocialLoginInput): Promise<AuthResult> 
   return data;
 }
 
+/** 아직 살아 있는 토큰을 새 토큰으로 바꾼다(만료를 다시 뒤로 민다) */
+export async function refreshToken(): Promise<string> {
+  const { data } = await api.post<{ accessToken: string }>('/auth/refresh');
+  return data.accessToken;
+}
+
 /** 로그아웃. 서버가 세션을 정리한다 */
 export async function signout(): Promise<void> {
   await api.post('/auth/logout');

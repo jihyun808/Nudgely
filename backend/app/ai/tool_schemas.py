@@ -248,4 +248,35 @@ TOOL_SCHEMAS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "remember",
+            "description": (
+                "다음 대화에도 알아야 할 사용자에 대한 사실을 이 방의 기억 노트에 한 줄 "
+                "덧붙인다(생활 패턴, 선호, 사정, 시험 날짜 등). 투두·진도·기한·반복 계획·"
+                "플래너는 남기지 않는다 — 따로 저장된다. 사용자는 설정에서 이 노트를 본다."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"note": {"type": "string", "description": "남길 한 줄. 짧게."}},
+                "required": ["note"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "forget",
+            "description": (
+                "사용자가 잊어 달라고 하거나 사실이 바뀌었을 때, 기억 노트에서 그 내용이 "
+                "들어 있는 줄을 지운다."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"text": {"type": "string", "description": "지울 줄에 들어 있는 말"}},
+                "required": ["text"],
+            },
+        },
+    },
 ]

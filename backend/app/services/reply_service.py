@@ -60,6 +60,8 @@ MAX_BUBBLES = 5
 MAX_QUICK_REPLIES = 4
 #: 버튼에 들어갈 글자 수 상한. 길면 칩이 줄바꿈되며 읽기 어려워진다.
 MAX_QUICK_REPLY_LENGTH = 20
+#: 도구 결과를 기록할 때 자르는 길이. 다음 턴마다 실리므로 짧게 둔다
+TOOL_LOG_RESULT_MAX = 200
 
 #: 프롬프트가 약속한 선택지 표기. 마지막 줄에 "[선택: 추가해줘 / 아니]" 로 적는다.
 _CHOICE_RE = re.compile(r"\n?\s*\[선택:\s*(?P<options>[^\]]+)\]\s*$")
@@ -179,9 +181,15 @@ async def _generate(
 
         was_completed = goal.completed_at is not None  # 이번 턴 완주 감지용
 
+        tool_log: list[str] = []
+
         async def _dispatch(name: str, arguments: dict) -> str:
             # AI 도구 호출 → 실제 동작(투두·플래너·마일스톤·진도·완주 처리)
-            return await dispatch_tool_call(db, goal, name, arguments)
+            result = await dispatch_tool_call(db, goal, name, arguments)
+            # 조회(list_*)는 바뀐 게 없어 남기지 않는다
+            if not name.startswith("list_"):
+                tool_log.append(f"{name}: {result[:TOOL_LOG_RESULT_MAX]}")
+            return result
 
         full = ""
         try:
@@ -227,6 +235,7 @@ async def _generate(
                     # 같은 순간에 만들면 (created_at, id) 정렬에서 순서가 섞인다.
                     # 1ms 씩 띄워 보낸 순서를 보존한다.
                     created_at=now + timedelta(milliseconds=index),
+                    tool_log="\n".join(tool_log) if index == 0 and tool_log else None,
                 )
             )
         db.add_all(saved)

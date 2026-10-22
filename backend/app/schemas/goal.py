@@ -12,6 +12,8 @@ from app.schemas.common import CamelModel, UtcDatetime
 NAME_MAX = 10
 TITLE_MAX = 50
 PROMPT_MAX = 500
+#: AI 가 기억할 것. 매 턴 실리므로 프롬프트와 같은 선에서 막는다
+MEMORY_MAX = 500
 PERSONAS = ("teacher", "instructor", "friend")
 
 
@@ -43,6 +45,7 @@ class GoalDetailOut(GoalOut):
     """목표 상세 (설정 화면). Goal + 설정용 필드."""
 
     prompt: str | None = None
+    memory: str | None = None
     persona: str | None = None
     due_date: date | None = None
     is_notification_muted: bool = False
@@ -58,6 +61,7 @@ class UpdateGoalIn(CamelModel):
     name: str | None = Field(default=None, min_length=1, max_length=NAME_MAX)
     title: str | None = Field(default=None, max_length=TITLE_MAX)
     prompt: str | None = Field(default=None, max_length=PROMPT_MAX)
+    memory: str | None = Field(default=None, max_length=MEMORY_MAX)
     persona: str | None = None
     due_date: date | None = None
     # 사용자가 직접 고치는 진도. AI 가 set_progress 로 잘못 세웠을 때 바로잡는 길이다.

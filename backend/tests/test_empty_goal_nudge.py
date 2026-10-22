@@ -145,3 +145,34 @@ async def test_writer_gets_what_is_missing(client: AsyncClient, session_factory)
 
     assert seen[0].kind == "no_plan"
     assert seen[0].remaining == ["1강 듣기"]
+
+
+async def test_no_nudge_once_everything_is_done(client: AsyncClient, session_factory):
+    """오전에 다 끝냈으면 12시·5시에 '오늘 뭐 할래?' 를 보내지 않는다."""
+    goal_id = await create_goal(client, await token_for(client, "done@b.com"))
+    async with session_factory() as db:
+        goal = await db.get(Goal, goal_id)
+        todo = await create_daily_todo(db, goal, ON, [{"content": "1강 듣기"}])
+        todo.items[0].is_done = True
+        await db.commit()
+
+    assert await _run(session_factory, _kst(12)) == 0
+    assert await _run(session_factory, _kst(17)) == 0
+
+
+async def test_no_nudge_right_after_the_user_talked(client: AsyncClient, session_factory):
+    """한 시간 안에 그 방에서 말했으면 이미 하고 있는 사람이다."""
+    goal_id = await create_goal(client, await token_for(client, "talk@b.com"))
+    async with session_factory() as db:
+        db.add(
+            Message(
+                goal_id=goal_id,
+                role="user",
+                content="지금 하는 중",
+                created_at=_kst(12) - timedelta(minutes=30),
+            )
+        )
+        await db.commit()
+
+    assert await _run(session_factory, _kst(12)) == 0
+    assert await _run(session_factory, _kst(17)) == 1

@@ -89,8 +89,11 @@ export const useFocusStore = create<FocusState>((set, get) => ({
 
   setTodayFocusedSeconds: (seconds) => set({ todayFocusedSeconds: seconds }),
 
+  // 서버는 플래너 기록(분 단위)으로 센다. 화면에서도 같은 값이 나오게 분으로 내려 더한다
   addTodayFocusedSeconds: (seconds) =>
-    set((state) => ({ todayFocusedSeconds: state.todayFocusedSeconds + seconds })),
+    set((state) => ({
+      todayFocusedSeconds: state.todayFocusedSeconds + Math.floor(seconds / 60) * 60,
+    })),
 
   celebrate: () => set({ hasCelebrated: true, isCelebrating: true }),
 

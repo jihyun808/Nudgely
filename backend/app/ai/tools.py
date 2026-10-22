@@ -19,6 +19,7 @@ from app.core.timezones import day_bounds, local_now, zone_of
 from app.models.goal import Goal
 from app.models.todo import Todo, TodoItem
 from app.models.user import UserSettings
+from app.schemas.goal import MEMORY_MAX
 from app.services.goal_service import set_progress, set_routine
 from app.services.notification_service import create_notification
 from app.services.planner_service import add_block
@@ -309,6 +310,31 @@ async def _dispatch(db: AsyncSession, goal: Goal, name: str, arguments: dict) ->
         goal.nudge_snoozed_until = day_bounds(today, zone)[1]  # 사용자 자정(UTC)
         await db.commit()
         return "오늘 남은 시간 동안 이 목표의 선톡을 멈춘다. 내일 다시 켜진다."
+
+    if name == "remember":
+        note = _req_text(arguments.get("note"), "note", max_len=100)
+        lines = (goal.memory or "").splitlines()
+        if note in lines:
+            return "이미 기억하고 있다."
+        memory = "\n".join([*lines, note]).strip()
+        if len(memory) > MEMORY_MAX:
+            return (
+                f"기억 노트가 가득 찼다({MEMORY_MAX}자). 남기지 못했다. "
+                "사용자에게 채팅방 설정에서 오래된 내용을 정리해 달라고 해라."
+            )
+        goal.memory = memory
+        await db.commit()
+        return f"기억 노트에 남겼다: {note}"
+
+    if name == "forget":
+        text = _req_text(arguments.get("text"), "text", max_len=100)
+        lines = (goal.memory or "").splitlines()
+        kept = [line for line in lines if text not in line]
+        if len(kept) == len(lines):
+            return "기억 노트에 그런 내용이 없다."
+        goal.memory = "\n".join(kept).strip() or None
+        await db.commit()
+        return f"기억 노트에서 {len(lines) - len(kept)}줄을 지웠다."
 
     return f"알 수 없는 도구: {name}"
 
