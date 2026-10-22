@@ -6,7 +6,7 @@ import { router } from '@/routes';
 import { showToast } from '@/stores/toastStore';
 
 /** 여기서 뒤로 가면 앱을 나간다(하단 탭 화면·로그인 전 첫 화면) */
-const ROOT_PATHS = ['/home', '/chat', '/focus', '/verify', '/record', '/my', '/landing', '/signin'];
+const ROOT_PATHS = ['/home', '/chat', '/focus', '/record', '/my', '/landing', '/signin'];
 const EXIT_WINDOW_MS = 2000;
 let lastRootBackAt = 0;
 

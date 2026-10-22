@@ -1,7 +1,6 @@
 // pages/verify/Verify.tsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '@/components/Modal';
-import PageHeader from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import FocusGoalPicker from '@/pages/focus/components/FocusGoalPicker';
 import ConsentModal from '@/pages/verify/components/ConsentModal';
@@ -28,7 +27,13 @@ function storeSkipConsent(): void {
   }
 }
 
-export default function Verify() {
+interface CameraVerifyProps {
+  /** 카메라가 켜져 있는지 알린다. 켜진 동안 집중 탭이 타이머로 못 넘어가게 잠근다 */
+  onLiveChange?: (isLive: boolean) => void;
+}
+
+/** 카메라 집중 인증. 집중 탭 안에서 '카메라' 를 고르면 보인다 */
+export default function CameraVerify({ onLiveChange }: CameraVerifyProps) {
   const [goalId, setGoalId] = useState<string>();
   const [isConsentOpen, setIsConsentOpen] = useState(false);
   const {
@@ -48,10 +53,12 @@ export default function Verify() {
 
   const isLive = phase === 'running' || phase === 'preparing';
 
-  return (
-    <div>
-      <PageHeader title="카메라" />
+  useEffect(() => {
+    onLiveChange?.(isLive);
+  }, [isLive, onLiveChange]);
 
+  return (
+    <div className="mt-4">
       <FocusGoalPicker value={goalId} onChange={setGoalId} disabled={isLive} />
 
       {error && (
