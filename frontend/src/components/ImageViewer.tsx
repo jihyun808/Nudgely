@@ -1,5 +1,6 @@
 // components/ImageViewer.tsx
 import { useEffect } from 'react';
+import { useCloseOnBack } from '@/lib/closeOnBack';
 
 interface ImageViewerProps {
   src: string;
@@ -17,6 +18,7 @@ interface ImageViewerProps {
  * 채팅방과 모아보기가 같은 뷰어를 쓴다.
  */
 export default function ImageViewer({ src, alt, fileName, onClose }: ImageViewerProps) {
+  useCloseOnBack(onClose);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();

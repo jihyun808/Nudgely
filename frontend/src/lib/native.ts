@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { isAuthenticated } from '@/lib/auth';
+import { listenBackButton } from '@/lib/backButton';
 import { enablePush } from '@/lib/push';
 import { refreshSession } from '@/lib/session';
 
@@ -48,6 +49,9 @@ export async function bootstrapNative(): Promise<void> {
     root.style.setProperty('--kb', '0px');
     delete root.dataset.keyboard;
   });
+
+  // 안드로이드 뒤로가기: 팝업 닫기 → 이전 화면 → (탭 화면에서) 두 번 눌러 종료
+  await listenBackButton();
 
   // 앱은 껐다 켜지 않고 며칠씩 백그라운드에 있다. 돌아올 때도 로그인을 이어 간다
   await App.addListener('resume', () => void refreshSession());
