@@ -46,6 +46,7 @@ GET  /auth/email-available?email=   → { "isAvailable": false }
 POST /auth/password        { currentPassword, newPassword }  → 204
 POST /auth/password/reset  { email }                          → 204
 POST /auth/logout                                             → 204
+POST /auth/refresh   (살아 있는 토큰)                          → { accessToken }  // 만료를 다시 7일 뒤로
 ```
 
 - 가입하면 **곧바로 로그인 상태**가 된다.
@@ -103,7 +104,7 @@ GET /goals/{goalId}        # 단건 → GoalDetail
 
 - **숨긴 목표는 기본 목록에서 제외**한다.
 - 정렬·검색은 프론트가 처리한다.
-- `GoalDetail` = `Goal` + `prompt`, `persona`, `dueDate`, `isNotificationMuted`, `isHidden`, `completedAt`
+- `GoalDetail` = `Goal` + `prompt`, `memory`, `persona`, `dueDate`, `isNotificationMuted`, `isHidden`, `completedAt`
 - ✅ **`progress` 스키마 확정** — `{ current, total, unit }` (셋 다 필수, 없으면 `progress` 자체가 `null`).
   - `unit`: 세는 단위를 AI가 대화에서 정한다. 예: `강` / `페이지` / `회차`
   - `total`·`unit`은 **AI가 `set_progress` 툴로** 세운다 (목표를 파악한 뒤, 보통 첫 대화).
@@ -122,7 +123,7 @@ DELETE /goals/{goalId}/messages   → 204   # 대화만 삭제
 DELETE /goals/{goalId}            → 204
 ```
 
-`PATCH` 대상: `name`(1~10자) · `title`(0~50자) · `prompt`(0~500자) · `persona` · `image` · `dueDate` · `isNotificationMuted` · `isHidden`
+`PATCH` 대상: `name`(1~10자) · `title`(0~50자) · `prompt`(0~500자) · `memory`(0~500자, AI가 기억할 것 — AI도 `remember`/`forget` 도구로 고친다) · `persona` · `image` · `dueDate` · `isNotificationMuted` · `isHidden`
 
 **화면 동작 ↔ 엔드포인트** — 숨기기·되돌리기는 전용 엔드포인트가 아니라 `isHidden` 토글이다. 별도 API로 착각하기 쉬워 표로 정리한다.
 
@@ -543,7 +544,7 @@ PATCH  /settings     # 바뀐 항목만
 |     | 결정할 것                                                     | 프론트                              |
 | --- | ------------------------------------------------------------- | ----------------------------------- |
 | 1   | 에러 응답 포맷 통일 (`code` / `message`)                      | ✅                                  |
-| 2   | **액세스 토큰 만료·갱신 정책** (리프레시 토큰 여부, 만료 시간) | 🔧 지금은 401이면 재로그인. 리프레시 도입 시 인터셉터 수정 |
+| 2   | **액세스 토큰 만료·갱신 정책** (리프레시 토큰 여부, 만료 시간) | ✅ 7일 토큰 + 슬라이딩 연장: 앱을 열거나 돌아올 때 발급 12시간이 지났으면 `/auth/refresh`. 7일 넘게 안 열면 401 → 재로그인 |
 | 3   | 사진 업로드 방식: multipart 직접 vs S3 presigned URL           | 🔧 presigned면 업로드 흐름 변경     |
 | 3-1 | **첨부 다운로드 경로** — 외부 도메인 직링크면 `Content-Disposition` 필요 (3.6) | ✅ `<a download>` 연결 완료 |
 | 3-2 | 사진 **썸네일 URL 분리** 여부 (`thumbnailUrl`)                 | ✅ 필드만 늘면 바로 사용            |
