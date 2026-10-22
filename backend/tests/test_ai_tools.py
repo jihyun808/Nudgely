@@ -210,6 +210,43 @@ async def test_chat_dispatches_tool_and_streams(client: AsyncClient):
         app.dependency_overrides.pop(get_reply_streamer, None)
 
 
+class _RecordingStreamer(_ToolStreamer):
+    """받은 히스토리를 남겨 두는 가짜 스트리머."""
+
+    histories: list[list[tuple[str, str]]] = []
+
+    async def stream(self, *, dispatch=None, history=(), **kwargs) -> AsyncIterator[str]:
+        _RecordingStreamer.histories.append(list(history))
+        async for c in super().stream(dispatch=dispatch, **kwargs):
+            yield c
+
+
+async def test_next_turn_sees_day_marker_and_tool_result(client: AsyncClient):
+    """다음 턴 AI 는 날짜 구분선과, 지난 답에서 실제로 실행된 도구 결과를 본다."""
+    _RecordingStreamer.histories = []
+    first = _RecordingStreamer(
+        [("create_todos", {"date": "2026-08-03", "items": [{"content": "3강"}]})], ["넣었어"]
+    )
+    second = _RecordingStreamer([], ["응"])
+    streamers = iter([first, second])
+    app.dependency_overrides[get_reply_streamer] = lambda: next(streamers)
+    try:
+        token = await token_for(client)
+        goal_id = await _make_goal(client, token)
+        for text in ("3강 넣어줘", "넣었어?"):
+            await client.post(
+                f"/api/goals/{goal_id}/messages", headers=auth(token), json={"content": text}
+            )
+    finally:
+        app.dependency_overrides.pop(get_reply_streamer, None)
+
+    history = _RecordingStreamer.histories[-1]
+    assert history[0][0] == "system" and "대화 ──" in history[0][1]
+    tool_notes = [c for r, c in history if r == "system" and "[도구 결과" in c]
+    assert len(tool_notes) == 1
+    assert "create_todos:" in tool_notes[0]
+
+
 # ── 알림 이동 대상 ──
 
 

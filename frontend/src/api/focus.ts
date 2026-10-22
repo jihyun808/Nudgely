@@ -1,19 +1,7 @@
 // api/focus.ts
 import api from './axios';
 import type { FocusSessionInput, FocusSummary } from '@/types/focus';
-import { formatDateKey } from '@/utils/date';
-
-const DAY = 24 * 60 * 60 * 1000;
-
-/** weekOffset 주의 월요일. 0이면 이번 주, -1이면 지난 주 */
-function getWeekStart(weekOffset: number) {
-  const today = new Date();
-  // 월요일을 0으로 두는 요일 인덱스
-  const todayIndex = (today.getDay() + 6) % 7;
-  const monday = new Date(today.getTime() - todayIndex * DAY);
-  monday.setHours(0, 0, 0, 0);
-  return new Date(monday.getTime() + weekOffset * 7 * DAY);
-}
+import { formatDateKey, getWeekStart } from '@/utils/date';
 
 /**
  * 오늘의 집중 요약 조회.
@@ -56,6 +44,17 @@ export async function fetchDailyFocus(from: string, to: string): Promise<Record<
     params: { from, to },
   });
   return Object.fromEntries(data.days.map(({ date, seconds }) => [date, seconds]));
+}
+
+/** 카메라로 인증된 집중 (마이페이지 '인증 완료') */
+export interface VerifiedFocus {
+  count: number;
+  totalSeconds: number;
+}
+
+export async function fetchVerifiedFocus(): Promise<VerifiedFocus> {
+  const { data } = await api.get<VerifiedFocus>('/focus/verified');
+  return data;
 }
 
 /**

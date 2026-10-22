@@ -123,11 +123,33 @@ def test_prompt_injection_defense():
     assert wrapped and wrapped[0]["role"] == "system"
     assert "해적" in wrapped[0]["content"]
 
-    # 4) 히스토리는 맨 끝에 순서대로
-    assert msgs[-2:] == [
+    # 4) 히스토리는 순서대로, 그 뒤에 '지금 기록 상태' 가 마지막으로 붙는다
+    assert msgs[-3:-1] == [
         {"role": "user", "content": "안녕"},
         {"role": "assistant", "content": "응 반가워"},
     ]
+    assert "지금 기록 상태" in msgs[-1]["content"]
+
+
+def test_state_snapshot_comes_last_with_records():
+    """오늘 투두·계획은 서버가 읽은 사실로, 대화 뒤에 붙는다(지난 말보다 앞서게)."""
+    msgs = build_chat_messages(
+        persona=None,
+        user_prompt=None,
+        goal_title="듀오링고",
+        history=[("assistant", "오늘 1강 체크했어!"), ("user", "체크 왜 안 해줘")],
+        today=date(2026, 10, 16),
+        state=prompts.GoalState(
+            todo_items=[("1강", False)], plan_lines=["15:00~15:30 1강"], is_snoozed=True
+        ),
+    )
+
+    last = msgs[-1]["content"]
+    assert msgs[-1]["role"] == "system"
+    assert "2026-10-16(금)" in last
+    assert "1강(안 함)" in last
+    assert "15:00~15:30 1강" in last
+    assert "멈춘 상태" in last
 
 
 async def test_retry_with_same_client_id_does_not_duplicate(client: AsyncClient):

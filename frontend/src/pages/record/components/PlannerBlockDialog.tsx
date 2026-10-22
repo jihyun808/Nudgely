@@ -46,6 +46,8 @@ export default function PlannerBlockDialog({
   // 기준 시각은 10분 단위로 내려가므로(14:45 → 14:40) 방금 끝난 집중처럼
   // 그 사이에서 끝난 블록은 자기 끝시각이 목록에서 빠진다. 그 한 칸만 열어둔다.
   const rangeEnd = Math.max(Math.min(endHour * 60, maxMinutes), blockEnd);
+  // 카메라 인증 기록은 시간을 못 바꾼다 — 늘릴 수 있으면 인증이 아니다
+  const isTimeLocked = block?.kind === 'verify';
 
   const [title, setTitle] = useState(block?.title ?? '');
   const [startMinutes, setStartMinutes] = useState(block?.startMinutes ?? defaultStartMinutes);
@@ -54,13 +56,25 @@ export default function PlannerBlockDialog({
   );
 
   // 시작은 마지막 한 칸을 뺀 범위, 종료는 시작 다음 칸부터 고를 수 있다
-  const startOptions = buildTimeOptions(rangeStart, rangeEnd - PLANNER_BLOCK_MINUTES);
-  const endOptions = buildTimeOptions(startMinutes + PLANNER_BLOCK_MINUTES, rangeEnd);
+  const startOptions = buildTimeOptions(
+    rangeStart,
+    rangeEnd - PLANNER_BLOCK_MINUTES,
+    block?.startMinutes,
+  );
+  const endOptions = buildTimeOptions(
+    startMinutes + PLANNER_BLOCK_MINUTES,
+    rangeEnd,
+    block && blockEnd > startMinutes ? blockEnd : undefined,
+  );
 
   const handleChangeStart = (next: number) => {
     setStartMinutes(next);
-    // 시작이 종료를 넘어서면 종료를 한 칸 뒤로 밀어준다
-    if (next >= endMinutes) setEndMinutes(next + PLANNER_BLOCK_MINUTES);
+    // 종료가 한 칸도 안 남으면 다음 눈금으로 밀어준다
+    if (next + PLANNER_BLOCK_MINUTES > endMinutes) {
+      setEndMinutes(
+        Math.ceil((next + PLANNER_BLOCK_MINUTES) / PLANNER_BLOCK_MINUTES) * PLANNER_BLOCK_MINUTES,
+      );
+    }
   };
 
   return (
@@ -95,6 +109,7 @@ export default function PlannerBlockDialog({
           <Select
             id="planner-start"
             value={startMinutes}
+            disabled={isTimeLocked}
             onChange={(e) => handleChangeStart(Number(e.target.value))}
           >
             {startOptions.map(({ value, label }) => (
@@ -112,6 +127,7 @@ export default function PlannerBlockDialog({
           <Select
             id="planner-end"
             value={endMinutes}
+            disabled={isTimeLocked}
             onChange={(e) => setEndMinutes(Number(e.target.value))}
           >
             {endOptions.map(({ value, label }) => (
@@ -124,7 +140,9 @@ export default function PlannerBlockDialog({
       </div>
 
       <p className="mt-2 text-xs text-muted-foreground">
-        {endMinutes - startMinutes}분 ({(endMinutes - startMinutes) / PLANNER_BLOCK_MINUTES}블록)
+        {isTimeLocked
+          ? '카메라로 인증한 기록은 시간을 바꿀 수 없어요.'
+          : `${endMinutes - startMinutes}분 (${Math.floor((endMinutes - startMinutes) / PLANNER_BLOCK_MINUTES)}블록)`}
       </p>
     </FormDialog>
   );

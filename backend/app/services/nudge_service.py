@@ -14,6 +14,11 @@
 
 같은 블록에 두 번 보내지 않도록 Notification.ref 에 표식을 남긴다
 ("plan_start:plb_01H"). 스케줄러가 10분마다 도니까 이게 없으면 계속 보낸다.
+
+보내지 않는 때(알아서 조용해진다 — 토글을 매번 만지게 하지 않는다):
+- 오늘 할 일을 다 끝냈다. 오전에 끝낸 사람에게 5시에 묻지 않는다.
+- 그 방에서 최근 1시간 안에 사용자가 말했다. 이미 하고 있는 사람이다.
+- 알림을 껐거나(설정) "오늘은 그만" 이라고 했다(send_nudge 가 막는다).
 """
 
 import logging
@@ -25,7 +30,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezones import day_bounds, local_now, zone_of
-from app.models.goal import Goal
+from app.models.goal import Goal, Message
 from app.models.notification import Notification
 from app.models.planner import Planner, PlannerBlock
 from app.models.todo import Todo, TodoItem
@@ -49,6 +54,9 @@ TICK_MINUTES = 10
 #: 정작 필요한 선톡이 막힌다. 폭주만 막는 선으로 둔다.
 #: (대화 답변 푸시는 알림 행을 만들지 않으므로 여기 세어지지 않는다)
 MAX_NUDGES_PER_GOAL_PER_DAY = 10
+
+#: 그 방에서 사용자가 이 안에 말했으면 선톡하지 않는다.
+RECENT_CHAT_MINUTES = 60
 
 
 @dataclass
@@ -113,14 +121,29 @@ async def _nudges_today(db: AsyncSession, goal_id: str, on: date, zone) -> int:
     )
 
 
-async def _remaining_items(db: AsyncSession, goal_id: str, on: date) -> list[str]:
-    """오늘 아직 안 끝낸 할 일들. 조건 판단과 문구 재료를 겸한다."""
+async def _today_items(db: AsyncSession, goal_id: str, on: date) -> list[TodoItem]:
     todo = (
         await db.execute(select(Todo).where(Todo.goal_id == goal_id, Todo.date == on))
     ).scalar_one_or_none()
-    if todo is None:
-        return []
-    return [item.content for item in todo.items if not item.is_done]
+    return list(todo.items) if todo is not None else []
+
+
+def _all_done(items: list[TodoItem]) -> bool:
+    """오늘 할 일이 있고 전부 끝났다. 할 일이 아예 없는 것과는 다르다."""
+    return bool(items) and all(item.is_done for item in items)
+
+
+async def _chatted_recently(db: AsyncSession, goal_id: str, now_utc: datetime) -> bool:
+    row = await db.execute(
+        select(Message.id)
+        .where(
+            Message.goal_id == goal_id,
+            Message.role == "user",
+            Message.created_at >= now_utc - timedelta(minutes=RECENT_CHAT_MINUTES),
+        )
+        .limit(1)
+    )
+    return row.first() is not None
 
 
 def _is_due(target_minutes: int, now_minutes: int) -> bool:
@@ -220,7 +243,12 @@ async def run_empty_goal_nudges(
         )
 
         for goal in goals:
-            remaining = await _remaining_items(db, goal.id, on)
+            items = await _today_items(db, goal.id, on)
+            # 다 끝낸 날은 할 일이 '비어 있는' 게 아니다. 예전엔 둘을 구분 못 해서
+            # 오전에 다 끝낸 사람에게 12시·5시에 "오늘 뭐 할래?" 를 보냈다
+            if _all_done(items) or await _chatted_recently(db, goal.id, now_utc):
+                continue
+            remaining = [item.content for item in items if not item.is_done]
             if not remaining:
                 kind = "no_todo"
             elif not await _has_plan(db, goal.id, user.id, on):
@@ -277,7 +305,10 @@ async def run_plan_nudges(
             goal = await db.get(Goal, block.goal_id)
             if goal is None:
                 continue
-            remaining = await _remaining_items(db, goal.id, on)
+            items = await _today_items(db, goal.id, on)
+            if _all_done(items) or await _chatted_recently(db, goal.id, now_utc):
+                continue
+            remaining = [item.content for item in items if not item.is_done]
             # 끝나고 나서 묻는 건 아직 할 일이 남았을 때만 의미가 있다
             if kind == "plan_end" and not remaining:
                 continue

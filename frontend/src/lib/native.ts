@@ -1,10 +1,12 @@
 // lib/native.ts
 // Capacitor 안에서만 하는 초기화. 브라우저에서는 전부 건너뛴다.
+import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Keyboard } from '@capacitor/keyboard';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { isAuthenticated } from '@/lib/auth';
 import { enablePush } from '@/lib/push';
+import { refreshSession } from '@/lib/session';
 
 export async function bootstrapNative(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
@@ -46,6 +48,9 @@ export async function bootstrapNative(): Promise<void> {
     root.style.setProperty('--kb', '0px');
     delete root.dataset.keyboard;
   });
+
+  // 앱은 껐다 켜지 않고 며칠씩 백그라운드에 있다. 돌아올 때도 로그인을 이어 간다
+  await App.addListener('resume', () => void refreshSession());
 
   // 토큰이 바뀌었을 수 있어 열 때마다 확인한다
   if (isAuthenticated()) await enablePush();

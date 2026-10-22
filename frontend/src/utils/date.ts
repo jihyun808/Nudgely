@@ -122,3 +122,17 @@ export function isSameMinute(isoA: string, isoB: string) {
     isSameDay(isoA, isoB) && a.getHours() === b.getHours() && a.getMinutes() === b.getMinutes()
   );
 }
+
+/** 월요일을 0으로 두는 요일 인덱스 */
+export function getWeekdayIndex(date: Date = new Date()) {
+  return (date.getDay() + 6) % 7;
+}
+
+/** weekOffset 주의 월요일 0시. 0이면 이번 주, -1이면 지난 주 */
+export function getWeekStart(weekOffset: number, today: Date = new Date()) {
+  return new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() - getWeekdayIndex(today) + weekOffset * 7,
+  );
+}

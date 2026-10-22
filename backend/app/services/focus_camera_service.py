@@ -19,11 +19,11 @@ import logging
 from datetime import UTC, datetime
 from itertools import groupby
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.errors import AppError
-from app.core.timezones import as_utc, zone_of
+from app.core.timezones import as_utc
 from app.models.focus import (
     FOCUS_CHECK_STATUSES,
     FocusCheckSample,
@@ -34,7 +34,7 @@ from app.models.notification import Notification
 from app.models.user import UserSettings
 from app.schemas.focus import CameraSessionOut, FocusCheckIn
 from app.services.notification_service import send_nudge, should_notify
-from app.services.planner_service import add_block
+from app.services.planner_service import record_session, verified_minutes
 from app.services.push_service import push_in_background
 
 logger = logging.getLogger(__name__)
@@ -218,26 +218,15 @@ async def _finish(
     session.focus_score = score
     session.verified = score >= VERIFY_MIN_SCORE
 
-    # 인증된 집중은 플래너 '실제' 열에 verify 기록으로 남긴다(마이페이지 '인증 완료' 집계).
-    if session.verified and seconds >= 60:
-        settings = await db.get(UserSettings, user_id)
-        zone = zone_of(settings.timezone if settings else None)
-        local = as_utc(session.started_at).astimezone(zone)
-        title = "집중 인증"
-        if session.goal_id:
-            goal = await db.get(Goal, session.goal_id)
-            if goal is not None:
-                title = goal.title or goal.name
-        await add_block(
-            db,
-            user_id,
-            local.date(),
-            title=title,
-            start_minutes=local.hour * 60 + local.minute,
-            duration_minutes=seconds // 60,
-            kind="verify",
-            goal_id=session.goal_id,
-        )
+    # 플래너 실제 기록이 집중 시간의 출처다. 인증 못 받은 세션도 집중한 시간은 남긴다
+    await record_session(
+        db,
+        user_id,
+        started_at=session.started_at,
+        seconds=seconds,
+        kind="verify" if session.verified else "focus",
+        goal_id=session.goal_id,
+    )
 
     await db.commit()
     return CameraSessionOut(
@@ -306,17 +295,6 @@ async def resume_camera_session(db: AsyncSession, user_id: str, session_id: str)
 
 
 async def verified_summary(db: AsyncSession, user_id: str) -> tuple[int, int]:
-    """카메라로 인증된 집중 세션의 (횟수, 총 집중 초). 마이페이지 '인증 완료'."""
-    row = (
-        await db.execute(
-            select(
-                func.count(),
-                func.coalesce(func.sum(FocusSession.seconds), 0),
-            ).where(
-                FocusSession.user_id == user_id,
-                FocusSession.source == "camera",
-                FocusSession.verified.is_(True),
-            )
-        )
-    ).one()
-    return int(row[0]), int(row[1])
+    """카메라로 인증된 기록의 (횟수, 총 초). 마이페이지 '인증 완료'."""
+    count, minutes = await verified_minutes(db, user_id)
+    return count, minutes * 60

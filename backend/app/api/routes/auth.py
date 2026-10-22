@@ -138,6 +138,17 @@ async def logout(_: User = Depends(get_current_user)) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/refresh", response_model=AccessTokenOut)
+async def refresh(user: User = Depends(get_current_user)) -> AccessTokenOut:
+    """아직 살아 있는 토큰을 새 토큰으로 바꿔 준다(만료를 다시 7일 뒤로).
+
+    앱은 열 때마다 부른다. 안 그러면 매일 쓰는 사람도 로그인한 지 7일이 되면
+    갑자기 로그아웃된다. 이미 만료됐거나 비밀번호를 바꿔 죽은 토큰은
+    get_current_user 에서 401 이라 연장되지 않는다.
+    """
+    return AccessTokenOut(access_token=create_access_token(user.id, user.token_version))
+
+
 @router.post("/password", response_model=AccessTokenOut)
 async def change_password(
     body: ChangePasswordIn,

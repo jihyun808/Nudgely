@@ -23,7 +23,7 @@ from sqlalchemy import delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.ai.attachments import AttachmentContent, load_attachment
-from app.ai.prompts import GoalState, today_for
+from app.ai.prompts import GoalState, day_label, plan_line, today_for
 from app.ai.streaming import ReplyStreamer, get_reply_streamer
 from app.api.deps import get_current_user
 from app.core.db import get_db, get_session_factory
@@ -35,6 +35,7 @@ from app.core.storage import (
     save_upload,
     storage_root,
 )
+from app.core.timezones import as_utc, zone_of
 from app.models.attachment import Attachment
 from app.models.goal import Goal, Message, ReadState
 from app.models.planner import Planner, PlannerBlock
@@ -231,6 +232,8 @@ async def update_goal(
         goal.title = body.title.strip() or None
     if body.prompt is not None:
         goal.prompt = body.prompt.strip() or None
+    if body.memory is not None:
+        goal.memory = body.memory.strip() or None
     # null 을 보내면 '선택 안 함' 으로 되돌린다(기한과 같은 방식).
     # is not None 으로 보면 지울 수가 없어 설정 화면의 '선택 안 함' 이 먹지 않는다.
     if "persona" in body.model_fields_set:
@@ -385,6 +388,25 @@ async def _find_by_client_id(
     ).scalar_one_or_none()
 
 
+def _history_for_ai(messages: list[Message], zone) -> list[tuple[str, str]]:
+    """AI 에 넘길 히스토리. 날이 바뀌는 곳에 날짜 구분선을, 도구를 쓴 답 뒤에 그 결과를 끼운다.
+
+    날짜가 없으면 어제 "오늘 1강 체크했어" 라고 한 말을 오늘 일로 읽는다.
+    도구 결과가 없으면 자기가 한 말만 보고 저장됐다고 믿고, 실패 이유를 지어낸다.
+    """
+    history: list[tuple[str, str]] = []
+    last_day = None
+    for m in messages:
+        day = as_utc(m.created_at).astimezone(zone).date()
+        if day != last_day:
+            history.append(("system", f"── {day_label(day)} 대화 ──"))
+            last_day = day
+        history.append((m.role, m.content))
+        if m.tool_log:
+            history.append(("system", f"[도구 결과: 위 답에서 실제로 실행된 것]\n{m.tool_log}"))
+    return history
+
+
 async def _goal_state(db: AsyncSession, goal: Goal, today: date) -> GoalState:
     """지금 대화가 어느 단계인지 판단할 사실들을 모은다(prompts._stage_line 이 쓴다)."""
     progress = goal.progress or {}
@@ -394,21 +416,25 @@ async def _goal_state(db: AsyncSession, goal: Goal, today: date) -> GoalState:
         await db.execute(select(Todo).where(Todo.goal_id == goal.id, Todo.date == today))
     ).scalar_one_or_none()
 
-    plan = (
-        await db.execute(
-            select(PlannerBlock.id)
-            .join(Planner, PlannerBlock.planner_id == Planner.id)
-            .where(
-                Planner.user_id == goal.user_id,
-                Planner.date == today,
-                # 이 목표의 계획만 본다. 다른 목표에 시간을 잡아 뒀다고
-                # 이 목표까지 '계획 있음' 으로 보면 시간 잡기를 건너뛴다.
-                PlannerBlock.goal_id == goal.id,
-                PlannerBlock.kind.is_(None),  # 계획 블록만(실제 기록 말고)
+    plans = (
+        (
+            await db.execute(
+                select(PlannerBlock)
+                .join(Planner, PlannerBlock.planner_id == Planner.id)
+                .where(
+                    Planner.user_id == goal.user_id,
+                    Planner.date == today,
+                    # 이 목표의 계획만 본다. 다른 목표에 시간을 잡아 뒀다고
+                    # 이 목표까지 '계획 있음' 으로 보면 시간 잡기를 건너뛴다.
+                    PlannerBlock.goal_id == goal.id,
+                    PlannerBlock.kind.is_(None),  # 계획 블록만(실제 기록 말고)
+                )
+                .order_by(PlannerBlock.start_minutes)
             )
-            .limit(1)
         )
-    ).scalar_one_or_none()
+        .scalars()
+        .all()
+    )
 
     routines = await routines_of(db, goal.id)
     today_routines = [r for r in routines if routine_applies_today(r, today)]
@@ -429,10 +455,15 @@ async def _goal_state(db: AsyncSession, goal: Goal, today: date) -> GoalState:
         routine_summary=summary or None,
         todos_need_confirm=needs_confirm,
         has_todo_today=todo is not None and bool(todo.items),
-        has_plan_today=plan is not None,
+        has_plan_today=bool(plans),
         is_overdue=goal.due_date is not None
         and goal.due_date < today
         and goal.completed_at is None,
+        todo_items=[(i.content, i.is_done) for i in todo.items] if todo else [],
+        plan_lines=[plan_line(b.start_minutes, b.duration_minutes, b.title) for b in plans],
+        memory=goal.memory,
+        is_snoozed=goal.nudge_snoozed_until is not None
+        and as_utc(goal.nudge_snoozed_until) > datetime.now(UTC),
     )
 
 
@@ -533,13 +564,15 @@ async def send_message(
         .scalars()
         .all()
     )
-    history = [(m.role, m.content) for m in reversed(rows)]
+    user_settings = await db.get(UserSettings, goal.user_id)
+    history = _history_for_ai(
+        list(reversed(rows)), zone_of(user_settings.timezone if user_settings else None)
+    )
     # 이번 턴 첨부는 내용까지 읽어 넘긴다(지난 첨부는 히스토리에 글로만 남는다)
     attachment = _attachment_content(saved_attachment)
 
     # AI 가 create_todos/create_planner 의 date 를 찍으려면 '오늘'을 알아야 한다.
     # 서버 UTC 가 아니라 그 사람 타임존 기준이어야 기록 화면과 같은 날에 들어간다.
-    user_settings = await db.get(UserSettings, goal.user_id)
     today = today_for(user_settings.timezone if user_settings else None)
 
     # 3) 응답 생성은 백그라운드로 돌린다.

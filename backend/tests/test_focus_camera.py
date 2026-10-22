@@ -348,3 +348,21 @@ async def test_resume_without_pause_is_alive(client: AsyncClient):
     session_id = (await _start(client, token)).json()["id"]
 
     assert (await _resume(client, token, session_id)).json() == {"alive": True}
+
+
+async def test_unverified_session_still_records_focus_time(client: AsyncClient):
+    """인증은 못 받아도 앉아 있던 시간은 집중 기록으로 남는다."""
+    token = await token_for(client, "unverified@b.com")
+    sid = (await _start(client, token)).json()["id"]
+    await client.post(
+        f"/api/focus/sessions/{sid}/checks",
+        headers=auth(token),
+        json=_samples([("absent", f"2026-10-12T10:00:{s}0Z") for s in range(3)]),
+    )
+
+    await client.post(
+        f"/api/focus/sessions/{sid}/finish", headers=auth(token), json={"seconds": 600}
+    )
+
+    planner = await client.get("/api/planners", headers=auth(token), params={"date": "2026-10-12"})
+    assert [(b["kind"], b["durationMinutes"]) for b in planner.json()["actual"]] == [("focus", 10)]
