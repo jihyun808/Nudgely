@@ -135,6 +135,7 @@ async def build_goal_detail(db: AsyncSession, goal: Goal, user_id: str) -> GoalD
     return GoalDetailOut(
         **base.model_dump(),
         prompt=goal.prompt,
+        memory=goal.memory,
         persona=goal.persona,
         due_date=goal.due_date,
         is_notification_muted=goal.is_notification_muted,

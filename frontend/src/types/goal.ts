@@ -60,6 +60,8 @@ export interface Goal {
 export interface GoalDetail extends Goal {
   /** AI의 역할·말투를 정하는 시스템 프롬프트 */
   prompt?: string;
+  /** AI가 이 방에서 기억할 것. 사용자가 고치고, AI도 대화 중에 덧붙인다 */
+  memory?: string;
   /** 고른 페르소나. 고르지 않았으면 없다 */
   persona?: GoalPersona;
   /** 목표 기한 (YYYY-MM-DD). 설정하면 D-day가 표시된다 */
@@ -85,6 +87,7 @@ export interface UpdateGoalInput {
   title?: string;
   imageUrl?: string;
   prompt?: string;
+  memory?: string;
   dueDate?: string;
   /** 사용자가 직접 고친 진도. AI가 잘못 세웠을 때 바로잡는 길 */
   progress?: GoalProgressAmount;
@@ -110,4 +113,5 @@ export const GOAL_LIMITS = {
   name: 10,
   title: 50,
   prompt: 500,
+  memory: 500,
 } as const;

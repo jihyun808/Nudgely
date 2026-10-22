@@ -232,6 +232,8 @@ async def update_goal(
         goal.title = body.title.strip() or None
     if body.prompt is not None:
         goal.prompt = body.prompt.strip() or None
+    if body.memory is not None:
+        goal.memory = body.memory.strip() or None
     # null 을 보내면 '선택 안 함' 으로 되돌린다(기한과 같은 방식).
     # is not None 으로 보면 지울 수가 없어 설정 화면의 '선택 안 함' 이 먹지 않는다.
     if "persona" in body.model_fields_set:
@@ -459,6 +461,7 @@ async def _goal_state(db: AsyncSession, goal: Goal, today: date) -> GoalState:
         and goal.completed_at is None,
         todo_items=[(i.content, i.is_done) for i in todo.items] if todo else [],
         plan_lines=[plan_line(b.start_minutes, b.duration_minutes, b.title) for b in plans],
+        memory=goal.memory,
         is_snoozed=goal.nudge_snoozed_until is not None
         and as_utc(goal.nudge_snoozed_until) > datetime.now(UTC),
     )

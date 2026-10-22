@@ -10,6 +10,8 @@ export interface GoalBasicValues {
   name: string;
   title: string;
   prompt: string;
+  /** AI가 기억할 것. AI도 대화 중에 덧붙인다 */
+  memory: string;
   imageUrl?: string;
   /** AI 성격. 고르지 않으면 기본 말투로 답한다 */
   persona?: GoalPersona;
@@ -86,6 +88,26 @@ export default function GoalBasicForm({ values, onChange }: GoalBasicFormProps) 
           placeholder="AI가 어떤 말투와 역할로 대화하면 좋을지 적어주세요"
           className="h-28 resize-none"
         />
+      </div>
+
+      <div className="mt-4 flex flex-col gap-1.5">
+        <FieldLabel
+          htmlFor="goal-setting-memory"
+          label="AI가 기억할 것"
+          length={values.memory.length}
+          maxLength={GOAL_LIMITS.memory}
+        />
+        <Textarea
+          id="goal-setting-memory"
+          value={values.memory}
+          maxLength={GOAL_LIMITS.memory}
+          onChange={(e) => update({ memory: e.target.value })}
+          placeholder="예) 평일엔 밤에만 시간 돼요. 칭찬은 짧게 해주세요."
+          className="h-28 resize-none"
+        />
+        <p className="text-xs text-muted-foreground">
+          대화하면서 AI가 기억해 둔 내용도 여기에 쌓여요. 틀린 건 지워주세요.
+        </p>
       </div>
     </div>
   );
